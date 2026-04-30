@@ -12,7 +12,9 @@ Type `/glm:` and the autocomplete shows every thinking-level combo. Enter submit
 
 ## Install
 
-This ware ships as part of [`pi-wares`](../README.md). Install the parent package and enable `model-shortcuts` in `pi config`.
+Ships as part of [`pi-wares`](../README.md). Install the parent package and enable `model-shortcuts` in `pi config`.
+
+An example config is provided at [`extensions/model-shortcuts.example.json`](../extensions/model-shortcuts.example.json) — copy it to `~/.pi/agent/extensions/pi-model-shortcuts.json` and edit.
 
 ## Configure
 

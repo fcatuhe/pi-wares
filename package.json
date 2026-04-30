@@ -11,15 +11,11 @@
     "extensions"
   ],
   "files": [
-    "model-shortcuts/",
+    "extensions/",
+    "docs/",
     "README.md",
     "LICENSE"
   ],
-  "pi": {
-    "extensions": [
-      "./model-shortcuts/model-shortcuts.ts"
-    ]
-  },
   "peerDependencies": {
     "@mariozechner/pi-agent-core": "*",
     "@mariozechner/pi-ai": "*",
