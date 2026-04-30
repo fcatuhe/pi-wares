@@ -1,0 +1,32 @@
+{
+  "name": "pi-wares",
+  "version": "0.1.0",
+  "description": "François' personal pi-wares — a small stash of extensions, hooks, and slash commands for the pi coding agent.",
+  "type": "module",
+  "license": "MIT",
+  "keywords": [
+    "pi",
+    "pi-coding-agent",
+    "pi-package",
+    "extensions"
+  ],
+  "files": [
+    "model-shortcuts/",
+    "README.md",
+    "LICENSE"
+  ],
+  "pi": {
+    "extensions": [
+      "./model-shortcuts/model-shortcuts.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-agent-core": "*",
+    "@mariozechner/pi-ai": "*",
+    "@mariozechner/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  }
+}
