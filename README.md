@@ -22,6 +22,7 @@ No `pi` manifest needed in `package.json` — pi auto-discovers everything in `e
 | Ware | What it does |
 |---|---|
 | [`model-shortcuts/`](./extensions/model-shortcuts/) | Slash-command shortcuts for switching model + thinking level (`/opus`, `/glm:high`, ...) |
+| [`compact-footer/`](./extensions/compact-footer/) | Squeezes pi's 3-line footer into 2 lines by merging statuses onto the path line. |
 
 More to come.
 
