@@ -19,9 +19,9 @@ No `pi` manifest needed in `package.json` — pi auto-discovers everything in `e
 
 ## Wares
 
-| Ware | What it does | Docs |
-|---|---|---|
-| `model-shortcuts` | Slash-command shortcuts for switching model + thinking level (`/opus`, `/glm:high`, ...) | [docs/model-shortcuts.md](./docs/model-shortcuts.md) |
+| Ware | What it does |
+|---|---|
+| [`model-shortcuts/`](./extensions/model-shortcuts/) | Slash-command shortcuts for switching model + thinking level (`/opus`, `/glm:high`, ...) |
 
 More to come.
 
@@ -31,16 +31,24 @@ More to come.
 pi-wares/
 ├── package.json              ← name: "pi-wares", no `pi` manifest (convention-based)
 ├── tsconfig.json
-├── extensions/               ← pi auto-loads every .ts/.js file here
-│   ├── model-shortcuts.ts
-│   └── model-shortcuts.example.json   ← reference; pi ignores non-.ts files
-└── docs/
-    └── model-shortcuts.md    ← per-ware long-form docs
+└── extensions/               ← pi auto-loads every ware here
+    └── model-shortcuts/
+        ├── index.ts          ← entry point (required filename)
+        ├── example.json      ← reference; pi only loads index.ts
+        └── README.md         ← per-ware docs, co-located with code
 ```
 
-Adding a new ware = drop `extensions/<name>.ts` in. Optionally add `docs/<name>.md` and link it from the table above. That's it.
+**Discovery rules** (from pi-coding-agent's resource loader):
 
-When a ware grows companion files that aren't extensions (skills, prompts, themes), add the matching convention dir (`skills/`, `prompts/`, `themes/`) — pi picks it up automatically. Switch to an explicit `pi` manifest in `package.json` only if you need non-default paths or filtering.
+1. `extensions/*.ts` — flat file, loaded directly
+2. `extensions/<name>/index.ts` — subfolder with `index.ts`, loaded as a single extension
+3. `extensions/<name>/package.json` with `pi.extensions` — subfolder with explicit manifest
+
+No recursion beyond one level. We use rule #2: each ware in its own folder, with `index.ts` as the entry. All other files in the folder (READMEs, example configs, sub-modules imported by `index.ts`) are ignored by discovery but live with the code.
+
+**Adding a new ware** = `mkdir extensions/<name>`, add `extensions/<name>/index.ts`, add a row to the Wares table. That's it.
+
+When a ware grows companion resource types (skills, prompts, themes), add the matching convention dir at the repo root (`skills/`, `prompts/`, `themes/`) — pi picks them up automatically. Switch to an explicit `pi` manifest in `package.json` only if you need non-default paths or filtering.
 
 ## License
 
