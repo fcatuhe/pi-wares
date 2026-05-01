@@ -41,8 +41,14 @@ sidequests({
     // follow-up that also renames the session (label used verbatim, no decoration)
     { session: "019dd5b1", label: "auth-final-report", prompt: "produce the final report" },
 
-    // escape hatch: any extra pi flags
-    { label: "spike", prompt: "try option C", args: ["--model", "anthropic/claude-sonnet-4-6"] },
+    // model nickname resolved against your enabledModels scope
+    { label: "spike",     prompt: "try option C", model: "sonnet" },
+
+    // model with thinking level
+    { label: "deep-dive", prompt: "think hard",   model: "opus:high" },
+
+    // literal provider/id (bypasses scope lookup)
+    { label: "raw",       prompt: "...",          model: "groq/qwen3-coder" },
   ],
 })
 ```
@@ -53,7 +59,8 @@ sidequests({
 | `sessions[].prompt` | yes | The user message sent to that child (literal — never slugged, prefixed, or wrapped). |
 | `sessions[].label` | new: optional · follow-up rename: required for renaming | On a **new** session, becomes `sq_<slug>_<DDmonYY>-<HHMM>-<tz>` in `pi -r`. On a **follow-up**, is used **verbatim** as the new display name (no decoration). |
 | `sessions[].session` | follow-up only | UUID (or 8+ char prefix) of an existing session. Presence of this field switches the entry from "new" to "follow-up". |
-| `sessions[].args` | no | Extra pi flags appended verbatim, e.g. `["--model", "...", "--skill", "..."]`. **Rejected** if it contains `--session` or `--name` (those are managed by the tool). |
+| `sessions[].model` | no | Model for the child session. Either a literal `provider/id` (e.g. `anthropic/claude-opus-4-7`) **or** a nickname matched case-insensitively as a substring against the user's `enabledModels` scope from `~/.pi/agent/settings.json` (e.g. `opus`, `sonnet`, `gpt`, `5.5`). Optional `:<thinkingLevel>` suffix sets thinking (`off`, `minimal`, `low`, `medium`, `high`, `xhigh`). Ambiguous or missing matches are rejected at validation time. Omit to use pi's default. |
+| `sessions[].args` | no | Extra pi flags appended verbatim, e.g. `["--skill", "brave-search"]`. **Rejected** if it contains `--session`, `--name`, `--model`, or `--thinking` — those are managed by dedicated fields. |
 | `sessions[].cwd` | no | Working directory for the spawned process. Defaults to the parent's cwd. |
 
 Validation also rejects duplicate `session` UUIDs in a single call (would produce racing writes to the same JSONL).
@@ -122,9 +129,9 @@ The parent LLM gets three short summaries; you can dive into any of the three se
 ```ts
 sidequests({
   sessions: [
-    { label: "opt-ws",   prompt: "Implement option A: WebSockets", args: ["--model", "anthropic/claude-sonnet-4-6"], cwd: "/path/to/wt-A" },
-    { label: "opt-sse",  prompt: "Implement option B: SSE",        args: ["--model", "anthropic/claude-sonnet-4-6"], cwd: "/path/to/wt-B" },
-    { label: "opt-poll", prompt: "Implement option C: long-poll",  args: ["--model", "anthropic/claude-sonnet-4-6"], cwd: "/path/to/wt-C" },
+    { label: "opt-ws",   prompt: "Implement option A: WebSockets", model: "sonnet", cwd: "/path/to/wt-A" },
+    { label: "opt-sse",  prompt: "Implement option B: SSE",        model: "sonnet", cwd: "/path/to/wt-B" },
+    { label: "opt-poll", prompt: "Implement option C: long-poll",  model: "sonnet", cwd: "/path/to/wt-C" },
   ],
 })
 ```

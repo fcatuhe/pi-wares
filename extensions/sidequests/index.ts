@@ -33,6 +33,81 @@ const getSessionsDir = () => path.join(getAgentDir(), "sessions");
 
 const MAX_PARALLEL_TASKS = 8;
 const DEFAULT_CONCURRENCY = 4;
+
+// Thinking levels accepted by pi as `--thinking <level>`. Mirrored from
+// model-shortcuts; not imported to keep extensions decoupled.
+const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh"] as const;
+type ThinkingLevelLiteral = (typeof THINKING_LEVELS)[number];
+const THINKING_LEVEL_SET = new Set<string>(THINKING_LEVELS);
+
+// ---------- model resolution against the user's enabledModels scope ----------
+
+/**
+ * Read `enabledModels` from pi's own settings.json. Each entry is `provider/modelId`.
+ * The user curates this list via `--models`, `/scoped-models`, or pi's UI.
+ */
+function loadEnabledModels(): string[] {
+	const file = path.join(getAgentDir(), "settings.json");
+	try {
+		const parsed = JSON.parse(readFileSync(file, "utf8"));
+		if (parsed && Array.isArray(parsed.enabledModels)) {
+			return parsed.enabledModels.filter((s: unknown): s is string => typeof s === "string" && s.includes("/"));
+		}
+	} catch {
+		/* settings missing or unreadable */
+	}
+	return [];
+}
+
+/**
+ * Split an optional trailing `:<thinkingLevel>` off a model spec, but only if
+ * the suffix is one of THINKING_LEVELS. Otherwise the colon is part of the
+ * name (e.g. `qwen-7b:latest`) and stays.
+ */
+function splitThinkingSuffix(spec: string): { name: string; level?: ThinkingLevelLiteral } {
+	const lastColon = spec.lastIndexOf(":");
+	if (lastColon === -1) return { name: spec };
+	const suffix = spec.slice(lastColon + 1);
+	if (THINKING_LEVEL_SET.has(suffix)) return { name: spec.slice(0, lastColon), level: suffix as ThinkingLevelLiteral };
+	return { name: spec };
+}
+
+/**
+ * Resolve the user-facing `model` field to the args we'll pass the child:
+ *  - literal `provider/id[:level]`  -> use as-is
+ *  - bare nickname `<frag>[:level]` -> case-insensitive substring match against
+ *    the modelId portion of each entry in `enabledModels`. Exactly one match.
+ *
+ * Throws on ambiguity, no match, or empty enabledModels.
+ */
+function resolveModel(spec: string): { providerSlashId: string; level?: ThinkingLevelLiteral } {
+	const trimmed = spec.trim();
+	if (!trimmed) throw new Error("`model` must be a non-empty string.");
+	const { name, level } = splitThinkingSuffix(trimmed);
+
+	if (name.includes("/")) return { providerSlashId: name, level };
+
+	const enabled = loadEnabledModels();
+	if (enabled.length === 0) {
+		throw new Error(
+			`Cannot resolve model nickname '${name}': no enabledModels in ~/.pi/agent/settings.json. Set scope via \`--models\` / \`/scoped-models\`, or pass a literal 'provider/id'.`,
+		);
+	}
+	const needle = name.toLowerCase();
+	const matches = enabled.filter((entry) => {
+		const id = entry.slice(entry.indexOf("/") + 1).toLowerCase();
+		return id.includes(needle);
+	});
+	if (matches.length === 1) return { providerSlashId: matches[0], level };
+	if (matches.length === 0) {
+		throw new Error(
+			`No enabled model matches '${name}'. Available: ${enabled.join(", ")}. Or pass a literal 'provider/id'.`,
+		);
+	}
+	throw new Error(
+		`'${name}' is ambiguous, matches ${matches.length} enabled models: ${matches.join(", ")}. Use a more specific fragment or a literal 'provider/id'.`,
+	);
+}
 // finalText (assistant model output) is returned verbatim, no cap — it's model-generated and
 // the whole point of dispatching the sidequest is to get it back. stderr (process noise)
 // is still capped via STDERR_PREVIEW_CHARS to avoid dumping pi startup chatter into context.
@@ -309,6 +384,11 @@ function buildChildArgs(task: TaskInput): string[] {
 	if (task.session) out.push("--session", task.session);
 	const piName = derivePiName(task);
 	if (piName) out.push("--name", piName);
+	if (task.model) {
+		const resolved = resolveModel(task.model);
+		out.push("--model", resolved.providerSlashId);
+		if (resolved.level) out.push("--thinking", resolved.level);
+	}
 	if (task.args && task.args.length > 0) out.push(...task.args);
 	out.push(task.prompt);
 	return out;
@@ -381,6 +461,7 @@ type TaskInput = {
 	session?: string;
 	label?: string;
 	prompt: string;
+	model?: string; // raw user-facing spec, resolved at buildChildArgs time
 	args?: string[];
 	cwd?: string;
 };
@@ -555,10 +636,17 @@ const SessionItem = Type.Object({
 		description: "The user message for this turn.",
 		minLength: 1,
 	}),
+	model: Type.Optional(
+		Type.String({
+			description:
+				"Model for the child session. Either a literal 'provider/id' (e.g. 'anthropic/claude-opus-4-7') or a nickname matched case-insensitively as a substring against the user's enabledModels scope (e.g. 'opus', 'sonnet', 'gpt'). Optional `:<thinkingLevel>` suffix sets thinking ('off', 'minimal', 'low', 'medium', 'high', 'xhigh'). Ambiguous or missing matches are rejected. Omit to use pi's default.",
+			minLength: 1,
+		}),
+	),
 	args: Type.Optional(
 		Type.Array(Type.String(), {
 			description:
-				"Optional escape hatch for extra pi flags. Most calls don't need this. Examples: `[\"--model\", \"openai-codex/gpt-5.5\"]`, `[\"--skill\", \"brave-search\"]`, `[\"--thinking\", \"high\"]`. Do NOT include `--mode json`, `-p`, `--name`, or `--session` here — those are handled by the dedicated fields.",
+				"Optional escape hatch for extra pi flags. Most calls don't need this. Examples: `[\"--skill\", \"brave-search\"]`, `[\"--extension\", \"...\"]`. Do NOT include `--mode json`, `-p`, `--name`, `--session`, `--model`, or `--thinking` — those are handled by dedicated fields.",
 		}),
 	),
 	cwd: Type.Optional(Type.String({ description: "Working directory for the spawned child process. Defaults to the parent's cwd." })),
@@ -646,20 +734,39 @@ function normalizeSessions(raw: unknown): TaskInput[] {
 				args.push(a);
 			}
 		}
-		if (args && args.some((a) => a === "--session" || a.startsWith("--session="))) {
-			throw new Error(
-				`sessions[${i}].args must not contain '--session'. Use the dedicated 'session' field instead.`,
-			);
+		const forbiddenInArgs: Array<{ flag: string; field: string }> = [
+			{ flag: "--session", field: "session" },
+			{ flag: "--name", field: "label" },
+			{ flag: "--model", field: "model" },
+			{ flag: "--thinking", field: "model" },
+		];
+		if (args) {
+			for (const { flag, field } of forbiddenInArgs) {
+				if (args.some((a) => a === flag || a.startsWith(`${flag}=`))) {
+					throw new Error(
+						`sessions[${i}].args must not contain '${flag}'. Use the dedicated '${field}' field instead.`,
+					);
+				}
+			}
 		}
-		if (args && args.some((a) => a === "--name" || a.startsWith("--name="))) {
-			throw new Error(
-				`sessions[${i}].args must not contain '--name'. Use the dedicated 'name' field instead.`,
-			);
+		let model: string | undefined;
+		if (rec.model !== undefined) {
+			if (typeof rec.model !== "string" || rec.model.trim().length === 0) {
+				throw new Error(`sessions[${i}].model must be a non-empty string.`);
+			}
+			model = rec.model.trim();
+			// Validate eagerly so the error surfaces before spawn.
+			try {
+				resolveModel(model);
+			} catch (e) {
+				throw new Error(`sessions[${i}].model: ${(e as Error).message}`);
+			}
 		}
 		out.push({
 			session,
 			label,
 			prompt: rec.prompt,
+			model,
 			args,
 			cwd: typeof rec.cwd === "string" ? rec.cwd : undefined,
 		});
