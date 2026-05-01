@@ -1,17 +1,6 @@
 /**
- * sidequests — run N pi sessions in parallel from one parent.
- *
- * See ./sidecar.md for the full design and implementation tracker.
- *
- * Two things are registered on load:
- *   1. `--name <string>` CLI flag — generic. On `session_start`, sets the
- *      current session's display name verbatim via `pi.setSessionName()`.
- *      Useful for any `pi -p` invocation, not just children spawned here.
- *   2. `sidequests` tool — LLM-callable. Each entry in `sessions[]` is
- *      either a NEW session (`name` + `prompt`) or a FOLLOW-UP turn on an
- *      existing session (`session` UUID + `prompt`). New and follow-up
- *      entries can be mixed freely in one call. `args` is an optional
- *      escape hatch for extra pi flags (--model, --skill, --thinking, ...).
+ * sidequests — run N pi sessions in parallel from one parent. See ./sidecar.md
+ * for the full design and implementation tracker.
  *
  * Bytes-on-the-wire from `pi --mode json` are huge (every text_delta re-emits
  * accumulated text + usage), but only `content[0].text` reaches the parent
@@ -23,7 +12,6 @@ import { spawn } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { AgentToolResult } from "@mariozechner/pi-agent-core";
 import type { Message } from "@mariozechner/pi-ai";
 import { type ExtensionAPI, getAgentDir, getMarkdownTheme } from "@mariozechner/pi-coding-agent";
 import { Container, Markdown, Spacer, Text } from "@mariozechner/pi-tui";
@@ -38,7 +26,6 @@ const DEFAULT_CONCURRENCY = 4;
 // model-shortcuts; not imported to keep extensions decoupled.
 const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh"] as const;
 type ThinkingLevelLiteral = (typeof THINKING_LEVELS)[number];
-const THINKING_LEVEL_SET = new Set<string>(THINKING_LEVELS);
 
 // ---------- model resolution against the user's enabledModels scope ----------
 
@@ -68,7 +55,8 @@ function splitThinkingSuffix(spec: string): { name: string; level?: ThinkingLeve
 	const lastColon = spec.lastIndexOf(":");
 	if (lastColon === -1) return { name: spec };
 	const suffix = spec.slice(lastColon + 1);
-	if (THINKING_LEVEL_SET.has(suffix)) return { name: spec.slice(0, lastColon), level: suffix as ThinkingLevelLiteral };
+	if ((THINKING_LEVELS as readonly string[]).includes(suffix))
+		return { name: spec.slice(0, lastColon), level: suffix as ThinkingLevelLiteral };
 	return { name: spec };
 }
 
@@ -153,16 +141,13 @@ function shortId(uuid: string): string {
 	return uuid.length >= 18 ? uuid.slice(0, 18) : uuid;
 }
 
-function shortenPath(p: string): string {
-	const home = os.homedir();
-	return p.startsWith(home) ? `~${p.slice(home.length)}` : p;
-}
-
 function formatToolCall(
 	toolName: string,
 	args: Record<string, unknown>,
 	themeFg: (color: any, text: string) => string,
 ): string {
+	const home = os.homedir();
+	const shortenPath = (p: string) => (p.startsWith(home) ? `~${p.slice(home.length)}` : p);
 	switch (toolName) {
 		case "bash": {
 			const command = (args.command as string) || "...";
@@ -194,24 +179,22 @@ function formatToolCall(
 	}
 }
 
-async function mapWithConcurrencyLimit<TIn, TOut>(
-	items: TIn[],
-	concurrency: number,
-	fn: (item: TIn, index: number) => Promise<TOut>,
-): Promise<TOut[]> {
-	if (items.length === 0) return [];
-	const limit = Math.max(1, Math.min(concurrency, items.length));
-	const results: TOut[] = new Array(items.length);
+async function runWithConcurrencyLimit<T>(
+	items: T[],
+	limit: number,
+	work: (item: T, index: number) => Promise<void>,
+): Promise<void> {
+	if (items.length === 0) return;
+	const capped = Math.max(1, Math.min(limit, items.length));
 	let nextIndex = 0;
-	const workers = new Array(limit).fill(null).map(async () => {
+	const workers = new Array(capped).fill(null).map(async () => {
 		while (true) {
 			const current = nextIndex++;
 			if (current >= items.length) return;
-			results[current] = await fn(items[current], current);
+			await work(items[current], current);
 		}
 	});
 	await Promise.all(workers);
-	return results;
 }
 
 /** Pi binary invocation — handles bun-binary, node-from-script, and PATH `pi`. */
@@ -225,28 +208,6 @@ function getPiInvocation(args: string[]): { command: string; args: string[] } {
 	const isGenericRuntime = /^(node|bun)(\.exe)?$/.test(execName);
 	if (!isGenericRuntime) return { command: process.execPath, args };
 	return { command: "pi", args };
-}
-
-/** Encode a cwd to its sessions/ subdirectory name (e.g. /tmp → --tmp--). */
-function encodeCwdForSessions(cwd: string): string {
-	return `-${cwd.replace(/[/\\]/g, "-")}-`;
-}
-
-/** Find the session JSONL file for a given UUID (full or prefix) under sessions/<encoded-cwd>/. */
-function findSessionFile(cwd: string, sessionIdOrPrefix: string): string | undefined {
-	const dir = path.join(getSessionsDir(), encodeCwdForSessions(cwd));
-	if (!existsSync(dir)) return undefined;
-	try {
-		const entries = readdirSync(dir);
-		const exact = entries.find(
-			(f) => f.endsWith(`_${sessionIdOrPrefix}.jsonl`) || f === `${sessionIdOrPrefix}.jsonl`,
-		);
-		if (exact) return path.join(dir, exact);
-		const prefixed = entries.find((f) => f.includes(`_${sessionIdOrPrefix}`) && f.endsWith(".jsonl"));
-		return prefixed ? path.join(dir, prefixed) : undefined;
-	} catch {
-		return undefined;
-	}
 }
 
 /**
@@ -306,6 +267,16 @@ function readSessionDisplayName(file: string): string | undefined {
 	}
 }
 
+/** Look up a session's JSONL on disk by id-or-prefix and copy its file path + latest
+ *  display name onto the result. No-op if the file or name can't be found. */
+function populateDisplayName(result: SidequestResult, idOrPrefix: string): void {
+	const file = findSessionFileAcrossCwds(idOrPrefix);
+	if (!file) return;
+	result.sessionFile = file;
+	const name = readSessionDisplayName(file);
+	if (name) result.displayName = name;
+}
+
 /** Slugify the agent's label for inclusion in the decorated session display name. */
 function slugify(s: string): string {
 	return (
@@ -361,37 +332,51 @@ function decorateLabel(label: string): string {
 	return `sq_${slugify(label)}_${stamp()}`;
 }
 
-/**
- * Build the child argv from structured fields.
- *
- *   pi --mode json -p [--session <uuid>] [--name <piName>] [...args] <prompt>
- *
- * `piName` is derived from `task.label`:
- *   - new session (no `session`): decorated `sq-<slug>-<stamp>` form.
- *   - follow-up rename (`session` + `label` both set): agent's verbatim label.
- *   - follow-up without rename (`session` only): no `--name` injected.
- *
- * `args` is the agent's optional escape hatch for flags we don't model
- * directly (--model, --skill, --thinking, --extension, etc.). Passes through.
- */
-function derivePiName(task: TaskInput): string | undefined {
-	if (!task.label) return undefined;
-	return task.session ? task.label : decorateLabel(task.label);
-}
-
-function buildChildArgs(task: TaskInput): string[] {
+function buildChildArgs(task: NormalizedSession): string[] {
 	const out: string[] = ["--mode", "json", "-p"];
 	if (task.session) out.push("--session", task.session);
-	const piName = derivePiName(task);
-	if (piName) out.push("--name", piName);
-	if (task.model) {
-		const resolved = resolveModel(task.model);
-		out.push("--model", resolved.providerSlashId);
-		if (resolved.level) out.push("--thinking", resolved.level);
+	if (task.piName) out.push("--name", task.piName);
+	if (task.resolvedModel) {
+		out.push("--model", task.resolvedModel.providerSlashId);
+		if (task.resolvedModel.level) out.push("--thinking", task.resolvedModel.level);
 	}
 	if (task.args && task.args.length > 0) out.push(...task.args);
 	out.push(task.prompt);
 	return out;
+}
+
+/**
+ * Build the placeholder/initial SidequestResult for a task. Called from both
+ * the execute() placeholder mapping and runSingleSidequest's opening, so the
+ * shape stays in sync. `task.piName` is computed once in normalizeSessions to
+ * avoid `stamp()` time-skew between argv assembly and result rendering.
+ */
+function createInitialResult(task: NormalizedSession, cwd: string): SidequestResult {
+	return {
+		label: task.label,
+		prompt: task.prompt,
+		args: buildChildArgs(task),
+		followUp: !!task.session,
+		cwd,
+		sessionId: "",
+		sessionFile: "",
+		exitCode: -1,
+		stderr: "",
+		messages: [],
+		usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, contextTokens: 0, turns: 0 },
+	};
+}
+
+function kindGlyph(r: Pick<SidequestResult, "followUp">): string {
+	return r.followUp ? "↻" : "✦";
+}
+
+function iconFor(r: SidequestResult, theme: { fg: (color: any, text: string) => string }): string {
+	return r.exitCode === -1
+		? theme.fg("warning", "⏳")
+		: r.exitCode === 0 && r.stopReason !== "error"
+			? theme.fg("success", "✓")
+			: theme.fg("error", "✗");
 }
 
 function getFinalText(messages: Message[]): string {
@@ -435,8 +420,6 @@ interface UsageStats {
 
 interface SidequestResult {
 	label?: string; // agent-supplied label (verbatim, used in result rows)
-	piName?: string; // decorated `sq-<slug>-<stamp>` form actually passed to --name (or verbatim on rename)
-	resumedSession?: string; // agent-supplied --session UUID prefix, if this was a follow-up
 	prompt: string;
 	args: string[]; // final argv passed to the child (after our assembly)
 	followUp: boolean; // true if `session` was provided
@@ -453,59 +436,91 @@ interface SidequestResult {
 	usage: UsageStats;
 }
 
-interface SidequestDetails {
-	results: SidequestResult[];
-}
-
-type TaskInput = {
+type NormalizedSession = {
 	session?: string;
 	label?: string;
 	prompt: string;
-	model?: string; // raw user-facing spec, resolved at buildChildArgs time
+	model?: string; // raw user-facing spec (kept for diagnostics/details)
+	resolvedModel?: { providerSlashId: string; level?: ThinkingLevelLiteral }; // computed once in normalizeSessions
+	piName?: string; // decorated `--name` value, computed once in normalizeSessions
 	args?: string[];
 	cwd?: string;
 };
 
+const FORBIDDEN_IN_ARGS: ReadonlyArray<{ flag: string; field: string }> = [
+	{ flag: "--session", field: "session" },
+	{ flag: "--name", field: "label" },
+	{ flag: "--model", field: "model" },
+	{ flag: "--thinking", field: "model" },
+];
+
 // ---------- core: spawn + parse one sidequest ----------
+
+/**
+ * Apply a single line from the child's `--mode json` stdout to `result`.
+ * Returns true iff the line caused an observable mutation worth re-emitting.
+ * Lifecycle events (text_delta, message_update, *_start, non-message *_end)
+ * are dropped — only `session`, `message_end`, and `tool_result_end` matter.
+ */
+function applyJsonEvent(line: string, result: SidequestResult): boolean {
+	if (!line.trim()) return false;
+	let event: any;
+	try {
+		event = JSON.parse(line);
+	} catch {
+		return false;
+	}
+
+	// Capture session UUID from the very first event.
+	if (event.type === "session" && event.id && !result.sessionId) {
+		result.sessionId = event.id;
+		return true;
+	}
+
+	if (event.type === "message_end" && event.message) {
+		const msg = event.message as Message;
+		result.messages.push(msg);
+		if (msg.role === "assistant") {
+			result.usage.turns++;
+			const u = msg.usage;
+			if (u) {
+				result.usage.input += u.input || 0;
+				result.usage.output += u.output || 0;
+				result.usage.cacheRead += u.cacheRead || 0;
+				result.usage.cacheWrite += u.cacheWrite || 0;
+				result.usage.cost += u.cost?.total || 0;
+				result.usage.contextTokens = u.totalTokens || 0;
+			}
+			if (!result.model && msg.model) result.model = msg.model;
+			if (msg.stopReason) result.stopReason = msg.stopReason;
+			if (msg.errorMessage) result.errorMessage = msg.errorMessage;
+		}
+		return true;
+	}
+
+	if (event.type === "tool_result_end" && event.message) {
+		result.messages.push(event.message as Message);
+		return true;
+	}
+
+	return false;
+}
 
 async function runSingleSidequest(
 	defaultCwd: string,
-	task: TaskInput,
+	task: NormalizedSession,
 	signal: AbortSignal | undefined,
 	onTaskUpdate: ((r: SidequestResult) => void) | undefined,
 ): Promise<SidequestResult> {
 	const cwd = task.cwd ?? defaultCwd;
-	const childArgs = buildChildArgs(task);
-	const followUp = !!task.session;
-
-	const result: SidequestResult = {
-		label: task.label,
-		piName: derivePiName(task),
-		resumedSession: task.session,
-		prompt: task.prompt,
-		args: childArgs,
-		followUp,
-		cwd,
-		sessionId: "",
-		sessionFile: "",
-		exitCode: -1,
-		stderr: "",
-		messages: [],
-		usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, contextTokens: 0, turns: 0 },
-	};
+	const result = createInitialResult(task, cwd);
+	const childArgs = result.args;
 
 	// For follow-ups, eagerly resolve the existing session file + display name so the
 	// live renderer can show the friendly name instead of just the UUID prefix.
 	// Use the cross-cwd lookup: the existing session's JSONL lives in *its* original
 	// cwd-encoded directory, which may differ from the parent's cwd.
-	if (task.session) {
-		const existing = findSessionFileAcrossCwds(task.session);
-		if (existing) {
-			result.sessionFile = existing;
-			const name = readSessionDisplayName(existing);
-			if (name) result.displayName = name;
-		}
-	}
+	if (task.session) populateDisplayName(result, task.session);
 
 	let wasAborted = false;
 
@@ -520,49 +535,7 @@ async function runSingleSidequest(
 		let buffer = "";
 
 		const processLine = (line: string) => {
-			if (!line.trim()) return;
-			let event: any;
-			try {
-				event = JSON.parse(line);
-			} catch {
-				return;
-			}
-
-			// Capture session UUID from the very first event.
-			if (event.type === "session" && event.id && !result.sessionId) {
-				result.sessionId = event.id;
-				if (onTaskUpdate) onTaskUpdate(result);
-				return;
-			}
-
-			if (event.type === "message_end" && event.message) {
-				const msg = event.message as Message;
-				result.messages.push(msg);
-				if (msg.role === "assistant") {
-					result.usage.turns++;
-					const u = msg.usage;
-					if (u) {
-						result.usage.input += u.input || 0;
-						result.usage.output += u.output || 0;
-						result.usage.cacheRead += u.cacheRead || 0;
-						result.usage.cacheWrite += u.cacheWrite || 0;
-						result.usage.cost += u.cost?.total || 0;
-						result.usage.contextTokens = u.totalTokens || 0;
-					}
-					if (!result.model && msg.model) result.model = msg.model;
-					if (msg.stopReason) result.stopReason = msg.stopReason;
-					if (msg.errorMessage) result.errorMessage = msg.errorMessage;
-				}
-				if (onTaskUpdate) onTaskUpdate(result);
-				return;
-			}
-
-			if (event.type === "tool_result_end" && event.message) {
-				result.messages.push(event.message as Message);
-				if (onTaskUpdate) onTaskUpdate(result);
-				return;
-			}
-			// Everything else (text_delta, message_update, *_start, *_end lifecycle) is dropped.
+			if (applyJsonEvent(line, result) && onTaskUpdate) onTaskUpdate(result);
 		};
 
 		proc.stdout.on("data", (data) => {
@@ -599,17 +572,7 @@ async function runSingleSidequest(
 	result.exitCode = exitCode;
 	if (wasAborted && !result.stopReason) result.stopReason = "aborted";
 
-	if (result.sessionId) {
-		// New sessions land in the parent's cwd-encoded directory; follow-ups stay in
-		// their original directory. Try cwd-bound first (fast path), then fall back to
-		// scanning all session subdirs so follow-ups also resolve correctly.
-		const file = findSessionFile(cwd, result.sessionId) || findSessionFileAcrossCwds(result.sessionId);
-		if (file) {
-			result.sessionFile = file;
-			const name = readSessionDisplayName(file);
-			if (name) result.displayName = name;
-		}
-	}
+	if (result.sessionId) populateDisplayName(result, result.sessionId);
 
 	if (onTaskUpdate) onTaskUpdate(result);
 	return result;
@@ -660,7 +623,7 @@ const SessionsArray = Type.Array(SessionItem, {
 });
 
 // Some providers/transports stringify nested tool-call args (the LLM emits
-// `"tasks": "[...]"` instead of `"tasks": [...]`). pi-ai's validator only
+// `"sessions": "[...]"` instead of `"sessions": [...]`). pi-ai's validator only
 // does primitive coercion — it won't JSON.parse a string into an array.
 // So we accept either form here and normalize in execute().
 const SidequestsParams = Type.Object({
@@ -677,11 +640,12 @@ const SidequestsParams = Type.Object({
 });
 
 /**
- * Normalize `sessions`: accept either a real array or a JSON-encoded string
- * (transport-stringified). Throws a clear error if parsing fails or the
- * shape is wrong.
+ * Parse the raw `sessions` arg into an array of unvalidated entries. Accepts
+ * either a real array or a top-level JSON-encoded string (transport fallback).
+ * Throws on malformed input. `normalizeSessions` lets the throw propagate;
+ * `renderCall` wraps in try/catch (best-effort render).
  */
-function normalizeSessions(raw: unknown): TaskInput[] {
+function parseSessionsField(raw: unknown): unknown[] {
 	let value: unknown = raw;
 	if (typeof value === "string") {
 		try {
@@ -697,16 +661,14 @@ function normalizeSessions(raw: unknown): TaskInput[] {
 			`'sessions' must be an array of {session?, label?, prompt, model?, args?, cwd?} (got ${typeof value}).`,
 		);
 	}
-	const out: TaskInput[] = [];
+	return value;
+}
+
+function normalizeSessions(raw: unknown): NormalizedSession[] {
+	const value = parseSessionsField(raw);
+	const out: NormalizedSession[] = [];
 	for (let i = 0; i < value.length; i++) {
-		let t: unknown = value[i];
-		if (typeof t === "string") {
-			try {
-				t = JSON.parse(t);
-			} catch (e) {
-				throw new Error(`sessions[${i}] was a string but not valid JSON: ${(e as Error).message}.`);
-			}
-		}
+		const t: unknown = value[i];
 		if (!t || typeof t !== "object" || Array.isArray(t)) {
 			throw new Error(`sessions[${i}] must be an object.`);
 		}
@@ -736,14 +698,8 @@ function normalizeSessions(raw: unknown): TaskInput[] {
 				args.push(a);
 			}
 		}
-		const forbiddenInArgs: Array<{ flag: string; field: string }> = [
-			{ flag: "--session", field: "session" },
-			{ flag: "--name", field: "label" },
-			{ flag: "--model", field: "model" },
-			{ flag: "--thinking", field: "model" },
-		];
 		if (args) {
-			for (const { flag, field } of forbiddenInArgs) {
+			for (const { flag, field } of FORBIDDEN_IN_ARGS) {
 				if (args.some((a) => a === flag || a.startsWith(`${flag}=`))) {
 					throw new Error(
 						`sessions[${i}].args must not contain '${flag}'. Use the dedicated '${field}' field instead.`,
@@ -752,26 +708,35 @@ function normalizeSessions(raw: unknown): TaskInput[] {
 			}
 		}
 		let model: string | undefined;
+		let resolvedModel: { providerSlashId: string; level?: ThinkingLevelLiteral } | undefined;
 		if (rec.model !== undefined) {
 			if (typeof rec.model !== "string" || rec.model.trim().length === 0) {
 				throw new Error(`sessions[${i}].model must be a non-empty string.`);
 			}
 			model = rec.model.trim();
-			// Validate eagerly so the error surfaces before spawn.
+			// Validate eagerly so the error surfaces before spawn; reuse the resolved
+			// spec at argv-build time instead of resolving twice.
 			try {
-				resolveModel(model);
+				resolvedModel = resolveModel(model);
 			} catch (e) {
 				throw new Error(`sessions[${i}].model: ${(e as Error).message}`);
 			}
 		}
-		out.push({
+		const entry: NormalizedSession = {
 			session,
 			label,
 			prompt: rec.prompt,
 			model,
+			resolvedModel,
 			args,
 			cwd: typeof rec.cwd === "string" ? rec.cwd : undefined,
-		});
+		};
+		// Compute the `--name` value ONCE here so argv and rendered name share one stamp:
+		//   new session       -> decorated `sq_<slug>_<stamp>`
+		//   follow-up rename  -> agent's verbatim label
+		//   follow-up no rename -> undefined (no `--name` flag)
+		entry.piName = entry.label ? (entry.session ? entry.label : decorateLabel(entry.label)) : undefined;
+		out.push(entry);
 	}
 
 	// Cross-entry validation: reject duplicate `session` UUIDs in one call.
@@ -825,7 +790,7 @@ export default function (pi: ExtensionAPI) {
 		parameters: SidequestsParams,
 
 		async execute(_toolCallId, params, signal, onUpdate, ctx) {
-			let tasks: TaskInput[];
+			let tasks: NormalizedSession[];
 			try {
 				tasks = normalizeSessions(params.sessions);
 			} catch (e) {
@@ -852,24 +817,8 @@ export default function (pi: ExtensionAPI) {
 				};
 			}
 
-			const concurrency = DEFAULT_CONCURRENCY;
-
 			// Initialize placeholder results for streaming UI.
-			const allResults: SidequestResult[] = tasks.map((t) => ({
-				label: t.label,
-				piName: derivePiName(t),
-				resumedSession: t.session,
-				prompt: t.prompt,
-				args: buildChildArgs(t),
-				followUp: !!t.session,
-				cwd: t.cwd ?? ctx.cwd,
-				sessionId: "",
-				sessionFile: "",
-				exitCode: -1,
-				stderr: "",
-				messages: [],
-				usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, contextTokens: 0, turns: 0 },
-			}));
+			const allResults: SidequestResult[] = tasks.map((t) => createInitialResult(t, t.cwd ?? ctx.cwd));
 
 			const emitUpdate = () => {
 				if (!onUpdate) return;
@@ -883,14 +832,11 @@ export default function (pi: ExtensionAPI) {
 
 			emitUpdate();
 
-			await mapWithConcurrencyLimit(tasks, concurrency, async (t, index) => {
-				const r = await runSingleSidequest(ctx.cwd, t, signal, (live) => {
+			await runWithConcurrencyLimit(tasks, DEFAULT_CONCURRENCY, async (t, index) => {
+				await runSingleSidequest(ctx.cwd, t, signal, (live) => {
 					allResults[index] = { ...live };
 					emitUpdate();
 				});
-				allResults[index] = r;
-				emitUpdate();
-				return r;
 			});
 
 			// Build summary for the parent LLM (terse — only `content[0].text` reaches the model).
@@ -909,7 +855,7 @@ export default function (pi: ExtensionAPI) {
 					? finalText.trim()
 					: r.errorMessage || r.stderr.slice(-STDERR_PREVIEW_CHARS).trim() || "(no output)";
 				const idHint = r.sessionId ? shortId(r.sessionId) : "";
-				const kind = r.followUp ? "↻" : "✦";
+				const kind = kindGlyph(r);
 				const shownName = r.label || r.displayName;
 				const row = shownName
 					? `[${shownName}] ${kind}${idHint ? ` (${idHint})` : ""}`
@@ -935,20 +881,16 @@ export default function (pi: ExtensionAPI) {
 		renderCall(args: any, theme) {
 			// `sessions` may be a real array or (in transport-stringified form) a string.
 			let sessions: Array<{ session?: string; label?: string; prompt?: string }> = [];
-			if (Array.isArray(args.sessions)) sessions = args.sessions;
-			else if (typeof args.sessions === "string") {
-				try {
-					const parsed = JSON.parse(args.sessions);
-					if (Array.isArray(parsed)) sessions = parsed;
-				} catch {
-					/* render best-effort */
-				}
+			try {
+				sessions = parseSessionsField(args.sessions) as Array<{ session?: string; label?: string; prompt?: string }>;
+			} catch {
+				/* render best-effort */
 			}
 			let text =
 				theme.fg("toolTitle", theme.bold("sidequests ")) +
 				theme.fg("accent", `(${sessions.length} session${sessions.length === 1 ? "" : "s"})`);
 			for (const s of sessions.slice(0, 3)) {
-				const kind = s.session ? "↻ " : "✦ ";
+				const kind = `${kindGlyph({ followUp: !!s.session })} `;
 				let displayName: string | undefined;
 				if (s.session && !s.label) {
 					const file = findSessionFileAcrossCwds(s.session);
@@ -966,7 +908,7 @@ export default function (pi: ExtensionAPI) {
 		},
 
 		renderResult(result, { expanded }, theme) {
-			const details = result.details as SidequestDetails | undefined;
+			const details = result.details as { results: SidequestResult[] } | undefined;
 			if (!details || details.results.length === 0) {
 				const text = result.content[0];
 				return new Text(text?.type === "text" ? text.text : "(no output)", 0, 0);
@@ -1027,7 +969,7 @@ export default function (pi: ExtensionAPI) {
 			};
 
 			const headerLineFor = (r: SidequestResult, rIcon: string): string => {
-				const kind = r.followUp ? theme.fg("dim", " ↻") : theme.fg("dim", " ✦");
+				const kind = theme.fg("dim", ` ${kindGlyph(r)}`);
 				const friendly = r.label || r.displayName;
 				const shown = friendly || (r.sessionId ? shortId(r.sessionId) : "(unlabeled)");
 				// Only append the dim (uuid) suffix when `shown` is a friendly name, otherwise
@@ -1046,12 +988,7 @@ export default function (pi: ExtensionAPI) {
 					),
 				);
 				for (const r of results) {
-					const rIcon =
-						r.exitCode === -1
-							? theme.fg("warning", "⏳")
-							: r.exitCode === 0 && r.stopReason !== "error"
-								? theme.fg("success", "✓")
-								: theme.fg("error", "✗");
+					const rIcon = iconFor(r, theme);
 					const items = getDisplayItems(r.messages);
 					const finalText = getFinalText(r.messages);
 
@@ -1095,12 +1032,7 @@ export default function (pi: ExtensionAPI) {
 			// Collapsed (or still running)
 			let text = `${headerIcon} ${theme.fg("toolTitle", theme.bold("sidequests "))}${theme.fg("accent", status)}`;
 			for (const r of results) {
-				const rIcon =
-					r.exitCode === -1
-						? theme.fg("warning", "⏳")
-						: r.exitCode === 0 && r.stopReason !== "error"
-							? theme.fg("success", "✓")
-							: theme.fg("error", "✗");
+				const rIcon = iconFor(r, theme);
 				const items = getDisplayItems(r.messages);
 				text += `\n\n${headerLineFor(r, rIcon)}`;
 				if (items.length === 0)

@@ -161,7 +161,7 @@ The session shows up in `pi -r` under that exact label (no decoration — that's
 ## Caveats
 
 - **Recursion.** A child sidequest can call `sidequests` itself (the tool is auto-loaded everywhere pi-wares is). Useful for hierarchical investigation; could fork-bomb if the LLM gets enthusiastic. The 8-entry hard cap keeps this bounded per call.
-- **Cost.** Each child is a real pi process making real LLM calls. Use `args: ["--model", "..."]` to put cheaper models on parallel branches.
+- **Cost.** Each child is a real pi process making real LLM calls. Use the `model` field (e.g. `"haiku"`, `"gpt:low"`) to put cheaper models on parallel branches.
 - **Session file growth.** Sessions persist forever. Prune via `pi -r` → Ctrl+D, or write a cleanup script.
 - **Worktree isolation.** Not handled here. If parallel entries could collide on the working tree (e.g., simultaneous edits), pass distinct `cwd`s or use the [`pi-side-agents`](https://github.com/badlogic/pi-side-agents) package — it adds tmux + git-worktree per task.
 - **Whole-batch await.** The call blocks until every entry finishes. There is currently no fire-and-forget / polling mode (see `sidecar.md` § "Open question").
