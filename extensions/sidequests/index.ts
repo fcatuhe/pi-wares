@@ -672,7 +672,7 @@ const SidequestsParams = Type.Object({
 					"JSON-encoded array of session objects (only used as a fallback when the transport stringifies nested args). Prefer passing a real array.",
 			}),
 		],
-		{ description: "Sessions to run. Pass an array of {session?, label?, prompt, args?, cwd?} objects." },
+		{ description: "Sessions to run. Pass an array of {session?, label?, prompt, model?, args?, cwd?} objects." },
 	),
 });
 
@@ -693,7 +693,9 @@ function normalizeSessions(raw: unknown): TaskInput[] {
 		}
 	}
 	if (!Array.isArray(value)) {
-		throw new Error(`'sessions' must be an array of {name?, session?, prompt, args?, cwd?} (got ${typeof value}).`);
+		throw new Error(
+			`'sessions' must be an array of {session?, label?, prompt, model?, args?, cwd?} (got ${typeof value}).`,
+		);
 	}
 	const out: TaskInput[] = [];
 	for (let i = 0; i < value.length; i++) {
@@ -816,8 +818,9 @@ export default function (pi: ExtensionAPI) {
 			"For a new session: { label: 'investigate-auth', prompt: 'investigate the auth flow' }.",
 			"For a follow-up: { session: '019de2af', prompt: 'now refactor it' }. Use the UUID prefix returned in a previous sidequests result.",
 			"For a follow-up that also renames the session: { session: '019de2af', label: 'auth-refactor', prompt: '...' } — the label is used verbatim in this case.",
-			"`args` is an optional escape hatch for extra pi flags (--model, --skill, --thinking, etc.); most calls don't need it.",
-			"The result summary returns each entry's label (or UUID for unlabeled follow-ups), status, and a preview of the final reply. To follow up later, pass `session: '<uuid-prefix>'` from that summary.",
+			"To pick the model per entry, set `model` (e.g. 'opus', 'sonnet', 'gpt', 'opus:high', or a literal 'provider/id'). See the `model` field description for resolution rules.",
+			"`args` is an optional escape hatch for extra pi flags (e.g. --skill, --extension); most calls don't need it. Do NOT put --model, --thinking, --session, --name there — use the dedicated fields.",
+			"The result `content[0].text` returns each entry's full final reply verbatim under a `--- [label] <kind> (<uuid>) [<status>] ---` header per task. To follow up later, pass `session: '<uuid-prefix>'` from a result row.",
 		].join(" "),
 		parameters: SidequestsParams,
 
