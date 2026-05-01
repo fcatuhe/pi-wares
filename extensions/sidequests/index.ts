@@ -141,6 +141,15 @@ function shortId(uuid: string): string {
 	return uuid.length >= 18 ? uuid.slice(0, 18) : uuid;
 }
 
+/** Strip the `sq_` prefix and `_<DDmonYY>-<HHMM><tz>` stamp from a decorated
+ *  display name, leaving just the agent-supplied slug. The decoration exists
+ *  for `pi -r` disambiguation; in the parent UI the slug is what carries
+ *  meaning. Returns the input unchanged if it doesn't match the pattern. */
+function prettyName(name: string): string {
+	const m = /^sq_(.+)_\d{2}[a-z]{3}\d{2}-\d{4}(?:[+-]\d{4}|-[a-z]+)$/.exec(name);
+	return m ? m[1] : name;
+}
+
 function formatToolCall(
 	toolName: string,
 	args: Record<string, unknown>,
@@ -856,7 +865,7 @@ export default function (pi: ExtensionAPI) {
 					: r.errorMessage || r.stderr.slice(-STDERR_PREVIEW_CHARS).trim() || "(no output)";
 				const idHint = r.sessionId ? shortId(r.sessionId) : "";
 				const kind = kindGlyph(r);
-				const shownName = r.label || r.displayName;
+				const shownName = r.label || (r.displayName ? prettyName(r.displayName) : undefined);
 				const row = shownName
 					? `[${shownName}] ${kind}${idHint ? ` (${idHint})` : ""}`
 					: idHint
@@ -896,7 +905,8 @@ export default function (pi: ExtensionAPI) {
 					const file = findSessionFileAcrossCwds(s.session);
 					if (file) displayName = readSessionDisplayName(file);
 				}
-				const nameText = s.label || displayName || (s.session ? shortId(s.session) : undefined);
+				const nameText =
+					s.label || (displayName ? prettyName(displayName) : undefined) || (s.session ? shortId(s.session) : undefined);
 				const label = nameText
 					? theme.fg("accent", `${kind}${nameText}`) + " "
 					: theme.fg("accent", kind);
@@ -970,7 +980,7 @@ export default function (pi: ExtensionAPI) {
 
 			const headerLineFor = (r: SidequestResult, rIcon: string): string => {
 				const kind = theme.fg("dim", ` ${kindGlyph(r)}`);
-				const friendly = r.label || r.displayName;
+				const friendly = r.label || (r.displayName ? prettyName(r.displayName) : undefined);
 				const shown = friendly || (r.sessionId ? shortId(r.sessionId) : "(unlabeled)");
 				// Only append the dim (uuid) suffix when `shown` is a friendly name, otherwise
 				// `shown` itself already is the UUID and we'd render it twice.
