@@ -4,13 +4,45 @@ You're the next agent. README is for users; this file is for you.
 
 ## Where things stand
 
-`index.ts` (~900 LOC), single file, no new runtime deps. Schema is v4 (`{ session?, label?, prompt, args?, cwd? }` per entry). Decoration of `label` → `sq_<slug>_<DDmonYY>-<HHMM>-<tz>` happens inside the tool; the `--name` flag and its `session_start` hook stay generic. Validation rejects duplicate sessions in one call and `--session`/`--name` smuggled into `args`. The JSONL parse / spawn / render pipeline is inherited from subagent and largely unchanged across versions.
+`index.ts` (~910 LOC), single file, no new runtime deps. Schema is v4 (`{ session?, label?, prompt, args?, cwd? }` per entry). Decoration of `label` → `sq_<slug>_<DDmonYY>-<HHMM>-<tz>` happens inside the tool; the `--name` flag and its `session_start` hook stay generic. Validation rejects duplicate sessions in one call and `--session`/`--name` smuggled into `args`. The JSONL parse / spawn / render pipeline is inherited from subagent and largely unchanged across versions.
 
 **Tested live**: new sessions, follow-ups, follow-up renames all work end-to-end. Decorated `pi -r` names land correctly in `session_info` entries.
 
-## First task: sync the README to v4
+### Recent changes (this session)
 
-`README.md` still documents the v1 schema (`prompt`, `name`, `model` per task; `sidequest` singular tool name; auto-generated `sidequest-<slug>-<ts>` names; `concurrency` knob). All wrong now. Don't ship anything else until this is aligned — users following the README will hit validation errors immediately.
+- **README synced to v4.** Was still documenting v1 (`sidequest` singular, `tasks[]`, `name`/`model`/`concurrency`). Now matches the live schema.
+- **`content[0].text` returns full `finalText` per task.** Previously truncated to 120 chars (`SUMMARY_PREVIEW_CHARS`), which forced the parent agent to grep child JSONL by hand whenever a sidequest produced a document (refactor plan, essay, generated code) — the *common case*. Replaced the per-task preview with `--- [label] <kind> (<id>) [<status>] ---` header + verbatim `finalText.trim()`. Rationale: it's model output, naturally bounded; the alternative — agent silently can't see what it dispatched — is worse than burning some context.
+- **`stderr` still capped** via new `STDERR_PREVIEW_CHARS = 500` (last-N), used only as a fallback when `finalText` is empty. stderr is process noise (pi startup chatter, stack traces), not model output.
+- **`shortId` helper** replaces ad-hoc `sessionId.slice(0, 8)` in the summary row and renderer header. UUIDv7's first 8 hex chars are timestamp-high and collide across siblings spawned in the same ~65s bucket; we now show `slice(0, 18)` (through the third hyphenated group) so siblings render distinctly *and* the displayed string is a valid contiguous prefix for `pi --session`.
+- **TUI collapsed view is now strictly less informative than what the parent receives.** The collapsed render still hides `finalText` behind `Ctrl+O`; the parent LLM gets it inline. Intentional asymmetry, worth noting if anyone wonders why.
+
+### Refactor planning (parallel sidequests, this session)
+
+Two planning sidequests were spawned (Opus 4.7 + GPT 5.5) against the § "Evolution priorities → 1. Refactor for simplification" agenda below. Their full plans live in their session JSONLs:
+
+- Opus plan: `pi --session 019de33a-3613-723c` (label `sq_refactor-plan-opus_*`)
+- GPT 5.5 plan: `pi --session 019de33a-360e-7419` (label `sq_refactor-plan-gpt_*`)
+
+Key agreement points (high confidence — safe to implement):
+- One file stays one file; no class extraction; no module split.
+- Six extractions: `parseSessionsField`, `kindGlyph`, `parseJsonlEvent` (returns `changed: boolean`), `spawnAndStream`, `formatTaskBlock` (or pair of expanded/collapsed helpers), `createInitialResult` to dedupe placeholder vs runtime result construction.
+- `parseSessionsField` throws in `normalizeSessions`, best-effort try/catch in `renderCall`.
+- All P0/P1 bugs from § 4 strictly out of scope for the refactor pass; behavior-preserving only.
+- Realistic LOC landing: 620–720, not 600. Schema descriptions and validation messages drive the residual.
+
+Key divergence (decide before executing):
+- **`formatTaskBlock` shape.** Opus: one helper returning `Renderable[]`, caller stitches with `\n\n` (collapsed) vs `Spacer(1)` (expanded). GPT: two helpers (`formatExpandedTaskBlock` → `Container`, `formatCollapsedTaskBlock` → `string`); type-stable, easier to review. Pick GPT's pair.
+- **Step granularity.** Opus 6 commits, GPT 10. Pick GPT's; smaller diffs, easier to bisect if anything regresses.
+- **Hoisting `aggregateUsage`/`headerLineFor`.** GPT hoists, Opus keeps as local closures. Opus is right — single caller each, hoisting only adds a parameter list.
+- **Stale `name`/`label` strings in error messages.** GPT fixes while in the area, Opus says don't touch. Fix them — they're misleading and the cost is zero.
+
+Recommended hybrid plan: GPT's 10-step granularity + two-helper `formatTaskBlock`, Opus's specific traps (the `\n\n` vs `Spacer(1)` whitespace asymmetry, `slice(-limit)` last-N semantics, the deliberate `as any` in `renderCall` that should not be "fixed"). Cross-reference both sessions before starting Step 1.
+
+## First task: execute the refactor
+
+Follow the hybrid plan summarized in § "Refactor planning" above. Read both session transcripts in full first; they contain line-cited risks that don't fit in this handover. Do **not** mix in any § 4 bug fixes — those land afterward, on top of the new `spawnAndStream` / `parseJsonlEvent` (which is exactly why we're extracting them).
+
+Definition of done: every smoke-matrix scenario from GPT's plan passes (new session, two parallel new, follow-up by UUID, follow-up rename, stringified `sessions`, duplicate-session rejection, smuggled-`--name`/`--session` rejection, invalid-child-arg failure path); `pi -r` shows decorated names for new sessions and verbatim labels for follow-up renames; `content[0].text` still returns full `finalText` per task; `Ctrl+O` toggle is visually identical to pre-refactor.
 
 ## Open question: parallel sidequest *tool calls*
 

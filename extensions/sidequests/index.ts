@@ -33,7 +33,10 @@ const getSessionsDir = () => path.join(getAgentDir(), "sessions");
 
 const MAX_PARALLEL_TASKS = 8;
 const DEFAULT_CONCURRENCY = 4;
-const SUMMARY_PREVIEW_CHARS = 120;
+// finalText (assistant model output) is returned verbatim, no cap — it's model-generated and
+// the whole point of dispatching the sidequest is to get it back. stderr (process noise)
+// is still capped via STDERR_PREVIEW_CHARS to avoid dumping pi startup chatter into context.
+const STDERR_PREVIEW_CHARS = 500;
 
 // ---------- helpers ----------
 
@@ -66,6 +69,13 @@ function formatUsageStats(
 	if (usage.contextTokens && usage.contextTokens > 0) parts.push(`ctx:${formatTokens(usage.contextTokens)}`);
 	if (model) parts.push(model);
 	return parts.join(" ");
+}
+
+// UUIDv7: first 8 hex chars are timestamp-high and collide across siblings spawned in
+// the same ~65s bucket. Show 18 chars (through the random region) so siblings render
+// distinctly AND the displayed string is a valid contiguous prefix for `pi --session`.
+function shortId(uuid: string): string {
+	return uuid.length >= 18 ? uuid.slice(0, 18) : uuid;
 }
 
 function shortenPath(p: string): string {
@@ -702,18 +712,19 @@ export default function (pi: ExtensionAPI) {
 				const status =
 					r.exitCode === 0 && r.stopReason !== "error" ? "ok" : r.stopReason || (r.exitCode > 0 ? "failed" : "?");
 				const finalText = getFinalText(r.messages);
-				const preview = finalText
-					? finalText.replace(/\s+/g, " ").slice(0, SUMMARY_PREVIEW_CHARS) +
-					  (finalText.length > SUMMARY_PREVIEW_CHARS ? "…" : "")
-					: r.errorMessage || r.stderr.slice(0, SUMMARY_PREVIEW_CHARS) || "(no output)";
-				const idHint = r.sessionId ? r.sessionId.slice(0, 8) : "";
+				const body = finalText
+					? finalText.trim()
+					: r.errorMessage || r.stderr.slice(-STDERR_PREVIEW_CHARS).trim() || "(no output)";
+				const idHint = r.sessionId ? shortId(r.sessionId) : "";
 				const kind = r.followUp ? "↻" : "✦";
 				const row = r.label
 					? `[${r.label}] ${kind}${idHint ? ` (${idHint})` : ""}`
 					: idHint
 						? `(${idHint}) ${kind}`
 						: `${kind}`;
-				lines.push(`${row} [${status}] — ${preview}`);
+				lines.push(`--- ${row} [${status}] ---`);
+				lines.push(body);
+				lines.push("");
 			}
 			lines.push("");
 			lines.push("Follow up by passing `session: '<uuid-prefix>'` in a future sidequests call, or run `pi --session <uuid-prefix>` directly.");
@@ -819,8 +830,8 @@ export default function (pi: ExtensionAPI) {
 
 			const headerLineFor = (r: SidequestResult, rIcon: string): string => {
 				const kind = r.followUp ? theme.fg("dim", " ↻") : theme.fg("dim", " ✦");
-				const id = r.sessionId ? theme.fg("dim", ` (${r.sessionId.slice(0, 8)})`) : "";
-				const shown = r.label || (r.sessionId ? r.sessionId.slice(0, 8) : "(unlabeled)");
+				const id = r.sessionId ? theme.fg("dim", ` (${shortId(r.sessionId)})`) : "";
+				const shown = r.label || (r.sessionId ? shortId(r.sessionId) : "(unlabeled)");
 				return `${theme.fg("muted", "─── ")}${theme.fg("accent", shown)}${kind}${id} ${rIcon}`;
 			};
 
