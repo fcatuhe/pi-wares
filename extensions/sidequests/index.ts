@@ -415,8 +415,10 @@ async function runSingleSidequest(
 
 	// For follow-ups, eagerly resolve the existing session file + display name so the
 	// live renderer can show the friendly name instead of just the UUID prefix.
+	// Use the cross-cwd lookup: the existing session's JSONL lives in *its* original
+	// cwd-encoded directory, which may differ from the parent's cwd.
 	if (task.session) {
-		const existing = findSessionFile(cwd, task.session);
+		const existing = findSessionFileAcrossCwds(task.session);
 		if (existing) {
 			result.sessionFile = existing;
 			const name = readSessionDisplayName(existing);
@@ -517,7 +519,10 @@ async function runSingleSidequest(
 	if (wasAborted && !result.stopReason) result.stopReason = "aborted";
 
 	if (result.sessionId) {
-		const file = findSessionFile(cwd, result.sessionId);
+		// New sessions land in the parent's cwd-encoded directory; follow-ups stay in
+		// their original directory. Try cwd-bound first (fast path), then fall back to
+		// scanning all session subdirs so follow-ups also resolve correctly.
+		const file = findSessionFile(cwd, result.sessionId) || findSessionFileAcrossCwds(result.sessionId);
 		if (file) {
 			result.sessionFile = file;
 			const name = readSessionDisplayName(file);

@@ -23,6 +23,7 @@ No `pi` manifest needed in `package.json` — pi auto-discovers everything in `e
 |---|---|
 | [`model-shortcuts/`](./extensions/model-shortcuts/) | Slash-command shortcuts for switching model + thinking level (`/opus`, `/glm:high`, ...) |
 | [`compact-footer/`](./extensions/compact-footer/) | Squeezes pi's 3-line footer into 2 lines by merging statuses onto the path line. |
+| [`clear-on-startup/`](./extensions/clear-on-startup/) | Clears the terminal (screen + scrollback) before pi's startup header. Fires once per pi process launch. |
 | [`sidequests/`](./extensions/sidequests/) | Spawn N parallel, resumable pi sessions from one. Registers the `sidequest` tool, a generic `--name` flag, and a `session_start` naming hook. See [README](./extensions/sidequests/README.md) / [sidecar.md](./extensions/sidequests/sidecar.md). |
 | [`skills/sidecar/`](./skills/sidecar/) | Skill: convention for `sidecar.md` handover notes — how the next agent reads them on arrival, when and what to write, how it differs from README and AGENTS. |
 
