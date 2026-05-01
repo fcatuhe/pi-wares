@@ -20,7 +20,7 @@
  */
 
 import { spawn } from "node:child_process";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import type { AgentToolResult } from "@mariozechner/pi-agent-core";
@@ -157,13 +157,75 @@ function encodeCwdForSessions(cwd: string): string {
 	return `-${cwd.replace(/[/\\]/g, "-")}-`;
 }
 
-/** Find the session JSONL file for a given UUID under sessions/<encoded-cwd>/. */
-function findSessionFile(cwd: string, sessionId: string): string | undefined {
+/** Find the session JSONL file for a given UUID (full or prefix) under sessions/<encoded-cwd>/. */
+function findSessionFile(cwd: string, sessionIdOrPrefix: string): string | undefined {
 	const dir = path.join(getSessionsDir(), encodeCwdForSessions(cwd));
 	if (!existsSync(dir)) return undefined;
 	try {
-		const match = readdirSync(dir).find((f) => f.endsWith(`_${sessionId}.jsonl`) || f === `${sessionId}.jsonl`);
-		return match ? path.join(dir, match) : undefined;
+		const entries = readdirSync(dir);
+		const exact = entries.find(
+			(f) => f.endsWith(`_${sessionIdOrPrefix}.jsonl`) || f === `${sessionIdOrPrefix}.jsonl`,
+		);
+		if (exact) return path.join(dir, exact);
+		const prefixed = entries.find((f) => f.includes(`_${sessionIdOrPrefix}`) && f.endsWith(".jsonl"));
+		return prefixed ? path.join(dir, prefixed) : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * Resolve a session UUID prefix to its file path by scanning every cwd-encoded
+ * sessions/ subdirectory. Used by `renderCall` (which has no cwd context) to
+ * surface a friendly display name for follow-up entries.
+ */
+function findSessionFileAcrossCwds(sessionIdOrPrefix: string): string | undefined {
+	const root = getSessionsDir();
+	if (!existsSync(root)) return undefined;
+	try {
+		for (const sub of readdirSync(root)) {
+			const dir = path.join(root, sub);
+			try {
+				for (const f of readdirSync(dir)) {
+					if (
+						f.endsWith(`_${sessionIdOrPrefix}.jsonl`) ||
+						f === `${sessionIdOrPrefix}.jsonl` ||
+						(f.includes(`_${sessionIdOrPrefix}`) && f.endsWith(".jsonl"))
+					) {
+						return path.join(dir, f);
+					}
+				}
+			} catch {
+				/* ignore unreadable subdir */
+			}
+		}
+	} catch {
+		/* ignore */
+	}
+	return undefined;
+}
+
+/**
+ * Read the most recent display name from a session's JSONL `session_info` events.
+ * Each child writes a `session_info` line on every run via the `--name` hook; the
+ * latest one is the current display name (handles follow-up renames correctly).
+ */
+function readSessionDisplayName(file: string): string | undefined {
+	try {
+		const content = readFileSync(file, "utf8");
+		let latest: string | undefined;
+		for (const line of content.split("\n")) {
+			if (!line || !line.includes('"session_info"')) continue;
+			try {
+				const evt = JSON.parse(line);
+				if (evt?.type === "session_info" && typeof evt.name === "string" && evt.name.trim()) {
+					latest = evt.name.trim();
+				}
+			} catch {
+				/* ignore malformed lines */
+			}
+		}
+		return latest;
 	} catch {
 		return undefined;
 	}
@@ -302,6 +364,7 @@ interface SidequestResult {
 	cwd: string;
 	sessionId: string; // UUID of the actual session as captured from the JSONL `session` event
 	sessionFile: string; // absolute path; empty until process closes
+	displayName?: string; // latest `session_info.name` from the child's JSONL (e.g. sq_<slug>_<stamp>)
 	exitCode: number; // -1 = running, 0 = ok, >0 = failure
 	stopReason?: string;
 	errorMessage?: string;
@@ -349,6 +412,17 @@ async function runSingleSidequest(
 		messages: [],
 		usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, contextTokens: 0, turns: 0 },
 	};
+
+	// For follow-ups, eagerly resolve the existing session file + display name so the
+	// live renderer can show the friendly name instead of just the UUID prefix.
+	if (task.session) {
+		const existing = findSessionFile(cwd, task.session);
+		if (existing) {
+			result.sessionFile = existing;
+			const name = readSessionDisplayName(existing);
+			if (name) result.displayName = name;
+		}
+	}
 
 	let wasAborted = false;
 
@@ -444,7 +518,11 @@ async function runSingleSidequest(
 
 	if (result.sessionId) {
 		const file = findSessionFile(cwd, result.sessionId);
-		if (file) result.sessionFile = file;
+		if (file) {
+			result.sessionFile = file;
+			const name = readSessionDisplayName(file);
+			if (name) result.displayName = name;
+		}
 	}
 
 	if (onTaskUpdate) onTaskUpdate(result);
@@ -717,8 +795,9 @@ export default function (pi: ExtensionAPI) {
 					: r.errorMessage || r.stderr.slice(-STDERR_PREVIEW_CHARS).trim() || "(no output)";
 				const idHint = r.sessionId ? shortId(r.sessionId) : "";
 				const kind = r.followUp ? "↻" : "✦";
-				const row = r.label
-					? `[${r.label}] ${kind}${idHint ? ` (${idHint})` : ""}`
+				const shownName = r.label || r.displayName;
+				const row = shownName
+					? `[${shownName}] ${kind}${idHint ? ` (${idHint})` : ""}`
 					: idHint
 						? `(${idHint}) ${kind}`
 						: `${kind}`;
@@ -755,11 +834,15 @@ export default function (pi: ExtensionAPI) {
 				theme.fg("accent", `(${sessions.length} session${sessions.length === 1 ? "" : "s"})`);
 			for (const s of sessions.slice(0, 3)) {
 				const kind = s.session ? "↻ " : "✦ ";
-				const label = s.label
-					? theme.fg("accent", `${kind}${s.label}`) + " "
-					: s.session
-						? theme.fg("accent", `${kind}${s.session.slice(0, 8)}`) + " "
-						: theme.fg("accent", kind);
+				let displayName: string | undefined;
+				if (s.session && !s.label) {
+					const file = findSessionFileAcrossCwds(s.session);
+					if (file) displayName = readSessionDisplayName(file);
+				}
+				const nameText = s.label || displayName || (s.session ? shortId(s.session) : undefined);
+				const label = nameText
+					? theme.fg("accent", `${kind}${nameText}`) + " "
+					: theme.fg("accent", kind);
 				const preview = (s.prompt || "").length > 50 ? `${(s.prompt || "").slice(0, 50)}...` : s.prompt || "";
 				text += `\n  ${label}${theme.fg("dim", preview)}`;
 			}
@@ -830,8 +913,11 @@ export default function (pi: ExtensionAPI) {
 
 			const headerLineFor = (r: SidequestResult, rIcon: string): string => {
 				const kind = r.followUp ? theme.fg("dim", " ↻") : theme.fg("dim", " ✦");
-				const id = r.sessionId ? theme.fg("dim", ` (${shortId(r.sessionId)})`) : "";
-				const shown = r.label || (r.sessionId ? shortId(r.sessionId) : "(unlabeled)");
+				const friendly = r.label || r.displayName;
+				const shown = friendly || (r.sessionId ? shortId(r.sessionId) : "(unlabeled)");
+				// Only append the dim (uuid) suffix when `shown` is a friendly name, otherwise
+				// `shown` itself already is the UUID and we'd render it twice.
+				const id = friendly && r.sessionId ? theme.fg("dim", ` (${shortId(r.sessionId)})`) : "";
 				return `${theme.fg("muted", "─── ")}${theme.fg("accent", shown)}${kind}${id} ${rIcon}`;
 			};
 
