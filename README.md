@@ -24,6 +24,7 @@ No `pi` manifest needed in `package.json` — pi auto-discovers everything in `e
 | [`model-shortcuts/`](./extensions/model-shortcuts/) | Slash-command shortcuts for switching model + thinking level (`/opus`, `/glm:high`, ...) |
 | [`compact-footer/`](./extensions/compact-footer/) | Squeezes pi's 3-line footer into 2 lines by merging statuses onto the path line. |
 | [`sidequests/`](./extensions/sidequests/) | Spawn N parallel, resumable pi sessions from one. Registers the `sidequest` tool, a generic `--name` flag, and a `session_start` naming hook. See [README](./extensions/sidequests/README.md) / [sidecar.md](./extensions/sidequests/sidecar.md). |
+| [`skills/sidecar/`](./skills/sidecar/) | Skill: convention for `sidecar.md` handover notes — how the next agent reads them on arrival, when and what to write, how it differs from README and AGENTS. |
 
 More to come.
 
@@ -33,11 +34,14 @@ More to come.
 pi-wares/
 ├── package.json              ← name: "pi-wares", no `pi` manifest (convention-based)
 ├── tsconfig.json
-└── extensions/               ← pi auto-loads every ware here
-    └── model-shortcuts/
-        ├── index.ts          ← entry point (required filename)
-        ├── example.json      ← reference; pi only loads index.ts
-        └── README.md         ← per-ware docs, co-located with code
+├── extensions/               ← pi auto-loads every ware here
+│   └── model-shortcuts/
+│       ├── index.ts          ← entry point (required filename)
+│       ├── example.json      ← reference; pi only loads index.ts
+│       └── README.md         ← per-ware docs, co-located with code
+└── skills/                   ← pi auto-loads every skill here
+    └── sidecar/
+        └── SKILL.md          ← skill entry (required filename)
 ```
 
 **Discovery rules** (from pi-coding-agent's resource loader):
