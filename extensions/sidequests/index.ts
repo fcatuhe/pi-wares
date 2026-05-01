@@ -318,8 +318,10 @@ function stamp(now: Date = new Date()): string {
 function tzAbbrev(now: Date): string {
 	try {
 		const parts = new Intl.DateTimeFormat("en-US", { timeZoneName: "short" }).formatToParts(now);
-		const tz = parts.find((p) => p.type === "timeZoneName")?.value || "";
-		if (tz && !/^(GMT|UTC)/i.test(tz)) return tz.toLowerCase();
+		const tz = (parts.find((p) => p.type === "timeZoneName")?.value || "").toLowerCase();
+		// Only return the abbreviation if it's pure [a-z]+; otherwise fall through to
+		// the numeric-offset branch so stamp() output stays in prettyName()'s grammar.
+		if (tz && !/^(gmt|utc)/.test(tz) && /^[a-z]+$/.test(tz)) return tz;
 	} catch {
 		/* fall through */
 	}
