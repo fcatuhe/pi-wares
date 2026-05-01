@@ -23,6 +23,7 @@ No `pi` manifest needed in `package.json` — pi auto-discovers everything in `e
 |---|---|
 | [`model-shortcuts/`](./extensions/model-shortcuts/) | Slash-command shortcuts for switching model + thinking level (`/opus`, `/glm:high`, ...) |
 | [`compact-footer/`](./extensions/compact-footer/) | Squeezes pi's 3-line footer into 2 lines by merging statuses onto the path line. |
+| [`sidequests/`](./extensions/sidequests/) | Spawn N parallel, resumable pi sessions from one. Registers the `sidequest` tool, a generic `--name` flag, and a `session_start` naming hook. See [README](./extensions/sidequests/README.md) / [sidecar.md](./extensions/sidequests/sidecar.md). |
 
 More to come.
 
