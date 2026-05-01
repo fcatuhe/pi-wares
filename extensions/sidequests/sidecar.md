@@ -4,7 +4,7 @@ You're the next agent. README is for users; this file is for you.
 
 ## Where things stand
 
-`index.ts` (~910 LOC), single file, no new runtime deps. Schema is v4 (`{ session?, label?, prompt, args?, cwd? }` per entry). Decoration of `label` → `sq_<slug>_<DDmonYY>-<HHMM>-<tz>` happens inside the tool; the `--name` flag and its `session_start` hook stay generic. Validation rejects duplicate sessions in one call and `--session`/`--name` smuggled into `args`. The JSONL parse / spawn / render pipeline is inherited from subagent and largely unchanged across versions.
+`index.ts` (~1050 LOC), single file, no new runtime deps. Schema is v4 (`{ session?, label?, prompt, model?, args?, cwd? }` per entry). Decoration of `label` → `sq_<slug>_<DDmonYY>-<HHMM>-<tz>` happens inside the tool; the `--name` flag and its `session_start` hook stay generic. Validation rejects duplicate sessions in one call and `--session`/`--name`/`--model`/`--thinking` smuggled into `args` (each has its own dedicated field). The JSONL parse / spawn / render pipeline is inherited from subagent and largely unchanged across versions.
 
 **Tested live**: new sessions, follow-ups, follow-up renames all work end-to-end. Decorated `pi -r` names land correctly in `session_info` entries.
 
@@ -15,6 +15,9 @@ You're the next agent. README is for users; this file is for you.
 - **`stderr` still capped** via new `STDERR_PREVIEW_CHARS = 500` (last-N), used only as a fallback when `finalText` is empty. stderr is process noise (pi startup chatter, stack traces), not model output.
 - **`shortId` helper** replaces ad-hoc `sessionId.slice(0, 8)` in the summary row and renderer header. UUIDv7's first 8 hex chars are timestamp-high and collide across siblings spawned in the same ~65s bucket; we now show `slice(0, 18)` (through the third hyphenated group) so siblings render distinctly *and* the displayed string is a valid contiguous prefix for `pi --session`.
 - **TUI collapsed view is now strictly less informative than what the parent receives.** The collapsed render still hides `finalText` behind `Ctrl+O`; the parent LLM gets it inline. Intentional asymmetry, worth noting if anyone wonders why.
+- **`displayName` surfaced in summary rows + result header.** Each child writes a `session_info` line with its display name on every run (via the generic `--name` hook). New helper `readSessionDisplayName(file)` reads the latest from disk; `runSingleSidequest` populates `result.displayName` eagerly for follow-ups (so the live render shows it) and after spawn for new sessions (covers fresh + rename mid-run). `renderCall` (no result yet) uses `findSessionFileAcrossCwds` to read live from disk every paint. **Trap fixed mid-session**: the cwd-bound `findSessionFile` was the wrong lookup for follow-ups whose JSONL lives in a different cwd-encoded directory than the parent; both pre- and post-spawn populate now fall back to the cross-cwd scan. `renderResult` also drops the dim `(uuid)` suffix when `shown` is itself the UUID, to avoid `019de386-... (019de386-...)` duplication.
+- **`model` field on each session entry**, with scope-resolved nicknames. Either a literal `provider/id[:level]` (passed through verbatim) or a bare nickname matched case-insensitively as a substring against the `enabledModels` array in `~/.pi/agent/settings.json`. Exactly one match required; ambiguity / no match / empty scope are rejected eagerly in `normalizeSessions` so errors surface before any spawn. **Decoupling choice**: read pi's own `settings.json` rather than another extension's config (`pi-model-shortcuts.json`). The `enabledModels` list is owned by pi-mono; users curate it via `--models`, `/scoped-models`, or the UI. Tied to pi's public surface, not a sibling extension. The `args` validator now also rejects `--model`/`--thinking` since both are managed by the resolved spec. See `resolveModel(spec)` and `loadEnabledModels()` for the implementation.
+- **All four LLM-facing copy surfaces aligned.** Tool description, `model`/`args` schema descriptions, the outer `sessions` union description, and the non-array validation error all reference v4 + `model?` consistently. `--model` and `--thinking` are no longer suggested as `args` examples.
 
 ### Refactor planning (parallel sidequests, this session)
 
@@ -37,6 +40,12 @@ Key divergence (decide before executing):
 - **Stale `name`/`label` strings in error messages.** GPT fixes while in the area, Opus says don't touch. Fix them — they're misleading and the cost is zero.
 
 Recommended hybrid plan: GPT's 10-step granularity + two-helper `formatTaskBlock`, Opus's specific traps (the `\n\n` vs `Spacer(1)` whitespace asymmetry, `slice(-limit)` last-N semantics, the deliberate `as any` in `renderCall` that should not be "fixed"). Cross-reference both sessions before starting Step 1.
+
+## Status
+
+For the duration of one editing session, the schema is stable and the agent-facing surface is consistent. Manual smoke-tested live for: new sessions, parallel new, follow-up by UUID prefix, follow-up rename, scope-resolved nicknames (`opus`, `sonnet`, `gpt`, `:high` suffix), literal `provider/id`, validation rejections (duplicate session, smuggled flags, ambiguous nickname). German + Spanish + Portuguese translations across two long-running follow-up sessions all round-tripped fully into `content[0].text`.
+
+Known caveat: parallel + long-running batches will visibly fail if the user cancels the parent turn (Esc / new prompt). Children may continue and write their full output to disk after the parent has reported "aborted" — the data isn't lost, but the parent never sees it on stdout. Out of scope for this iteration; documented for the next maintainer.
 
 ## First task: execute the refactor
 
