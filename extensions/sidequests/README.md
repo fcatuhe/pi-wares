@@ -187,6 +187,5 @@ On the next session start, `pi-claude-code-use` re-registers the tool under the 
 
 | Tool | Sidequests' niche relative to it |
 |---|---|
-| `subagent` extension | subagent uses `--no-session` (throwaway). Sidequests' new entries **persist** and are resumable, and follow-up turns let you iterate on one across calls. |
 | `pi-side-agents` package | tmux + worktree machinery, scrapes text from panes. Sidequests parses structured JSONL and shares cwd by default — lighter weight. |
 | `@feniix/pi-conductor` | Full DAG/gates/artifacts control plane (~12k LOC). Sidequests is the smallest possible thing: parallel + resumable + follow-ups + structured output. |
