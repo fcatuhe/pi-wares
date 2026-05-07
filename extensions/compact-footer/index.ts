@@ -5,9 +5,9 @@
  * onto line 1 (path), reducing the footer from 3 lines to 2.
  */
 
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { FooterComponent } from "@mariozechner/pi-coding-agent";
-import { truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { FooterComponent } from "@earendil-works/pi-coding-agent";
+import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
 export default function (pi: ExtensionAPI) {
 	pi.on("session_start", (_event, ctx) => {

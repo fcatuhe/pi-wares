@@ -1,6 +1,6 @@
 # model-shortcuts
 
-Slash-command shortcuts for switching model + thinking level in [pi-coding-agent](https://github.com/badlogic/pi-mono).
+Slash-command shortcuts for switching model + thinking level in [pi-coding-agent](https://github.com/earendil-works/pi-mono).
 
 ```
 /off  /minimal  /low  /medium  /high  /xhigh     Set thinking level

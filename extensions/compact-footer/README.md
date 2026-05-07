@@ -4,7 +4,7 @@ Squeezes pi's built-in 3-line footer into 2 lines by merging extension statuses 
 
 ## Behavior
 
-Reuses the built-in `FooterComponent` from `@mariozechner/pi-coding-agent`, then post-processes its output:
+Reuses the built-in `FooterComponent` from `@earendil-works/pi-coding-agent`, then post-processes its output:
 
 - Renders the built-in footer normally (3 lines: path, model/usage, statuses).
 - Computes the visible width of the status line.

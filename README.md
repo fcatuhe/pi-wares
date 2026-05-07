@@ -1,6 +1,6 @@
 # pi-wares
 
-A small personal stash of extensions for [pi-coding-agent](https://github.com/badlogic/pi-mono) — slopware, forkware, freeware, all of the above.
+A small personal stash of extensions for [pi-coding-agent](https://github.com/earendil-works/pi-mono) — slopware, forkware, freeware, all of the above.
 
 Shipped as a single pi package. Install once, toggle individual wares on/off in `pi config`.
 

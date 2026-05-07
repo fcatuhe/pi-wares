@@ -18,7 +18,7 @@ After a focused session, a good name makes it findable later in `/resume` and `p
 1. `ctx.waitForIdle()` — ensure no agent turn is in flight.
 2. If an explicit name was passed, use it as-is.
 3. Otherwise, flatten the current branch's user/assistant text (and tool-call markers) into a transcript and truncate to ~12k chars (head + tail).
-4. Call `complete()` from `@mariozechner/pi-ai` against `ctx.model` (the active session model) with a strict "reply with ONE 3–7-word Title Case line" prompt. Auth comes from `ctx.modelRegistry.getApiKeyAndHeaders(model)`.
+4. Call `complete()` from `@earendil-works/pi-ai` against `ctx.model` (the active session model) with a strict "reply with ONE 3–7-word Title Case line" prompt. Auth comes from `ctx.modelRegistry.getApiKeyAndHeaders(model)`.
 5. Sanitize the response (strip "Title:", quotes, trailing punctuation, length cap).
 6. `pi.setSessionName(name)` then `ctx.shutdown()`.
 

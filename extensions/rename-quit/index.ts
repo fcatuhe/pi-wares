@@ -13,8 +13,8 @@
  *   /rename-quit <name>     -> use the supplied name verbatim, then quit
  */
 
-import { complete } from "@mariozechner/pi-ai";
-import type { ExtensionAPI, ExtensionCommandContext } from "@mariozechner/pi-coding-agent";
+import { complete } from "@earendil-works/pi-ai";
+import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 
 type ContentBlock = { type?: string; text?: string; name?: string };
 type SessionEntry = { type: string; message?: { role?: string; content?: unknown } };

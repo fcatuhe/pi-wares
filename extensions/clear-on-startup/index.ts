@@ -10,7 +10,7 @@
  * `/resume`, or `/fork` (which would otherwise destroy chat scrollback).
  */
 
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 export default function (pi: ExtensionAPI) {
   pi.on("session_start", (event, ctx) => {
