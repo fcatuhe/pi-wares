@@ -25,7 +25,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
-import { supportsXhigh } from "@earendil-works/pi-ai";
+import { clampThinkingLevel } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
@@ -146,9 +146,7 @@ export default function modelShortcutsExtension(pi: ExtensionAPI): void {
 
 		const requested = levelOverride ?? shortcut.thinkingLevel;
 		if (requested) {
-			const supported = supportsXhigh(model) ? LEVELS : BASE_LEVELS;
-			const effective = supported.includes(requested) ? requested : supported[supported.length - 1];
-			pi.setThinkingLevel(effective);
+			pi.setThinkingLevel(clampThinkingLevel(model, requested) as ThinkingLevel);
 		}
 
 		const current = pi.getThinkingLevel();

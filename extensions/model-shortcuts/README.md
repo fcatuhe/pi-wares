@@ -56,7 +56,7 @@ Shortcut names that collide with thinking-level commands (`off`, `minimal`, `low
 ## Behavior
 
 - Shortcuts are loaded on each `session_start` (so `/reload` picks up edits).
-- Models that do not support `xhigh` silently fall back to `high` for the `:xhigh` form.
+- Unsupported thinking levels silently fall back to the nearest supported level reported by pi-ai.
 - Model lookups go through `ctx.modelRegistry`, so any provider/model registered by pi-core or by another extension is reachable.
 
 ## Migration from `models.json`
