@@ -26,7 +26,6 @@ No `pi` manifest needed in `package.json` — pi auto-discovers everything in `e
 | [`clear-on-startup/`](./extensions/clear-on-startup/) | Clears the terminal (screen + scrollback) before pi's startup header. Fires once per pi process launch. |
 | [`gpt-behavior/`](./extensions/gpt-behavior/) | Appends a behavior guide to the system prompt, but only for GPT models. Vendored from [this gist](https://gist.github.com/ogulcancelik/b5bfd650acd7b93856fd20794c35db47). |
 | [`handoff/`](./extensions/handoff/) | `/handoff <goal>` — LLM-summarize the current branch and start a new linked session pre-filled with a focused prompt. Vendored from [pi examples](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/handoff.ts). |
-| [`herdr-tab-title/`](./extensions/herdr-tab-title/) | Lets the agent label its own [Herdr](https://herdr.dev) tab to show what it's working on (`set_tab_title` tool + guideline). Resets on `/new` and quit; preserves custom labels. No-op outside Herdr. |
 | [`sidequests/`](./extensions/sidequests/) | Spawn N parallel, resumable pi sessions from one (with follow-up turns on existing ones). Registers the `sidequests` tool, a generic `--name` flag, and a `session_start` naming hook. See [README](./extensions/sidequests/README.md) / [sidecar.md](./extensions/sidequests/sidecar.md). |
 | [`skills/sidecar/`](./skills/sidecar/) | Skill: convention for `sidecar.md` handover notes — how the next agent reads them on arrival, when and what to write, how it differs from README and AGENTS. |
 
