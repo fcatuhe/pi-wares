@@ -41,6 +41,11 @@ export default function (pi: ExtensionAPI) {
 				},
 				sessionManager: ctx.sessionManager,
 				modelRegistry: ctx.modelRegistry,
+				// FooterComponent.render() calls session.modelRuntime.isUsingOAuth(provider)
+				// to show the "(sub)" cost indicator; delegate via modelRegistry.
+				modelRuntime: {
+					isUsingOAuth: () => (ctx.model ? ctx.modelRegistry.isUsingOAuth(ctx.model) : false),
+				},
 				getContextUsage: () => ctx.getContextUsage(),
 			} as any, footerData);
 			builtIn.setAutoCompactEnabled(autoCompactEnabled(ctx.cwd));
