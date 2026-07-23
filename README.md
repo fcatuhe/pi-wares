@@ -15,7 +15,7 @@ pi -e ~/fcode/pi-wares                # try without installing (this run only)
 
 Then `pi config` to enable/disable individual wares.
 
-No `pi` manifest needed in `package.json` — pi auto-discovers everything in `extensions/` (and, when added later, `skills/`, `prompts/`, `themes/`).
+Installing pi-wares also pulls in a couple of external pi extensions (see [Bundled extensions](#bundled-extensions)) so a single install sets up the whole config.
 
 ## Wares
 
@@ -27,27 +27,36 @@ No `pi` manifest needed in `package.json` — pi auto-discovers everything in `e
 | [`gpt-behavior/`](./extensions/gpt-behavior/) | Appends a behavior guide to the system prompt, but only for GPT models. Vendored from [this gist](https://gist.github.com/ogulcancelik/b5bfd650acd7b93856fd20794c35db47). |
 | [`handoff/`](./extensions/handoff/) | `/handoff <goal>` — LLM-summarize the current branch and start a new linked session pre-filled with a focused prompt. Vendored from [pi examples](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/handoff.ts). |
 | [`sidequests/`](./extensions/sidequests/) | Spawn N parallel, resumable pi sessions from one (with follow-up turns on existing ones). Registers the `sidequests` tool, a generic `--name` flag, and a `session_start` naming hook. See [README](./extensions/sidequests/README.md) / [sidecar.md](./extensions/sidequests/sidecar.md). |
-| [`skills/sidecar/`](./skills/sidecar/) | Skill: convention for `sidecar.md` handover notes — how the next agent reads them on arrival, when and what to write, how it differs from README and AGENTS. |
 
 More to come.
+
+## Bundled extensions
+
+pi-wares folds in a couple of third-party pi extensions as npm `dependencies`, exposed through the `pi` manifest's `node_modules/…` paths. They install automatically with pi-wares and show up individually in `pi config`.
+
+| Package | What it does |
+|---|---|
+| [`@benvargas/pi-claude-code-use`](https://www.npmjs.com/package/@benvargas/pi-claude-code-use) | Patch Anthropic OAuth payloads for Claude Code-style subscription use. |
+| [`token-rate-pi`](https://www.npmjs.com/package/token-rate-pi) | Footer status showing average output tokens/sec. |
+
+Versions use caret ranges (`^1.0.0`), so they are **not** pinned. Because pi-wares is installed as an unpinned git package, pi only re-runs `npm install` (and therefore re-resolves these ranges to the latest matching release) on a fresh install **or when this repo's default branch gets a new commit** — not on every `pi update`. Push any commit here, then `pi update --extensions` picks up newer bundled releases within the major.
+
+To publish pi-wares to npm instead of git, add these to `bundledDependencies` so they ship inside the tarball.
 
 ## Layout
 
 ```
 pi-wares/
-├── package.json              ← name: "pi-wares", no `pi` manifest (convention-based)
-├── tsconfig.json
-├── extensions/               ← pi auto-loads every ware here
+├── package.json              ← `pi` manifest + bundled npm dependencies
+├── extensions/               ← every local ware, listed via the manifest
 │   └── model-shortcuts/
 │       ├── index.ts          ← entry point (required filename)
 │       ├── example.json      ← reference; pi only loads index.ts
 │       └── README.md         ← per-ware docs, co-located with code
-└── skills/                   ← pi auto-loads every skill here
-    └── sidecar/
-        └── SKILL.md          ← skill entry (required filename)
+└── node_modules/             ← bundled external extensions (gitignored)
 ```
 
-**Discovery rules** (from pi-coding-agent's resource loader):
+We use an explicit `pi` manifest because we reference bundled extensions by `node_modules/…` path. A manifest directory entry (e.g. `"extensions"`) still gets the same smart discovery as convention mode:
 
 1. `extensions/*.ts` — flat file, loaded directly
 2. `extensions/<name>/index.ts` — subfolder with `index.ts`, loaded as a single extension
@@ -55,9 +64,9 @@ pi-wares/
 
 No recursion beyond one level. We use rule #2: each ware in its own folder, with `index.ts` as the entry. All other files in the folder (READMEs, example configs, sub-modules imported by `index.ts`) are ignored by discovery but live with the code.
 
-**Adding a new ware** = `mkdir extensions/<name>`, add `extensions/<name>/index.ts`, add a row to the Wares table. That's it.
+**Adding a new ware** = `mkdir extensions/<name>`, add `extensions/<name>/index.ts`, add a row to the Wares table. The `"extensions"` manifest entry picks it up — no manifest edit needed.
 
-When a ware grows companion resource types (skills, prompts, themes), add the matching convention dir at the repo root (`skills/`, `prompts/`, `themes/`) — pi picks them up automatically. Switch to an explicit `pi` manifest in `package.json` only if you need non-default paths or filtering.
+**Adding a bundled external extension** = add it to `dependencies`, then add its entry file path under `pi.extensions` as `node_modules/<pkg>/…`, and a row to the Bundled extensions table.
 
 ## License
 
