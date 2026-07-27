@@ -22,7 +22,7 @@ Installing pi-wares also pulls in a couple of external pi extensions (see [Bundl
 | Ware | What it does |
 |---|---|
 | [`model-shortcuts/`](./extensions/model-shortcuts/) | Slash-command shortcuts for switching model + thinking level (`/opus`, `/glm:high`, ...) |
-| [`compact-footer/`](./extensions/compact-footer/) | Squeezes pi's 3-line footer into 2 lines by merging statuses onto the path line. |
+| [`compact-footer/`](./extensions/compact-footer/) | Squeezes pi's 3-line footer into 2 lines by merging statuses onto the path line. Mutually exclusive with `pi-minimal-footer` below — enable one. |
 | [`clear-on-startup/`](./extensions/clear-on-startup/) | Clears the terminal (screen + scrollback) before pi's startup header. Fires once per pi process launch. |
 | [`gpt-behavior/`](./extensions/gpt-behavior/) | Appends a behavior guide to the system prompt, but only for GPT models. Vendored from [this gist](https://gist.github.com/ogulcancelik/b5bfd650acd7b93856fd20794c35db47). |
 | [`handoff/`](./extensions/handoff/) | `/handoff <goal>` — LLM-summarize the current branch and start a new linked session pre-filled with a focused prompt. Vendored from [pi examples](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/handoff.ts). |
@@ -38,6 +38,7 @@ pi-wares folds in a couple of third-party pi extensions as npm `dependencies`, e
 |---|---|
 | [`@benvargas/pi-claude-code-use`](https://www.npmjs.com/package/@benvargas/pi-claude-code-use) | Patch Anthropic OAuth payloads for Claude Code-style subscription use. |
 | [`token-rate-pi`](https://www.npmjs.com/package/token-rate-pi) | Footer status showing average output tokens/sec. |
+| [`@ogulcancelik/pi-minimal-footer`](https://github.com/ogulcancelik/pi-extensions/tree/main/packages/pi-minimal-footer) | Alternative 2-line footer: context gauge + subscription usage bars. Replaces the default footer, so don't enable it alongside `compact-footer`. |
 
 Versions use caret ranges (`^1.0.0`), so they are **not** pinned. Because pi-wares is installed as an unpinned git package, pi only re-runs `npm install` (and therefore re-resolves these ranges to the latest matching release) on a fresh install **or when this repo's default branch gets a new commit** — not on every `pi update`. Push any commit here, then `pi update --extensions` picks up newer bundled releases within the major.
 
