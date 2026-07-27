@@ -18,7 +18,6 @@
   "pi": {
     "extensions": [
       "extensions",
-      "node_modules/@benvargas/pi-claude-code-use/extensions/index.ts",
       "node_modules/token-rate-pi/token-rate.ts"
     ]
   }
