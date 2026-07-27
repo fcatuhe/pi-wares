@@ -2,8 +2,9 @@
  * Usage Pace Extension
  *
  * Footer status showing the active subscription's usage as a bar with a pace
- * marker (│ = how far into the window we are) plus a reset countdown. Bar left
- * of the marker = under pace, right of it = burning faster than the clock.
+ * marker (╵ = how far into the window we are) plus a reset countdown. A light
+ * gray track spans the whole window; the thick overlay is quota used. Overlay
+ * short of the marker = under pace, past it = burning faster than the clock.
  *
  * Shows Claude (anthropic) or Codex (openai-codex), whichever model is active.
  * Set via ctx.ui.setStatus(), so the built-in footer, compact-footer and any
@@ -22,6 +23,8 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 const HOUR = 3_600_000;
 const REFRESH_MS = 5 * 60_000;
 const BAR_W = Number(process.env.PI_USAGE_BAR_WIDTH) || 6;
+// Half-height tick so the bar stays visually flat. Override if the font lacks U+2575.
+const MARKER = process.env.PI_USAGE_MARKER || "╵";
 const PROVIDERS: Record<string, Provider> = { anthropic: "claude", "openai-codex": "codex" };
 
 type Provider = "claude" | "codex";
@@ -174,17 +177,14 @@ export function formatReset(resetsAt: number, now: number): string {
 
 /**
  * Pace, not absolute usage: are we ahead of the window's clock?
- *
- * Held green below NOISE_FLOOR of quota spent, so early-window bursts on an
- * otherwise-empty budget (10% used 2 minutes in) don't scream. Above it,
- * used% - elapsed% is the projected overrun.
+ * Exception: under 10% of quota left is red however well paced, since there is
+ * no room to spend at any rate.
  */
-const NOISE_FLOOR = 25;
 export function paceColor(usedPercent: number, elapsed: number): "success" | "warning" | "error" {
-	if (usedPercent < NOISE_FLOOR) return "success";
+	if (usedPercent >= 90) return "error";
 	const over = usedPercent - elapsed;
-	if (over <= 2) return "success";
-	return over <= 15 ? "warning" : "error";
+	if (over <= 0) return "success";
+	return over <= 10 ? "warning" : "error";
 }
 
 function renderWindow(w: Window, theme: any, now: number): string {
@@ -195,8 +195,8 @@ function renderWindow(w: Window, theme: any, now: number): string {
 
 	let bar = "";
 	for (let i = 0; i < BAR_W; i++) {
-		if (i === mark) bar += theme.fg("accent", "│");
-		else bar += i < filled ? theme.fg(color, "─") : theme.fg("dim", "·");
+		if (i === mark) bar += theme.fg("accent", MARKER);
+		else bar += i < filled ? theme.fg(color, "━") : theme.fg("dim", "─");
 	}
 	return (
 		theme.fg("dim", `${w.label} `) +

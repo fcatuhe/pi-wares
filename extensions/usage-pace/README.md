@@ -3,12 +3,13 @@
 Footer status showing the active subscription's usage as a bar with a **pace marker** and a reset countdown.
 
 ```
-5h ──│··· 42% 3h    7d ────│· 61% 2d
+5h ━━━╵── 42% 3h    7d ━━━━╵─ 61% 2d
 ```
 
-- `─` filled = percent of the window's quota used.
-- `│` = how far into the window we are (time elapsed).
-- Fill **left** of the marker → under pace. Fill **past** it → burning quota faster than the clock.
+- Light gray `─` = the whole window's quota (the track).
+- Thick `━` = quota used so far.
+- `╵` = how far into the window we are (time elapsed).
+- Thick bar short of the marker → under pace. Past it → burning quota faster than the clock.
 - Trailing text = absolute usage percent + time until the window resets.
 
 ## Color = pace, not usage
@@ -17,12 +18,12 @@ Color answers "will I run out before this window resets?", so a high absolute pe
 
 | Condition | Color |
 |---|---|
-| under 25% of quota spent | green, always — nothing to warn about yet |
-| used% ≤ elapsed% + 2 | green — on or under pace |
-| up to 15 points ahead of the clock | yellow |
-| more than 15 points ahead | red |
+| at or under pace (`used% ≤ elapsed%`) | green |
+| up to 10 points ahead of the clock | yellow |
+| more than 10 points ahead | red |
+| less than 10% of quota left (`used% ≥ 90`) | red, regardless of pace |
 
-90% used with 10 minutes left in the window is **green** (you paced it perfectly). 40% of the week burned on day one is **yellow** — that rate exhausts the week by Thursday. The 25% floor keeps an early burst on an empty budget quiet.
+40% of the week burned on day one is **yellow** — that rate exhausts it by Thursday. 92% used with 12 minutes left is **red** even though the pacing was perfect: there is no room left to spend at any rate.
 
 ## Providers
 
@@ -44,7 +45,8 @@ Any other provider clears the status. Tokens come from `~/.pi/agent/auth.json`, 
 
 ## Config
 
-`PI_USAGE_BAR_WIDTH` — bar cells per window, default `6`. Lower it on narrow terminals (the status competes with the path for width in `compact-footer`).
+- `PI_USAGE_BAR_WIDTH` — bar cells per window, default `6`. Lower it on narrow terminals (the status competes with the path for width in `compact-footer`).
+- `PI_USAGE_MARKER` — pace marker glyph, default `╵` (half-height, keeps the bar flat). Set to `│` or `┼` if your font renders it badly.
 
 ## Check
 

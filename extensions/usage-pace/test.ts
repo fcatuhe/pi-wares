@@ -5,7 +5,7 @@ import { elapsedPercent, formatReset, paceColor, parseClaude, parseCodex } from 
 const HOUR = 3_600_000;
 const now = Date.now();
 
-// Claude: fraction utilization, 3h left of a 5h window => 40% elapsed, 42% used => on pace.
+// Claude: fraction utilization, 3h left of a 5h window => 40% elapsed, 42% used => 2pts over.
 const claude = parseClaude({
 	five_hour: { utilization: 0.42, resets_at: new Date(now + 3 * HOUR).toISOString() },
 	seven_day: { utilization: 61, resets_at: new Date(now + 2 * 24 * HOUR).toISOString() },
@@ -13,8 +13,9 @@ const claude = parseClaude({
 assert.equal(claude.length, 2);
 assert.equal(Math.round(claude[0].usedPercent), 42);
 assert.equal(Math.round(elapsedPercent(claude[0], now)), 40);
-assert.equal(paceColor(claude[0].usedPercent, elapsedPercent(claude[0], now)), "success");
-// 0-100 form must not be re-scaled; 5 of 7 days gone => 71% elapsed, 61% used.
+assert.equal(paceColor(claude[0].usedPercent, elapsedPercent(claude[0], now)), "warning");
+// 0-100 form must not be re-scaled; 5 of 7 days gone => 71% elapsed, 61% used => under pace.
+assert.equal(paceColor(claude[1].usedPercent, elapsedPercent(claude[1], now)), "success");
 assert.equal(Math.round(claude[1].usedPercent), 61);
 assert.equal(claude[1].label, "7d");
 assert.equal(Math.round(elapsedPercent(claude[1], now)), 71);
@@ -32,12 +33,13 @@ assert.equal(paceColor(codex[0].usedPercent, elapsedPercent(codex[0], now)), "su
 assert.equal(codex[1].label, "7d"); // duration fell back to 168h
 assert.equal(paceColor(codex[1].usedPercent, elapsedPercent(codex[1], now)), "success");
 
-// Burning ahead of the clock.
+// Pace ladder: on pace green, up to +10pts yellow, beyond red.
+assert.equal(paceColor(40, 40), "success");
 assert.equal(paceColor(50, 40), "warning");
-assert.equal(paceColor(90, 40), "error");
-// Under the 25% noise floor, pace is ignored: a burst on an empty budget stays green.
-assert.equal(paceColor(20, 2), "success");
-assert.equal(paceColor(26, 2), "error");
+assert.equal(paceColor(51, 40), "error");
+// Under 10% of quota left is red no matter how well paced.
+assert.equal(paceColor(90, 95), "error");
+assert.equal(paceColor(89, 95), "success");
 
 // Malformed / missing payloads must not throw or invent windows.
 assert.deepEqual(parseClaude(undefined), []);
