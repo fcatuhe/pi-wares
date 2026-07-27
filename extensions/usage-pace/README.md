@@ -3,15 +3,26 @@
 Footer status showing the active subscription's usage as a bar with a **pace marker** and a reset countdown.
 
 ```
-5h ━━┃─── 42% 3h    7d ━━━━┃─ 61% 2d
+5h ──│··· 42% 3h    7d ────│· 61% 2d
 ```
 
-- `━` filled = percent of the window's quota used.
-- `┃` = how far into the window we are (time elapsed).
+- `─` filled = percent of the window's quota used.
+- `│` = how far into the window we are (time elapsed).
 - Fill **left** of the marker → under pace. Fill **past** it → burning quota faster than the clock.
 - Trailing text = absolute usage percent + time until the window resets.
 
-Bar color is pace, not absolute: green within 2 points of the clock, yellow up to 15 points ahead, red beyond. So 90% used with 10 minutes left is green; 30% used in the first 5 minutes is red.
+## Color = pace, not usage
+
+Color answers "will I run out before this window resets?", so a high absolute percent is not red by itself:
+
+| Condition | Color |
+|---|---|
+| under 25% of quota spent | green, always — nothing to warn about yet |
+| used% ≤ elapsed% + 2 | green — on or under pace |
+| up to 15 points ahead of the clock | yellow |
+| more than 15 points ahead | red |
+
+90% used with 10 minutes left in the window is **green** (you paced it perfectly). 40% of the week burned on day one is **yellow** — that rate exhausts the week by Thursday. The 25% floor keeps an early burst on an empty budget quiet.
 
 ## Providers
 

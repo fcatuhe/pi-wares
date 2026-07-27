@@ -35,6 +35,9 @@ assert.equal(paceColor(codex[1].usedPercent, elapsedPercent(codex[1], now)), "su
 // Burning ahead of the clock.
 assert.equal(paceColor(50, 40), "warning");
 assert.equal(paceColor(90, 40), "error");
+// Under the 25% noise floor, pace is ignored: a burst on an empty budget stays green.
+assert.equal(paceColor(20, 2), "success");
+assert.equal(paceColor(26, 2), "error");
 
 // Malformed / missing payloads must not throw or invent windows.
 assert.deepEqual(parseClaude(undefined), []);

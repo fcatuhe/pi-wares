@@ -2,7 +2,7 @@
  * Usage Pace Extension
  *
  * Footer status showing the active subscription's usage as a bar with a pace
- * marker (┃ = how far into the window we are) plus a reset countdown. Bar left
+ * marker (│ = how far into the window we are) plus a reset countdown. Bar left
  * of the marker = under pace, right of it = burning faster than the clock.
  *
  * Shows Claude (anthropic) or Codex (openai-codex), whichever model is active.
@@ -172,8 +172,16 @@ export function formatReset(resetsAt: number, now: number): string {
 	return hours % 24 ? `${Math.floor(hours / 24)}d${hours % 24}h` : `${Math.floor(hours / 24)}d`;
 }
 
-/** Under pace, slightly over, well over. Absolute % is shown as text alongside. */
+/**
+ * Pace, not absolute usage: are we ahead of the window's clock?
+ *
+ * Held green below NOISE_FLOOR of quota spent, so early-window bursts on an
+ * otherwise-empty budget (10% used 2 minutes in) don't scream. Above it,
+ * used% - elapsed% is the projected overrun.
+ */
+const NOISE_FLOOR = 25;
 export function paceColor(usedPercent: number, elapsed: number): "success" | "warning" | "error" {
+	if (usedPercent < NOISE_FLOOR) return "success";
 	const over = usedPercent - elapsed;
 	if (over <= 2) return "success";
 	return over <= 15 ? "warning" : "error";
@@ -187,8 +195,8 @@ function renderWindow(w: Window, theme: any, now: number): string {
 
 	let bar = "";
 	for (let i = 0; i < BAR_W; i++) {
-		if (i === mark) bar += theme.fg("accent", "┃");
-		else bar += i < filled ? theme.fg(color, "━") : theme.fg("dim", "─");
+		if (i === mark) bar += theme.fg("accent", "│");
+		else bar += i < filled ? theme.fg(color, "─") : theme.fg("dim", "·");
 	}
 	return (
 		theme.fg("dim", `${w.label} `) +
