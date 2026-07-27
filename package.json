@@ -9,7 +9,6 @@
   "dependencies": {
     "@benvargas/pi-claude-code-use": "^1.0.0",
     "@ogulcancelik/pi-minimal-footer": "^0.1.10",
-    "@ogulcancelik/pi-minimal-footer": "^0.1.10",
     "token-rate-pi": "^1.0.0"
   },
   "peerDependencies": {

@@ -23,6 +23,7 @@ Installing pi-wares also pulls in a couple of external pi extensions (see [Bundl
 |---|---|
 | [`model-shortcuts/`](./extensions/model-shortcuts/) | Slash-command shortcuts for switching model + thinking level (`/opus`, `/glm:high`, ...) |
 | [`compact-footer/`](./extensions/compact-footer/) | Squeezes pi's 3-line footer into 2 lines by merging statuses onto the path line. Mutually exclusive with `pi-minimal-footer` below — enable one. |
+| [`usage-pace/`](./extensions/usage-pace/) | Footer status with a Claude/Codex subscription usage bar, a pace marker (are we ahead of the clock?) and the reset countdown. Renders inside whichever footer is active. |
 | [`clear-on-startup/`](./extensions/clear-on-startup/) | Clears the terminal (screen + scrollback) before pi's startup header. Fires once per pi process launch. |
 | [`gpt-behavior/`](./extensions/gpt-behavior/) | Appends a behavior guide to the system prompt, but only for GPT models. Vendored from [this gist](https://gist.github.com/ogulcancelik/b5bfd650acd7b93856fd20794c35db47). |
 | [`handoff/`](./extensions/handoff/) | `/handoff <goal>` — LLM-summarize the current branch and start a new linked session pre-filled with a focused prompt. Vendored from [pi examples](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/handoff.ts). |
