@@ -18,9 +18,9 @@ Color answers "will I run out before this window resets?", so a high absolute pe
 
 | Condition | Color |
 |---|---|
-| at or under pace (`used% ≤ elapsed%`) | green |
-| up to 10 points ahead of the clock | yellow |
-| more than 10 points ahead | red |
+| at or under pace, plus 2pts of jitter slack | green |
+| up to 10 points beyond that | yellow |
+| further ahead than that | red |
 | less than 10% of quota left (`used% ≥ 90`) | red, regardless of pace |
 
 40% of the week burned on day one is **yellow** — that rate exhausts it by Thursday. 92% used with 12 minutes left is **red** even though the pacing was perfect: there is no room left to spend at any rate.

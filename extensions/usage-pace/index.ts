@@ -179,10 +179,13 @@ export function formatReset(resetsAt: number, now: number): string {
  * Pace, not absolute usage: are we ahead of the window's clock?
  * Exception: under 10% of quota left is red however well paced, since there is
  * no room to spend at any rate.
+ *
+ * SLACK absorbs ordinary jitter so a couple of points over the clock isn't amber.
  */
+const SLACK = 2;
 export function paceColor(usedPercent: number, elapsed: number): "success" | "warning" | "error" {
 	if (usedPercent >= 90) return "error";
-	const over = usedPercent - elapsed;
+	const over = usedPercent - elapsed - SLACK;
 	if (over <= 0) return "success";
 	return over <= 10 ? "warning" : "error";
 }

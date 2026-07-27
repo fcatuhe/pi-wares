@@ -5,7 +5,7 @@ import { elapsedPercent, formatReset, paceColor, parseClaude, parseCodex } from 
 const HOUR = 3_600_000;
 const now = Date.now();
 
-// Claude: fraction utilization, 3h left of a 5h window => 40% elapsed, 42% used => 2pts over.
+// Claude: fraction utilization, 3h left of a 5h window => 40% elapsed, 42% used => within slack.
 const claude = parseClaude({
 	five_hour: { utilization: 0.42, resets_at: new Date(now + 3 * HOUR).toISOString() },
 	seven_day: { utilization: 61, resets_at: new Date(now + 2 * 24 * HOUR).toISOString() },
@@ -13,7 +13,7 @@ const claude = parseClaude({
 assert.equal(claude.length, 2);
 assert.equal(Math.round(claude[0].usedPercent), 42);
 assert.equal(Math.round(elapsedPercent(claude[0], now)), 40);
-assert.equal(paceColor(claude[0].usedPercent, elapsedPercent(claude[0], now)), "warning");
+assert.equal(paceColor(claude[0].usedPercent, elapsedPercent(claude[0], now)), "success");
 // 0-100 form must not be re-scaled; 5 of 7 days gone => 71% elapsed, 61% used => under pace.
 assert.equal(paceColor(claude[1].usedPercent, elapsedPercent(claude[1], now)), "success");
 assert.equal(Math.round(claude[1].usedPercent), 61);
@@ -33,10 +33,12 @@ assert.equal(paceColor(codex[0].usedPercent, elapsedPercent(codex[0], now)), "su
 assert.equal(codex[1].label, "7d"); // duration fell back to 168h
 assert.equal(paceColor(codex[1].usedPercent, elapsedPercent(codex[1], now)), "success");
 
-// Pace ladder: on pace green, up to +10pts yellow, beyond red.
+// Pace ladder: on pace (+2pts slack) green, up to +10pts beyond that yellow, then red.
 assert.equal(paceColor(40, 40), "success");
-assert.equal(paceColor(50, 40), "warning");
-assert.equal(paceColor(51, 40), "error");
+assert.equal(paceColor(42, 40), "success"); // jitter slack
+assert.equal(paceColor(43, 40), "warning");
+assert.equal(paceColor(52, 40), "warning");
+assert.equal(paceColor(53, 40), "error");
 // Under 10% of quota left is red no matter how well paced.
 assert.equal(paceColor(90, 95), "error");
 assert.equal(paceColor(89, 95), "success");
