@@ -8,12 +8,20 @@
  * summary, not the raw stream.
  */
 
-import { spawn } from "node:child_process";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { type ChildProcess, spawn } from "node:child_process";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { StringDecoder } from "node:string_decoder";
 import type { Message } from "@earendil-works/pi-ai";
-import { type ExtensionAPI, getAgentDir, getMarkdownTheme } from "@earendil-works/pi-coding-agent";
+import {
+	DEFAULT_MAX_BYTES,
+	DEFAULT_MAX_LINES,
+	type ExtensionAPI,
+	getAgentDir,
+	getMarkdownTheme,
+	truncateHead,
+} from "@earendil-works/pi-coding-agent";
 import { Container, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 
@@ -81,11 +89,11 @@ function resolveModel(spec: string): { providerSlashId: string; level?: Thinking
 			`Cannot resolve model nickname '${name}': no enabledModels in ~/.pi/agent/settings.json. Set scope via \`--models\` / \`/scoped-models\`, or pass a literal 'provider/id'.`,
 		);
 	}
-	const needle = name.toLowerCase();
-	const matches = enabled.filter((entry) => {
-		const id = entry.slice(entry.indexOf("/") + 1).toLowerCase();
-		return id.includes(needle);
-	});
+	// Normalize `.` -> `-` on both sides so `claude-haiku-4.5` matches the registry's
+	// `claude-haiku-4-5-20251001`. Providers are inconsistent about the separator.
+	const norm = (s: string) => s.toLowerCase().replace(/\./g, "-");
+	const needle = norm(name);
+	const matches = enabled.filter((entry) => norm(entry.slice(entry.indexOf("/") + 1)).includes(needle));
 	if (matches.length === 1) return { providerSlashId: matches[0], level };
 	if (matches.length === 0) {
 		throw new Error(
@@ -100,6 +108,9 @@ function resolveModel(spec: string): { providerSlashId: string; level?: Thinking
 // the whole point of dispatching the sidequest is to get it back. stderr (process noise)
 // is still capped via STDERR_PREVIEW_CHARS to avoid dumping pi startup chatter into context.
 const STDERR_PREVIEW_CHARS = 500;
+// Hard cap on *accumulated* stderr. Keep the tail: startup chatter is noise, the
+// failure reason is at the end. Without this a chatty child grows without bound.
+const STDERR_MAX_CHARS = 128 * 1024;
 
 // ---------- helpers ----------
 
@@ -362,7 +373,7 @@ function buildChildArgs(task: NormalizedSession): string[] {
  * shape stays in sync. `task.piName` is computed once in normalizeSessions to
  * avoid `stamp()` time-skew between argv assembly and result rendering.
  */
-function createInitialResult(task: NormalizedSession, cwd: string): SidequestResult {
+export function createInitialResult(task: NormalizedSession, cwd: string): SidequestResult {
 	return {
 		label: task.label,
 		prompt: task.prompt,
@@ -371,6 +382,7 @@ function createInitialResult(task: NormalizedSession, cwd: string): SidequestRes
 		cwd,
 		sessionId: "",
 		sessionFile: "",
+		background: task.background,
 		exitCode: -1,
 		stderr: "",
 		messages: [],
@@ -378,12 +390,16 @@ function createInitialResult(task: NormalizedSession, cwd: string): SidequestRes
 	};
 }
 
-function kindGlyph(r: Pick<SidequestResult, "followUp">): string {
-	return r.followUp ? "↻" : "✦";
+function kindGlyph(r: Pick<SidequestResult, "followUp" | "background">): string {
+	return r.background ? "⇢" : r.followUp ? "↻" : "✦";
 }
 
 function iconFor(r: SidequestResult, theme: { fg: (color: any, text: string) => string }): string {
-	return r.exitCode === -1
+	// A background handle is never "running" from this tool row's point of view — the row
+	// is already closed and its result arrives later as its own message.
+	return r.background && r.exitCode === -1
+		? theme.fg("accent", "⇢")
+		: r.exitCode === -1
 		? theme.fg("warning", "⏳")
 		: r.exitCode === 0 && r.stopReason !== "error"
 			? theme.fg("success", "✓")
@@ -400,6 +416,55 @@ function getFinalText(messages: Message[]): string {
 		}
 	}
 	return "";
+}
+
+/** Write the untruncated body somewhere durable; return its path, or undefined on failure. */
+function spillOutput(sessionId: string, text: string): string | undefined {
+	try {
+		const dir = path.join(getAgentDir(), "sidequests", "outputs");
+		mkdirSync(dir, { recursive: true, mode: 0o700 });
+		const file = path.join(dir, `${sessionId || "unknown"}-${Date.now()}.md`);
+		writeFileSync(file, text, "utf8");
+		return file;
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * One `--- [name] <kind> (uuid) [status] ---` block plus body, for the parent LLM.
+ * Bodies over pi's standard tool-output budget are head-truncated and the full text
+ * spilled to a file named inline — an unbounded child report would otherwise evict
+ * the parent's own context, which is the whole reason we dispatched the sidequest.
+ */
+export function resultBlock(r: SidequestResult): string {
+	const status =
+		r.exitCode === -1
+			? "running"
+			: r.exitCode === 0 && r.stopReason !== "error"
+				? "ok"
+				: r.stopReason || (r.exitCode > 0 ? "failed" : "?");
+	const finalText = getFinalText(r.messages);
+	const full = finalText
+		? finalText.trim()
+		: r.errorMessage || r.stderr.slice(-STDERR_PREVIEW_CHARS).trim() || "(no output)";
+	const cut = truncateHead(full, { maxBytes: DEFAULT_MAX_BYTES, maxLines: DEFAULT_MAX_LINES });
+	let body = full;
+	if (cut.truncated) {
+		const file = spillOutput(r.sessionId, full);
+		body = `${cut.content}\n\n[truncated at ${cut.outputLines}/${cut.totalLines} lines${
+			file ? ` — full output: ${file}` : ""
+		}]`;
+	}
+	const idHint = r.sessionId ? shortId(r.sessionId) : "";
+	const kind = kindGlyph(r);
+	const shownName = r.label || (r.displayName ? prettyName(r.displayName) : undefined);
+	const row = shownName
+		? `[${shownName}] ${kind}${idHint ? ` (${idHint})` : ""}`
+		: idHint
+			? `(${idHint}) ${kind}`
+			: `${kind}`;
+	return `--- ${row} [${status}] ---\n${body}`;
 }
 
 type DisplayItem = { type: "text"; text: string } | { type: "toolCall"; name: string; args: Record<string, any> };
@@ -438,6 +503,7 @@ interface SidequestResult {
 	cwd: string;
 	sessionId: string; // UUID of the actual session as captured from the JSONL `session` event
 	sessionFile: string; // absolute path; empty until process closes
+	background?: boolean; // dispatched fire-and-forget; result arrives as a session message
 	displayName?: string; // latest `session_info.name` from the child's JSONL (e.g. sq_<slug>_<stamp>)
 	exitCode: number; // -1 = running, 0 = ok, >0 = failure
 	stopReason?: string;
@@ -456,6 +522,8 @@ type NormalizedSession = {
 	piName?: string; // decorated `--name` value, computed once in normalizeSessions
 	args?: string[];
 	cwd?: string;
+	background?: boolean;
+	timeoutMs?: number;
 };
 
 const FORBIDDEN_IN_ARGS: ReadonlyArray<{ flag: string; field: string }> = [
@@ -473,7 +541,7 @@ const FORBIDDEN_IN_ARGS: ReadonlyArray<{ flag: string; field: string }> = [
  * Lifecycle events (text_delta, message_update, *_start, non-message *_end)
  * are dropped — only `session`, `message_end`, and `tool_result_end` matter.
  */
-function applyJsonEvent(line: string, result: SidequestResult): boolean {
+export function applyJsonEvent(line: string, result: SidequestResult): boolean {
 	if (!line.trim()) return false;
 	let event: any;
 	try {
@@ -488,7 +556,10 @@ function applyJsonEvent(line: string, result: SidequestResult): boolean {
 		return true;
 	}
 
-	if (event.type === "message_end" && event.message) {
+	// `content` must be an array: every consumer (getFinalText, getDisplayItems, the
+	// renderer) iterates it. This is a trust boundary — a malformed child line would
+	// otherwise crash the TUI at render time, far from here.
+	if (event.type === "message_end" && event.message && Array.isArray(event.message.content)) {
 		const msg = event.message as Message;
 		result.messages.push(msg);
 		if (msg.role === "assistant") {
@@ -497,7 +568,10 @@ function applyJsonEvent(line: string, result: SidequestResult): boolean {
 			if (u) {
 				result.usage.input += u.input || 0;
 				result.usage.output += u.output || 0;
-				result.usage.cacheRead += u.cacheRead || 0;
+				// cacheRead is the whole cached prefix re-reported every turn, not a per-turn
+				// delta — summing it over-counts by roughly the turn count. Track the peak.
+				// (cost stays summed: that IS billed per call.)
+				result.usage.cacheRead = Math.max(result.usage.cacheRead, u.cacheRead || 0);
 				result.usage.cacheWrite += u.cacheWrite || 0;
 				result.usage.cost += u.cost?.total || 0;
 				result.usage.contextTokens = u.totalTokens || 0;
@@ -509,7 +583,7 @@ function applyJsonEvent(line: string, result: SidequestResult): boolean {
 		return true;
 	}
 
-	if (event.type === "tool_result_end" && event.message) {
+	if (event.type === "tool_result_end" && event.message && Array.isArray(event.message.content)) {
 		result.messages.push(event.message as Message);
 		return true;
 	}
@@ -517,7 +591,30 @@ function applyJsonEvent(line: string, result: SidequestResult): boolean {
 	return false;
 }
 
-async function runSingleSidequest(
+/**
+ * SIGTERM the child's process *group*, SIGKILL after a grace period.
+ * Two traps this avoids:
+ *  - `proc.killed` only means "a signal was sent", so escalation must test real
+ *    liveness (exitCode/signalCode) or the SIGKILL never fires.
+ *  - signalling the pi pid alone orphans its own grandchildren (pi -> bash -> npm),
+ *    hence `detached: true` at spawn and the negative pid here.
+ */
+export function killTree(proc: ChildProcess, graceMs = 5000): void {
+	const send = (sig: NodeJS.Signals) => {
+		try {
+			if (proc.pid && process.platform !== "win32") process.kill(-proc.pid, sig);
+			else proc.kill(sig);
+		} catch {
+			/* group already gone */
+		}
+	};
+	send("SIGTERM");
+	setTimeout(() => {
+		if (proc.exitCode === null && proc.signalCode === null) send("SIGKILL");
+	}, graceMs).unref();
+}
+
+export async function runSingleSidequest(
 	defaultCwd: string,
 	task: NormalizedSession,
 	signal: AbortSignal | undefined,
@@ -527,6 +624,16 @@ async function runSingleSidequest(
 	const result = createInitialResult(task, cwd);
 	const childArgs = result.args;
 
+	// Guard here rather than in runWithConcurrencyLimit: every caller (batch worker,
+	// background launcher) routes through this function, so one check covers them all
+	// and a task dequeued after the batch was aborted never spawns a process.
+	if (signal?.aborted) {
+		result.exitCode = 1;
+		result.stopReason = "aborted";
+		if (onTaskUpdate) onTaskUpdate(result);
+		return result;
+	}
+
 	// For follow-ups, eagerly resolve the existing session file + display name so the
 	// live renderer can show the friendly name instead of just the UUID prefix.
 	// Use the cross-cwd lookup: the existing session's JSONL lives in *its* original
@@ -534,6 +641,7 @@ async function runSingleSidequest(
 	if (task.session) populateDisplayName(result, task.session);
 
 	let wasAborted = false;
+	let timedOut = false;
 
 	const exitCode = await new Promise<number>((resolve) => {
 		const invocation = getPiInvocation(childArgs);
@@ -541,47 +649,76 @@ async function runSingleSidequest(
 			cwd,
 			shell: false,
 			stdio: ["ignore", "pipe", "pipe"],
+			// Own process group so killTree() reaches the child's own descendants.
+			detached: process.platform !== "win32",
 		});
 
 		let buffer = "";
+		let timer: NodeJS.Timeout | undefined;
+		// Chunk boundaries land mid-codepoint on any multi-byte output (accents, CJK,
+		// emoji). `data.toString()` per chunk corrupts those; StringDecoder holds the
+		// partial sequence until the rest arrives. Split on "\n" only — never /\r?\n/ —
+		// so U+2028/U+2029 inside JSON strings survive intact.
+		const decoder = new StringDecoder("utf8");
 
 		const processLine = (line: string) => {
 			if (applyJsonEvent(line, result) && onTaskUpdate) onTaskUpdate(result);
 		};
 
 		proc.stdout.on("data", (data) => {
-			buffer += data.toString();
+			buffer += decoder.write(data);
 			const lines = buffer.split("\n");
 			buffer = lines.pop() || "";
 			for (const line of lines) processLine(line);
 		});
 
 		proc.stderr.on("data", (data) => {
-			result.stderr += data.toString();
+			result.stderr = (result.stderr + data.toString()).slice(-STDERR_MAX_CHARS);
 		});
 
-		proc.on("close", (code) => {
+		let detachAbort: (() => void) | undefined;
+
+		proc.on("close", (code, sig) => {
+			if (timer) clearTimeout(timer);
+			detachAbort?.();
+			buffer += decoder.end();
 			if (buffer.trim()) processLine(buffer);
-			resolve(code ?? 0);
+			// A signalled child reports code=null; `?? 0` would score a kill as success.
+			resolve(code ?? (sig ? 1 : 0));
 		});
 
-		proc.on("error", () => resolve(1));
+		proc.on("error", () => {
+			if (timer) clearTimeout(timer);
+			detachAbort?.();
+			resolve(1);
+		});
+
+		if (task.timeoutMs) {
+			timer = setTimeout(() => {
+				timedOut = true;
+				killTree(proc);
+			}, task.timeoutMs);
+		}
 
 		if (signal) {
 			const killProc = () => {
 				wasAborted = true;
-				proc.kill("SIGTERM");
-				setTimeout(() => {
-					if (!proc.killed) proc.kill("SIGKILL");
-				}, 5000);
+				killTree(proc);
 			};
 			if (signal.aborted) killProc();
-			else signal.addEventListener("abort", killProc, { once: true });
+			else {
+				signal.addEventListener("abort", killProc, { once: true });
+				// Drop the listener when the child ends on its own; a batch signal outlives
+				// each individual child and would otherwise accumulate one per task.
+				detachAbort = () => signal.removeEventListener("abort", killProc);
+			}
 		}
 	});
 
 	result.exitCode = exitCode;
-	if (wasAborted && !result.stopReason) result.stopReason = "aborted";
+	// Overwrite any model-reported stopReason: how we ended the process is the truth.
+	if (timedOut) result.stopReason = "timeout";
+	else if (wasAborted) result.stopReason = "aborted";
 
 	if (result.sessionId) populateDisplayName(result, result.sessionId);
 
@@ -624,6 +761,19 @@ const SessionItem = Type.Object({
 		}),
 	),
 	cwd: Type.Optional(Type.String({ description: "Working directory for the spawned child process. Defaults to the parent's cwd." })),
+	background: Type.Optional(
+		Type.Boolean({
+			description:
+				"Fire-and-forget. The call returns a session handle immediately instead of blocking, and the result is delivered to you as a message when the child finishes. Use for long jobs (builds, full test suites, wide refactors) you want to run while you keep working. Default false (the call blocks until done).",
+		}),
+	),
+	timeoutMs: Type.Optional(
+		Type.Integer({
+			description:
+				"Wall-clock ceiling in milliseconds. On expiry the child's whole process tree is killed and the run is reported with status 'timeout'. Omit for no limit.",
+			minimum: 1000,
+		}),
+	),
 });
 
 // Native shape — what execute() actually consumes.
@@ -675,7 +825,7 @@ function parseSessionsField(raw: unknown): unknown[] {
 	return value;
 }
 
-function normalizeSessions(raw: unknown): NormalizedSession[] {
+export function normalizeSessions(raw: unknown): NormalizedSession[] {
 	const value = parseSessionsField(raw);
 	const out: NormalizedSession[] = [];
 	for (let i = 0; i < value.length; i++) {
@@ -733,6 +883,9 @@ function normalizeSessions(raw: unknown): NormalizedSession[] {
 				throw new Error(`sessions[${i}].model: ${(e as Error).message}`);
 			}
 		}
+		if (rec.timeoutMs !== undefined && (typeof rec.timeoutMs !== "number" || !(rec.timeoutMs >= 1000))) {
+			throw new Error(`sessions[${i}].timeoutMs must be a number >= 1000 (milliseconds).`);
+		}
 		const entry: NormalizedSession = {
 			session,
 			label,
@@ -741,6 +894,8 @@ function normalizeSessions(raw: unknown): NormalizedSession[] {
 			resolvedModel,
 			args,
 			cwd: typeof rec.cwd === "string" ? rec.cwd : undefined,
+			background: rec.background === true,
+			timeoutMs: typeof rec.timeoutMs === "number" ? rec.timeoutMs : undefined,
 		};
 		// Compute the `--name` value ONCE here so argv and rendered name share one stamp:
 		//   new session       -> decorated `sq_<slug>_<stamp>`
@@ -772,6 +927,17 @@ function normalizeSessions(raw: unknown): NormalizedSession[] {
 
 // ---------- extension entry point ----------
 
+/**
+ * Live background runs. Exists for three reasons:
+ *  - `session_shutdown` must reap them (they're `detached`, so they'd otherwise
+ *    outlive the parent as orphans),
+ *  - the per-call task cap has to count them, else N calls x 8 = unbounded fan-out,
+ *  - a follow-up on a session with a live background turn would race its appends,
+ *    which is the same hazard `normalizeSessions` already rejects within one call.
+ */
+type BackgroundRun = { controller: AbortController; label: string; session?: string };
+const backgroundRuns = new Set<BackgroundRun>();
+
 export default function (pi: ExtensionAPI) {
 	// Generic --name flag: sets the session display name verbatim.
 	pi.registerFlag("name", {
@@ -783,6 +949,58 @@ export default function (pi: ExtensionAPI) {
 		const name = pi.getFlag("name") as string | undefined;
 		if (name && name.trim()) pi.setSessionName(name.trim());
 	});
+
+	// Background children are detached; without this they survive the parent.
+	pi.on("session_shutdown", async () => {
+		for (const run of backgroundRuns) run.controller.abort();
+		backgroundRuns.clear();
+	});
+
+	/**
+	 * Start a background run and resolve once its session UUID is known (or after a
+	 * short grace), so the parent gets a real handle it can follow up on. The result
+	 * is pushed back into the conversation on completion — `deliverAs: "steer"` slots
+	 * it in after the current tool batch, `triggerTurn` wakes an idle parent.
+	 *
+	 * Deliberately no `wait` tool: push-only delivery means there is no second
+	 * consumer to dedupe against, which is the entire claim/suppression subsystem
+	 * other implementations need.
+	 */
+	const launchBackground = async (task: NormalizedSession, cwd: string): Promise<SidequestResult> => {
+		const run: BackgroundRun = { controller: new AbortController(), label: task.label || task.session || "?", session: task.session };
+		backgroundRuns.add(run);
+		const handle = createInitialResult(task, cwd);
+		let onId: () => void = () => {};
+		const idKnown = new Promise<void>((res) => {
+			onId = res;
+		});
+		void runSingleSidequest(cwd, task, run.controller.signal, (live) => {
+			if (live.sessionId && !handle.sessionId) {
+				handle.sessionId = live.sessionId;
+				onId();
+			}
+		})
+			.then((r) => {
+				pi.sendMessage(
+					{
+						customType: "sidequest_complete",
+						content: `Background sidequest finished.\n\n${resultBlock(r)}`,
+						display: true,
+						details: { results: [r] },
+					},
+					{ deliverAs: "steer", triggerTurn: true },
+				);
+			})
+			.catch(() => {
+				/* runSingleSidequest resolves on failure; nothing to salvage here */
+			})
+			.finally(() => {
+				backgroundRuns.delete(run);
+				onId();
+			});
+		await Promise.race([idKnown, new Promise<void>((res) => setTimeout(res, 5000).unref())]);
+		return handle;
+	};
 
 	pi.registerTool({
 		name: "sidequests",
@@ -796,7 +1014,9 @@ export default function (pi: ExtensionAPI) {
 			"For a follow-up that also renames the session: { session: '019de2af', label: 'auth-refactor', prompt: '...' } — the label is used verbatim in this case.",
 			"To pick the model per entry, set `model` (e.g. 'opus', 'sonnet', 'gpt', 'opus:high', or a literal 'provider/id'). See the `model` field description for resolution rules.",
 			"`args` is an optional escape hatch for extra pi flags (e.g. --skill, --extension); most calls don't need it. Do NOT put --model, --thinking, --session, --name there — use the dedicated fields.",
-			"The result `content[0].text` returns each entry's full final reply verbatim under a `--- [label] <kind> (<uuid>) [<status>] ---` header per task. To follow up later, pass `session: '<uuid-prefix>'` from a result row.",
+			"Set `background: true` on an entry to dispatch it fire-and-forget: the call returns its session handle immediately and the result is delivered to you as a message when it finishes. Mix freely with blocking entries in one call.",
+			"Set `timeoutMs` to bound a run you suspect could hang.",
+			"The result `content[0].text` returns each blocking entry's final reply under a `--- [label] <kind> (<uuid>) [<status>] ---` header. Oversized replies are truncated with a path to the full text. To follow up later, pass `session: '<uuid-prefix>'` from a result row.",
 		].join(" "),
 		parameters: SidequestsParams,
 
@@ -828,8 +1048,45 @@ export default function (pi: ExtensionAPI) {
 				};
 			}
 
+			const bgTasks = tasks.filter((t) => t.background);
+			const fgTasks = tasks.filter((t) => !t.background);
+
+			if (bgTasks.length > 0) {
+				if (backgroundRuns.size + bgTasks.length > MAX_PARALLEL_TASKS) {
+					return {
+						content: [
+							{
+								type: "text",
+								text: `Too many background sidequests: ${backgroundRuns.size} already running, ${bgTasks.length} requested, max ${MAX_PARALLEL_TASKS}. Wait for some to report back.`,
+							},
+						],
+						details: { results: [] },
+						isError: true,
+					};
+				}
+				for (const t of tasks) {
+					if (!t.session) continue;
+					const clash = [...backgroundRuns].find((b) => b.session === t.session);
+					if (clash) {
+						return {
+							content: [
+								{
+									type: "text",
+									text: `Session '${t.session}' already has a background sidequest running ([${clash.label}]). Concurrent turns on one session would race their appends — wait for it to report back, or spawn a new session.`,
+								},
+							],
+							details: { results: [] },
+							isError: true,
+						};
+					}
+				}
+			}
+
+			const bgHandles: SidequestResult[] = [];
+			for (const t of bgTasks) bgHandles.push(await launchBackground(t, t.cwd ?? ctx.cwd));
+
 			// Initialize placeholder results for streaming UI.
-			const allResults: SidequestResult[] = tasks.map((t) => createInitialResult(t, t.cwd ?? ctx.cwd));
+			const allResults: SidequestResult[] = fgTasks.map((t) => createInitialResult(t, t.cwd ?? ctx.cwd));
 
 			const emitUpdate = () => {
 				if (!onUpdate) return;
@@ -837,13 +1094,13 @@ export default function (pi: ExtensionAPI) {
 				const done = allResults.length - running;
 				onUpdate({
 					content: [{ type: "text", text: `Sidequests: ${done}/${allResults.length} done, ${running} running...` }],
-					details: { results: [...allResults] },
+					details: { results: [...bgHandles, ...allResults] },
 				});
 			};
 
 			emitUpdate();
 
-			await runWithConcurrencyLimit(tasks, DEFAULT_CONCURRENCY, async (t, index) => {
+			await runWithConcurrencyLimit(fgTasks, DEFAULT_CONCURRENCY, async (t, index) => {
 				await runSingleSidequest(ctx.cwd, t, signal, (live) => {
 					allResults[index] = { ...live };
 					emitUpdate();
@@ -854,27 +1111,24 @@ export default function (pi: ExtensionAPI) {
 			const successCount = allResults.filter((r) => r.exitCode === 0 && r.stopReason !== "error").length;
 			const failCount = allResults.length - successCount;
 
-			const lines: string[] = [`${successCount}/${allResults.length} sidequests completed.`];
-			if (failCount > 0) lines[0] += ` ${failCount} failed.`;
+			const lines: string[] = [];
+			if (allResults.length > 0) {
+				lines.push(
+					`${successCount}/${allResults.length} sidequests completed.${failCount > 0 ? ` ${failCount} failed.` : ""}`,
+				);
+			}
+			if (bgHandles.length > 0) {
+				lines.push(
+					`${bgHandles.length} dispatched in background — each result will arrive as a message when it finishes. Do not wait for them; carry on.`,
+				);
+				for (const r of bgHandles) {
+					lines.push(`  [${r.label || "?"}] ${kindGlyph(r)}${r.sessionId ? ` (${shortId(r.sessionId)})` : ""}`);
+				}
+			}
 			lines.push("");
 
 			for (const r of allResults) {
-				const status =
-					r.exitCode === 0 && r.stopReason !== "error" ? "ok" : r.stopReason || (r.exitCode > 0 ? "failed" : "?");
-				const finalText = getFinalText(r.messages);
-				const body = finalText
-					? finalText.trim()
-					: r.errorMessage || r.stderr.slice(-STDERR_PREVIEW_CHARS).trim() || "(no output)";
-				const idHint = r.sessionId ? shortId(r.sessionId) : "";
-				const kind = kindGlyph(r);
-				const shownName = r.label || (r.displayName ? prettyName(r.displayName) : undefined);
-				const row = shownName
-					? `[${shownName}] ${kind}${idHint ? ` (${idHint})` : ""}`
-					: idHint
-						? `(${idHint}) ${kind}`
-						: `${kind}`;
-				lines.push(`--- ${row} [${status}] ---`);
-				lines.push(body);
+				lines.push(resultBlock(r));
 				lines.push("");
 			}
 			lines.push("");
@@ -884,16 +1138,16 @@ export default function (pi: ExtensionAPI) {
 
 			return {
 				content: [{ type: "text", text: lines.join("\n") }],
-				details: { results: allResults },
+				details: { results: [...bgHandles, ...allResults] },
 				isError: allFailed,
 			};
 		},
 
 		renderCall(args: any, theme) {
 			// `sessions` may be a real array or (in transport-stringified form) a string.
-			let sessions: Array<{ session?: string; label?: string; prompt?: string }> = [];
+			let sessions: Array<{ session?: string; label?: string; prompt?: string; background?: boolean }> = [];
 			try {
-				sessions = parseSessionsField(args.sessions) as Array<{ session?: string; label?: string; prompt?: string }>;
+				sessions = parseSessionsField(args.sessions) as typeof sessions;
 			} catch {
 				/* render best-effort */
 			}
@@ -901,7 +1155,7 @@ export default function (pi: ExtensionAPI) {
 				theme.fg("toolTitle", theme.bold("sidequests ")) +
 				theme.fg("accent", `(${sessions.length} session${sessions.length === 1 ? "" : "s"})`);
 			for (const s of sessions.slice(0, 3)) {
-				const kind = `${kindGlyph({ followUp: !!s.session })} `;
+				const kind = `${kindGlyph({ followUp: !!s.session, background: s.background })} `;
 				let displayName: string | undefined;
 				if (s.session && !s.label) {
 					const file = findSessionFileAcrossCwds(s.session);
@@ -928,9 +1182,13 @@ export default function (pi: ExtensionAPI) {
 
 			const mdTheme = getMarkdownTheme();
 			const results = details.results;
-			const running = results.filter((r) => r.exitCode === -1).length;
-			const successCount = results.filter((r) => r.exitCode === 0 && r.stopReason !== "error").length;
-			const failCount = results.length - successCount - running;
+			// Background handles are dispatched, not pending — count them apart or the header
+			// reads "1/3 done, 2 running" forever on a row that will never update again.
+			const dispatched = results.filter((r) => r.background && r.exitCode === -1).length;
+			const tracked = results.filter((r) => !(r.background && r.exitCode === -1));
+			const running = tracked.filter((r) => r.exitCode === -1).length;
+			const successCount = tracked.filter((r) => r.exitCode === 0 && r.stopReason !== "error").length;
+			const failCount = tracked.length - successCount - running;
 
 			const headerIcon =
 				running > 0
@@ -938,10 +1196,13 @@ export default function (pi: ExtensionAPI) {
 					: failCount > 0
 						? theme.fg("warning", "◐")
 						: theme.fg("success", "✓");
+			const bgNote = dispatched > 0 ? `${tracked.length > 0 ? ", " : ""}${dispatched} in background` : "";
 			const status =
-				running > 0
-					? `${results.length - running}/${results.length} done, ${running} running`
-					: `${successCount}/${results.length} ok${failCount > 0 ? `, ${failCount} failed` : ""}`;
+				(running > 0
+					? `${tracked.length - running}/${tracked.length} done, ${running} running`
+					: tracked.length > 0
+						? `${successCount}/${tracked.length} ok${failCount > 0 ? `, ${failCount} failed` : ""}`
+						: "") + bgNote;
 
 			const aggregateUsage = () => {
 				const total = {
@@ -1048,7 +1309,14 @@ export default function (pi: ExtensionAPI) {
 				const items = getDisplayItems(r.messages);
 				text += `\n\n${headerLineFor(r, rIcon)}`;
 				if (items.length === 0)
-					text += `\n${theme.fg("muted", r.exitCode === -1 ? "(running...)" : "(no output)")}`;
+					text += `\n${theme.fg(
+						"muted",
+						r.background && r.exitCode === -1
+							? "(dispatched — result will arrive as a message)"
+							: r.exitCode === -1
+								? "(running...)"
+								: "(no output)",
+					)}`;
 				else text += `\n${renderDisplayItems(items, 5)}`;
 			}
 			if (running === 0) {

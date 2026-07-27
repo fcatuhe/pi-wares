@@ -33,16 +33,18 @@ Schema is v4-stable. Manual smoke matrix: new sessions, parallel new, follow-up 
 
 Known caveat: parallel + long-running batches will visibly fail if the user cancels the parent turn (Esc / new prompt). Children may continue and write their full output to disk after the parent has reported "aborted" — the data isn't lost, but the parent never sees it on stdout. Out of scope for this iteration.
 
-## Open question: parallel sidequest *tool calls*
+## Resolved: background mode (was "Open question")
 
-Right now "parallel" means "one `sidequests` call with N entries in `sessions[]`, awaited as a batch". The tool blocks until all N children complete.
+Question (2) — fire-and-forget — is **shipped**, in the smallest form that works:
 
-Two related questions worth answering before adding features:
+- `background: true` per entry. The call returns that entry's session handle immediately (we await the child's first `session` event, max 5s, so the handle carries a real resumable UUID) and blocks only on the non-background entries.
+- On completion the result is pushed back with `pi.sendMessage({ customType: "sidequest_complete" }, { deliverAs: "steer", triggerTurn: true })`. Borrowed directly from `@ogulcancelik/pi-codex-subagents`.
+- **No `wait`/`status` tool, deliberately.** Push-only delivery means there is exactly one consumer of a completion, so there is nothing to deduplicate against. Both `pi-subagents` and codex-subagents needed a claim/suppression protocol (with a `finally` that re-releases a suppressed event on abort) purely because they have *two* delivery paths racing. Skipping `wait` skips that entire subsystem. If the parent wants to block, it ends its turn and `triggerTurn` wakes it.
+- Bookkeeping is one module-level `Set<BackgroundRun>`, which serves three purposes: `session_shutdown` reaping (children are `detached`, so they'd orphan otherwise), the cross-call cap of 8 live runs, and rejecting a follow-up on a session that already has a live background turn (same append-race hazard `normalizeSessions` already rejects within one call).
 
-1. **Can the parent agent issue two `sidequests({...})` tool calls in the same assistant turn?** Depends on pi-ai's tool dispatcher (does it run tool calls within one assistant message in parallel or serially?). If parallel: each tool call has its own independent batch, no shared state — they don't merge in the result row. If serial: the second batch waits for the first.
-2. **Should we support background / fire-and-forget mode?** I.e., the tool returns immediately with handles `[{label, sessionId, status: "running"}, ...]`, and a sibling tool `sidequests_status({ sessions: [<uuid>, <uuid>] })` polls. This decouples "spawn" from "wait" and lets the agent keep working while children grind. Significant change to the abstraction; only do this if there's a real workflow that needs it.
+Question (1) is now moot: the agent gets fan-out from `background`, so whether pi dispatches sibling tool calls in parallel no longer gates anything.
 
-Investigate (1) first — if pi already runs tool calls in parallel, the agent can already get fan-out by emitting multiple `sidequests` calls, and (2) becomes unnecessary.
+Not ported (and why): a `peek`-style live overlay (396 untested lines upstream; `pi --session <uuid>` gives strictly better fidelity for free), a fleet widget (the expandable tool row already carries the same information for blocking runs), mid-flight steering (needs `--mode rpc`, and is meaningless without a `wait` to steer during), and PID-ownership verification via `/proc`/`ps eww` (upstream's own acknowledged largest complexity sink, guarding against a failure mode our `detached` process-group teardown doesn't create).
 
 ## Evolution priorities
 
@@ -69,20 +71,30 @@ A user-facing `/sq <label-or-uuid>` command that looks up by label (matching the
 
 Match policy: exact label match wins; substring match falls back; ambiguity → show a picker via `ctx.ui.select`. UUID prefix is a separate code path.
 
-### 3. Known correctness bugs (from v3 review, still live)
+### 3. Known correctness bugs (from v3 review) — ALL FIXED
 
-These were found in the v3 review by parallel Opus 4.7 + GPT 5.5 sidequests. They survived the DHH refactor because that refactor was strictly behavior-preserving and these are in the JSONL/spawn pipeline.
+Found in the v3 review by parallel Opus 4.7 + GPT 5.5 sidequests; they survived the DHH refactor because that refactor was strictly behavior-preserving. All six are now closed, each with a check in `index.test.ts`.
 
-| | Severity | Where | Fix |
-|---|---|---|---|
-| `proc.killed` semantics — SIGKILL escalation never fires | P0 | abort handler in `runSingleSidequest` | Track a local `closed` boolean from the `close` handler; gate SIGKILL on `!closed`, not `!proc.killed`. |
-| `applyJsonEvent` JSONL dispatch has no try/catch around field access | P0 | `applyJsonEvent` body | Wrap each per-event-type block in try/catch; log to stderr on failure; don't crash the data handler. |
-| Signal-killed children reported as `exitCode: 0` | P0 | `proc.on("close", code => resolve(code ?? 0))` | `close` receives `(code, signal)`; treat non-null `signal` as failure with `stopReason: signal`. |
-| UTF-8 stream split mid-codepoint | P1 | `proc.stdout.on("data", ...)` | Use `new StringDecoder("utf8")` per child. |
-| Worker pool keeps spawning post-abort | P1 | `runWithConcurrencyLimit` workers | Check `signal.aborted` at dequeue time; return aborted result without spawning. |
-| AbortSignal listener leak | P1 | abort handler | Remove the listener on normal completion. |
+| | Severity | Fix that landed |
+|---|---|---|
+| `proc.killed` — SIGKILL escalation never fired | P0 | `killTree()` gates escalation on `exitCode === null && signalCode === null`. `.killed` only means "a signal was sent". Also kills the **process group** (`process.kill(-pid)`, `detached: true` at spawn) so `pi` → `bash` → `npm` grandchildren don't leak. |
+| `applyJsonEvent` field access unguarded | P0 | `Array.isArray(event.message.content)` required before pushing. Every consumer iterates `content`; a malformed line would otherwise crash the TUI at render time, far from the parse site. |
+| Signal-killed children reported `exitCode: 0` | P0 | `resolve(code ?? (sig ? 1 : 0))` — `close` gives `(code, signal)` and a signalled child reports `code === null`. |
+| UTF-8 split mid-codepoint | P1 | One `StringDecoder("utf8")` per child, `decoder.end()` flushed on close. Still splits on `"\n"` only, never `/\r?\n/`, so U+2028/U+2029 inside JSON strings survive — same reasoning as codex-subagents' `RpcJsonlDecoder`. |
+| Worker pool kept spawning post-abort | P1 | Guard at the top of `runSingleSidequest`, not in `runWithConcurrencyLimit` — every caller (batch worker, background launcher) routes through it, so one check covers all of them. |
+| AbortSignal listener leak | P1 | `detachAbort()` removes the listener on `close`/`error`. A batch signal outlives each individual child. |
 
-Fix these, *then* extract `spawnAndStream` (see "next pass" agenda above).
+Also fixed in the same pass:
+
+| | Where | Fix |
+|---|---|---|
+| `cacheRead` summed across turns | `applyJsonEvent` | Each turn re-reports the whole cached prefix, so summing over-counted by ~the turn count. Now `Math.max`. `cacheWrite` and `cost` stay summed — those are genuine per-call deltas. |
+| Unbounded `result.stderr` growth | stderr handler | Tail-capped at `STDERR_MAX_CHARS` (128 KiB). The preview cap only bounded *display*, not accumulation. |
+| Model nickname missed dotted versions | `resolveModel` | Normalize `.` → `-` on both sides so `claude-haiku-4.5` matches `claude-haiku-4-5-20251001`. |
+| No wall-clock ceiling | new `timeoutMs` field | Kills the process tree and reports `[timeout]`; the session file survives for resume. |
+| Unbounded child output into parent context | new `resultBlock()` | `truncateHead` at pi's standard 50 KB / 2000 lines, full text spilled to `~/.pi/agent/sidequests/outputs/` with the path named inline. |
+
+`spawnAndStream` extraction is now unblocked (see "next pass" agenda above) — the shape it would extract is finally correct.
 
 ### 4. Per-task abort
 

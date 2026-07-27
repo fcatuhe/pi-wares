@@ -8,13 +8,14 @@ For the full design rationale and implementation tracker, see [`sidecar.md`](./s
 
 ## What it gives you
 
-This ware registers three things on load:
+This ware registers four things on load:
 
 | | What | Notes |
 |---|---|---|
 | Tool | `sidequests` | LLM-callable. Spawns each entry as either a new `pi --mode json -p --name <decorated> [...]` child or a `pi --mode json -p --session <uuid> [...]` follow-up turn. Parses JSONL output, returns a terse summary + per-entry details. |
 | Flag | `--name <string>` | Generic CLI flag — also useful in any `pi -p` script. Sets the session's display name verbatim (visible in `pi -r` / `/resume`). No decoration, no slugging. |
 | Hook | `session_start` | If `--name` was passed, calls `pi.setSessionName()` so the **child** writes its own display-name entry. Deterministic; no parent-side races. |
+| Hook | `session_shutdown` | Aborts any still-running `background: true` children. They spawn `detached` (own process group), so without this they would outlive the parent as orphans. |
 
 ## Install
 
@@ -62,25 +63,26 @@ sidequests({
 | `sessions[].model` | no | Model for the child session. Either a literal `provider/id` (e.g. `anthropic/claude-opus-4-7`) **or** a nickname matched case-insensitively as a substring against the user's `enabledModels` scope from `~/.pi/agent/settings.json` (e.g. `opus`, `sonnet`, `gpt`, `5.5`). Optional `:<thinkingLevel>` suffix sets thinking (`off`, `minimal`, `low`, `medium`, `high`, `xhigh`). Ambiguous or missing matches are rejected at validation time. Omit to use pi's default. |
 | `sessions[].args` | no | Extra pi flags appended verbatim, e.g. `["--skill", "brave-search"]`. **Rejected** if it contains `--session`, `--name`, `--model`, or `--thinking` — those are managed by dedicated fields. |
 | `sessions[].cwd` | no | Working directory for the spawned process. Defaults to the parent's cwd. |
+| `sessions[].background` | no | Fire-and-forget. The call returns this entry's session handle immediately instead of blocking, and its result is pushed back into the parent conversation as a `sidequest_complete` message (`deliverAs: "steer"`, `triggerTurn: true`) when the child finishes. Mix freely with blocking entries in one call. Capped at 8 live background runs across all calls. A follow-up targeting a session that already has a live background turn is rejected — concurrent turns on one session race their appends. |
+| `sessions[].timeoutMs` | no | Wall-clock ceiling (min 1000). On expiry the child's whole **process tree** is killed and the run reports `[timeout]`. The session file survives, so resume it with `pi --session <uuid-prefix>` to see how far it got. Omit for no limit. |
 
 Validation also rejects duplicate `session` UUIDs in a single call (would produce racing writes to the same JSONL).
 
-The whole batch is awaited together — `sidequests` returns when every entry has finished.
+Blocking entries are awaited together — `sidequests` returns when every non-background entry has finished. `background: true` entries are dispatched first and never block the call.
 
 ## Output
 
 The tool returns:
 
-- `content[0].text` — summary for the parent LLM. Each task's **full final assistant text** is included verbatim (no truncation — it's model-generated, so size is naturally bounded by the child). On failure, falls back to `errorMessage` or the last 500 chars of stderr.
+- `content[0].text` — summary for the parent LLM. Each blocking task's final assistant text is included verbatim up to pi's standard tool-output budget (50 KB / 2000 lines); past that it is head-truncated and the full text is written to `~/.pi/agent/sidequests/outputs/<uuid>-<ts>.md` with the path named inline. On failure, falls back to `errorMessage` or the last 500 chars of stderr.
 
   ```
-  3/3 sidequests completed.
+  2/2 sidequests completed.
+  1 dispatched in background — each result will arrive as a message when it finishes. Do not wait for them; carry on.
+    [nightly-build] ⇢ (019dd9c3-11ab-70e2)
 
   --- [auth] ✦ (019dd2af) [ok] ---
   <full finalText from the auth child, verbatim>
-
-  --- [ratelimit] ✦ (019dd5b1) [ok] ---
-  <full finalText…>
 
   --- [019dd2af] ↻ (019dd2af) [ok] ---     ← follow-up
   <full finalText…>
@@ -88,7 +90,18 @@ The tool returns:
   Follow up by passing `session: '<uuid-prefix>'` in a future sidequests call, or run `pi --session <uuid-prefix>` directly.
   ```
 
-  `✦` marks new sessions, `↻` marks follow-up turns.
+  `✦` marks new sessions, `↻` follow-up turns, `⇢` background dispatches.
+
+- **Background results** arrive later as their own `sidequest_complete` message, in the same block format:
+
+  ```
+  Background sidequest finished.
+
+  --- [nightly-build] ⇢ (019dd9c3-11ab-70e2) [ok] ---
+  <full finalText…>
+  ```
+
+  There is deliberately **no `wait` tool**. Push-only delivery means there is no second consumer to deduplicate against — which is the entire claim/suppression subsystem other subagent packages need. If the parent wants to block, it ends its turn; `triggerTurn` wakes it when the result lands.
 
 - `details.results[*]` — full per-entry data (renderer-only, never reaches the LLM):
   `kind` (`"new" | "followup"`), `label`, `displayName` (decorated form for new sessions), `prompt`, `args`, `cwd`, `sessionId` (UUID), `sessionFile` (absolute path), `exitCode`, `stopReason`, `errorMessage`, `stderr`, `messages[]` (full conversation), `usage` (tokens + cost).
@@ -148,6 +161,20 @@ sidequests({
 })
 ```
 
+**Fire-and-forget a long job** while the parent keeps working:
+
+```ts
+sidequests({
+  sessions: [
+    { label: "full-suite", prompt: "Run the full test suite and report every failure with file:line",
+      background: true, timeoutMs: 1_800_000 },
+    { label: "read-config", prompt: "Summarize every env var read in src/config/" },
+  ],
+})
+```
+
+The call returns as soon as `read-config` finishes, carrying `full-suite`'s session handle. When the suite finishes (or hits its 30-minute ceiling), its result is steered into the conversation on its own.
+
 ## Standalone use of `--name`
 
 Even outside the `sidequests` tool, the registered `--name` flag works for any `pi -p` invocation:
@@ -164,7 +191,27 @@ The session shows up in `pi -r` under that exact label (no decoration — that's
 - **Cost.** Each child is a real pi process making real LLM calls. Use the `model` field (e.g. `"haiku"`, `"gpt:low"`) to put cheaper models on parallel branches.
 - **Session file growth.** Sessions persist forever. Prune via `pi -r` → Ctrl+D, or write a cleanup script.
 - **Worktree isolation.** Not handled here. If parallel entries could collide on the working tree (e.g., simultaneous edits), pass distinct `cwd`s or use the [`pi-side-agents`](https://github.com/badlogic/pi-side-agents) package — it adds tmux + git-worktree per task.
-- **Whole-batch await.** The call blocks until every entry finishes. There is currently no fire-and-forget / polling mode (see `sidecar.md` § "Open question").
+- **Background children are detached.** They get their own process group so `timeoutMs` and abort can kill the whole tree (`pi` → `bash` → `npm run build`). The `session_shutdown` hook reaps them; a `SIGKILL -9` of the parent will not.
+- **`cacheRead` is a peak, not a sum.** Each turn re-reports the whole cached prefix, so summing over-counts by roughly the turn count. `$cost` is still summed — that genuinely is billed per call.
+
+## Self-check
+
+```bash
+bun test extensions/sidequests
+```
+
+Covers the parts that rot silently: process-group kill escalation (`proc.killed` means "signal sent", not "process died"), signalled children scoring as failures rather than exit 0, cumulative-vs-delta token accounting, oversized-output spill, and `background`/`timeoutMs` normalization.
+
+The peer deps live in pi's global install and are not vendored here, so link them once:
+
+```bash
+PI=$(dirname $(dirname $(readlink -f $(command -v pi))))/lib/node_modules/@earendil-works/pi-coding-agent
+cd node_modules && mkdir -p @earendil-works
+ln -sfn "$PI/node_modules/typebox" typebox
+ln -sfn "$PI/node_modules/@earendil-works/pi-tui" @earendil-works/pi-tui
+ln -sfn "$PI/node_modules/@earendil-works/pi-ai" @earendil-works/pi-ai
+ln -sfn "$PI" @earendil-works/pi-coding-agent
+```
 
 ### Compatibility note: `pi-claude-code-use`
 
@@ -189,3 +236,6 @@ On the next session start, `pi-claude-code-use` re-registers the tool under the 
 |---|---|
 | `pi-side-agents` package | tmux + worktree machinery, scrapes text from panes. Sidequests parses structured JSONL and shares cwd by default — lighter weight. |
 | `@feniix/pi-conductor` | Full DAG/gates/artifacts control plane (~12k LOC). Sidequests is the smallest possible thing: parallel + resumable + follow-ups + structured output. |
+| `pi-subagents` (~55k LOC) | Acceptance/evidence ladders, an LSP-driven change watchdog, a model-quota profiler, five launch paths. Sidequests keeps the parts that are load-bearing (subprocess spawn, real sessions, per-entry model) and none of the policy engine. |
+| `@tintinweb/pi-subagents` (~8.4k LOC) | Claude-Code `Task` clone; spawns children **in-process**, which is why it needs ~300 lines of dynamic tool-scoping to cope with lazily-registered MCP tools. Sidequests' subprocess boundary makes that problem not exist. |
+| `@ogulcancelik/pi-codex-subagents` (~2.7k LOC) | Closest in spirit. Its headline feature — "hibernation": kill the child on settle, keep the `.jsonl`, relaunch against `--session` to continue — is what sidequests does by construction, without its ~500 lines of PID-ownership forensics. Sidequests borrows its push-on-complete delivery and process-group teardown; it has no per-entry `model` or `cwd`, forces `--no-context-files`, and can only address agents it spawned in the current session. |
