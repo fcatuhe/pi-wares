@@ -11,6 +11,7 @@ Footer status showing the active subscription's usage as a bar with a **pace mar
 - `╵` = how far into the window we are (time elapsed).
 - Thick bar short of the marker → under pace. Past it → burning quota faster than the clock.
 - Trailing text = absolute usage percent + time until the window resets.
+- `~` before the label (`~5h ━━━╵── 42% 3h`) = the numbers are older than two poll intervals (10 min), i.e. the endpoint has been failing. The countdown stays accurate, the percent does not.
 
 ## Color = pace, not usage
 
@@ -40,7 +41,9 @@ Any other provider clears the status. Tokens come from `~/.pi/agent/auth.json`, 
 
 - Set via `ctx.ui.setStatus("usage", …)`, so the built-in footer, [`compact-footer`](../compact-footer/) and any other footer render it without extra wiring. `compact-footer` folds it onto its single status/path line.
 - Polls every 5 minutes, plus immediately on session start/switch and model change. The countdown text therefore lags by up to 5 minutes.
-- Last good snapshot is kept per provider, so a failed or timed-out (5s) request leaves the bar as-is instead of blanking it. No auth, no status.
+- Last good snapshot per provider is written to `~/.pi/agent/usage-pace.json`, so a failed or timed-out (5s) request leaves the bar as-is instead of blanking it, and a new session shows a bar before its first poll. No auth, no status.
+- **One poll per 5 minutes machine-wide, not per session.** Each refresh reads the shared file, adopts it if newer than what it holds, and stakes `polledAt` before fetching, so sessions starting in the same second don't stampede. Whichever session wins the slot feeds every other one. This matters: the Anthropic endpoint answers 429 when polled hard.
+- Snapshots older than two poll intervals render with a `~` prefix. Windows whose reset time has already passed are dropped on load rather than shown stale.
 - Both endpoints are unofficial. Any failure is swallowed and simply hides the segment.
 
 ## Config

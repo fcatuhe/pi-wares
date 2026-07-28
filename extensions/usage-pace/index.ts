@@ -15,7 +15,7 @@
  */
 
 import { execSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -26,6 +26,7 @@ const BAR_W = Number(process.env.PI_USAGE_BAR_WIDTH) || 6;
 // Half-height tick so the bar stays visually flat. Override if the font lacks U+2575.
 const MARKER = process.env.PI_USAGE_MARKER || "╵";
 const PROVIDERS: Record<string, Provider> = { anthropic: "claude", "openai-codex": "codex" };
+const SNAPSHOT_FILE = join(homedir(), ".pi", "agent", "usage-pace.json");
 
 type Provider = "claude" | "codex";
 
@@ -132,6 +133,42 @@ export function parseCodex(data: any): Window[] {
 	return windows;
 }
 
+// ============ Snapshot ============
+
+/** Last good windows, shared across sessions: a new session shows a bar before its
+ *  first poll, and one poll per window serves every session, which matters because
+ *  the Anthropic usage endpoint answers 429 when polled hard.
+ *  ponytail: last writer wins across concurrent sessions, fine for a display cache. */
+type Entry = { at: number; polledAt: number; windows: Window[] };
+type Snapshot = Record<string, Entry>;
+
+function readSnapshot(): Snapshot {
+	try {
+		return JSON.parse(readFileSync(SNAPSHOT_FILE, "utf8"));
+	} catch {
+		return {};
+	}
+}
+
+function patchSnapshot(provider: Provider, patch: Partial<Entry>): void {
+	try {
+		const all = readSnapshot();
+		const prev = all[provider] ?? { at: 0, polledAt: 0, windows: [] };
+		writeFileSync(SNAPSHOT_FILE, JSON.stringify({ ...all, [provider]: { ...prev, ...patch } }));
+	} catch {}
+}
+
+/** Stake the next poll before doing it, so sessions starting in the same second
+ *  don't all fetch. `polledAt` is the attempt, `at` the last success, so a failed
+ *  attempt still holds the slot without making stale numbers look fresh. */
+function claimPoll(provider: Provider): void {
+	patchSnapshot(provider, { polledAt: Date.now() });
+}
+
+function writeSnapshot(provider: Provider, windows: Window[]): void {
+	patchSnapshot(provider, { at: Date.now(), polledAt: Date.now(), windows });
+}
+
 // ============ Fetching ============
 
 async function fetchUsage(provider: Provider): Promise<Window[]> {
@@ -190,7 +227,7 @@ export function paceColor(usedPercent: number, elapsed: number): "success" | "wa
 	return over <= 10 ? "warning" : "error";
 }
 
-function renderWindow(w: Window, theme: any, now: number): string {
+function renderWindow(w: Window, theme: any, now: number, stale: boolean): string {
 	const elapsed = elapsedPercent(w, now);
 	const filled = Math.round((w.usedPercent / 100) * BAR_W);
 	const mark = Math.min(BAR_W - 1, Math.floor((elapsed / 100) * BAR_W));
@@ -202,7 +239,7 @@ function renderWindow(w: Window, theme: any, now: number): string {
 		else bar += i < filled ? theme.fg(color, "━") : theme.fg("dim", "─");
 	}
 	return (
-		theme.fg("dim", `${w.label} `) +
+		theme.fg("dim", `${stale ? "~" : ""}${w.label} `) +
 		bar +
 		theme.fg("dim", ` ${Math.round(w.usedPercent)}% ${formatReset(w.resetsAt, now)}`)
 	);
@@ -212,7 +249,9 @@ function renderWindow(w: Window, theme: any, now: number): string {
 
 export default function (pi: ExtensionAPI) {
 	const KEY = "usage";
-	const cache = new Map<Provider, Window[]>();
+	const cache = new Map<Provider, { at: number; windows: Window[] }>();
+	// Two missed polls: usedPercent is old enough to mislead, so the label wears a ~.
+	const STALE_MS = 2 * REFRESH_MS;
 	let active: Provider | null = null;
 	let ctxRef: any = null;
 	let timer: ReturnType<typeof setInterval> | null = null;
@@ -235,24 +274,33 @@ export default function (pi: ExtensionAPI) {
 
 	function paint(): void {
 		if (!live()?.hasUI) return;
-		const windows = active ? cache.get(active) : undefined;
-		if (!windows?.length) {
+		const entry = active ? cache.get(active) : undefined;
+		if (!entry?.windows.length) {
 			ctxRef.ui.setStatus(KEY, undefined);
 			return;
 		}
 		const now = Date.now();
-		ctxRef.ui.setStatus(KEY, windows.map((w) => renderWindow(w, ctxRef.ui.theme, now)).join("  "));
+		const stale = now - entry.at > STALE_MS;
+		ctxRef.ui.setStatus(KEY, entry.windows.map((w) => renderWindow(w, ctxRef.ui.theme, now, stale)).join("  "));
 	}
 
 	async function refresh(providerId: string | undefined): Promise<void> {
 		const provider = PROVIDERS[providerId ?? ""] ?? null;
 		active = provider;
+		const saved = provider ? readSnapshot()[provider] : undefined;
+		if (provider && saved && saved.at > (cache.get(provider)?.at ?? 0))
+			cache.set(provider, { at: saved.at, windows: saved.windows.filter((w) => w.resetsAt > Date.now()) });
 		paint(); // cached snapshot first, or clears for non-subscription providers
 		if (!provider) return;
+		if (saved && Date.now() - saved.polledAt < REFRESH_MS) return; // another session has this window
+		claimPoll(provider);
 		try {
 			const windows = await fetchUsage(provider);
 			if (active !== provider) return; // model switched mid-flight
-			if (windows.length) cache.set(provider, windows); // keep last good on transient failure
+			if (windows.length) {
+				cache.set(provider, { at: Date.now(), windows }); // keep last good on transient failure
+				writeSnapshot(provider, windows);
+			}
 			paint();
 		} catch {}
 	}
