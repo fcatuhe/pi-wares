@@ -219,8 +219,22 @@ export default function (pi: ExtensionAPI) {
 
 	// ponytail: countdown text only refreshes with the 5min poll, so it can lag
 	// by up to 5 minutes. Re-render on turn_end if that ever reads as wrong.
+	// ctx getters throw once the session is replaced/reloaded; a fresh ctx arrives
+	// with the next session_start, so drop the dead one and stop the timer.
+	function live(): any {
+		try {
+			ctxRef?.hasUI;
+			return ctxRef;
+		} catch {
+			ctxRef = null;
+			if (timer) clearInterval(timer);
+			timer = null;
+			return null;
+		}
+	}
+
 	function paint(): void {
-		if (!ctxRef?.hasUI) return;
+		if (!live()?.hasUI) return;
 		const windows = active ? cache.get(active) : undefined;
 		if (!windows?.length) {
 			ctxRef.ui.setStatus(KEY, undefined);
@@ -248,7 +262,7 @@ export default function (pi: ExtensionAPI) {
 		if (!ctx.hasUI) return;
 		void refresh(ctx.model?.provider);
 		if (!timer) {
-			timer = setInterval(() => void refresh(ctxRef?.model?.provider), REFRESH_MS);
+			timer = setInterval(() => void refresh(live()?.model?.provider), REFRESH_MS);
 			timer.unref?.();
 		}
 	}
