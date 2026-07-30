@@ -30,6 +30,7 @@ An em dash is almost always a sentence that wanted to be two. Split it.
 - Bold for genuinely load-bearing terms only. No sprinkling.
 - A list needs two or more real items. One item is a sentence.
 - Uncertainty gets stated plainly and once: "I have not verified X."
+- No hard-wrapping prose in text files: one line per paragraph, the editor wraps.
 - Length is not effort. Cut every sentence that would not be missed.
 
 ## Never
