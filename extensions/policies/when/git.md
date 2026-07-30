@@ -4,6 +4,7 @@
 
 - Conventional Commits, types `feat|fix|ui|content|refactor|infra|deps`.
 - One concern per commit. Small, reviewable diffs.
+- English for everything in the repo and on GitHub: commits, branches, PRs, issues, reviews. Translated site content is content, not repo prose.
 - Never commit or push unless asked. The permission covers the next command only.
 
 ## Safety

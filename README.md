@@ -27,7 +27,7 @@ Installing pi-wares also pulls in a couple of external pi extensions (see [Bundl
 | [`clear-on-startup/`](./extensions/clear-on-startup/) | Clears the terminal (screen + scrollback) before pi's startup header. Fires once per pi process launch. |
 | [`gpt-behavior/`](./extensions/gpt-behavior/) | Appends a behavior guide to the system prompt, but only for GPT models. Vendored from [this gist](https://gist.github.com/ogulcancelik/b5bfd650acd7b93856fd20794c35db47). |
 | [`handoff/`](./extensions/handoff/) | `/handoff <goal>` — LLM-summarize the current branch and start a new linked session pre-filled with a focused prompt. Vendored from [pi examples](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/handoff.ts). |
-| [`policies/`](./extensions/policies/) | Appends house rules to the system prompt: `always/` in every repo, `when/` only where a marker file says the topic applies (`.git`, `config/application.rb`). See [README](./extensions/policies/README.md). |
+| [`policies/`](./extensions/policies/) | Appends house rules to the system prompt: `always/` in every repo, `when/` only where a marker file says the topic applies (`.git`, `app/views`, `config/application.rb`). See [README](./extensions/policies/README.md). |
 | [`sidequests/`](./extensions/sidequests/) | Spawn N parallel, resumable pi sessions from one (with follow-up turns on existing ones). Registers the `sidequests` tool, a generic `--name` flag, and a `session_start` naming hook. See [README](./extensions/sidequests/README.md) / [sidecar.md](./extensions/sidequests/sidecar.md). |
 
 More to come.

@@ -13,9 +13,12 @@ when/     only when a marker file exists in cwd or above it
 | `always/writing-style.md` | always |
 | `always/engineering.md` | always |
 | `when/git.md` | `.git` exists |
+| `when/html.md` | `app/views` or `index.html` exists |
 | `when/rails.md` | `config/application.rb` exists |
 
-Adding a stack: drop the `.md` in `when/` and add its marker to `MARKERS` in `index.ts`. A file with no marker entry never loads.
+Adding a stack: drop the `.md` in `when/` and add its markers to `MARKERS` in `index.ts`. A file with no marker entry never loads.
+
+Markers are searched in cwd and every directory above it. A workspace holding sibling repos gets nothing, since the search never descends. `cd` into the repo.
 
 ## Inject or make it a skill
 

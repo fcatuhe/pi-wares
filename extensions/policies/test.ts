@@ -24,10 +24,17 @@ const scratch = (files: string[]) => {
 };
 
 const CASES = {
-  // A bare directory under tmpdir: no .git anywhere above it, no Rails.
-  none: { files: [], git: false, rails: false },
-  git: { files: [".git/HEAD"], git: true, rails: false },
-  rails: { files: [".git/HEAD", "config/application.rb"], git: true, rails: true },
+  // A bare directory under tmpdir: no .git anywhere above it, nothing else.
+  none: { files: [], git: false, html: false, rails: false },
+  git: { files: [".git/HEAD"], git: true, html: false, rails: false },
+  // A static site: HTML policy without Rails.
+  html: { files: ["index.html"], git: false, html: true, rails: false },
+  rails: {
+    files: [".git/HEAD", "config/application.rb", "app/views/.keep"],
+    git: true,
+    html: true,
+    rails: true,
+  },
 };
 
 async function main() {
@@ -41,13 +48,14 @@ async function main() {
     return;
   }
 
-  const { files, git, rails } = CASES[which];
+  const { files, git, html, rails } = CASES[which];
   scratch(files);
   const prompt = await injected();
 
   assert.ok(prompt.startsWith("BASE\n\n"), "keeps the base prompt");
   assert.ok(prompt.includes("# Engineering Policy"), "always/ loads everywhere");
   assert.equal(prompt.includes("# Git Policy"), git, `${which}: git.md`);
+  assert.equal(prompt.includes("# Frontend Policy"), html, `${which}: html.md`);
   assert.equal(prompt.includes("# Rails Conventions"), rails, `${which}: rails.md`);
 }
 

@@ -5,14 +5,15 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-const MARKERS: Record<string, string> = {
-  "git.md": ".git",
-  "rails.md": "config/application.rb",
+const MARKERS: Record<string, string[]> = {
+  "git.md": [".git"],
+  "html.md": ["app/views", "index.html"],
+  "rails.md": ["config/application.rb"],
 };
 
-function existsHereOrAbove(marker: string): boolean {
+function existsHereOrAbove(markers: string[]): boolean {
   for (let dir = process.cwd(); ; ) {
-    if (existsSync(join(dir, marker))) return true;
+    if (markers.some((m) => existsSync(join(dir, m)))) return true;
     const parent = dirname(dir);
     if (parent === dir) return false;
     dir = parent;
