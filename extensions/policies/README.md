@@ -18,7 +18,7 @@ when/     only when a marker file exists in cwd or above it
 
 Adding a stack: drop the `.md` in `when/` and add its markers to `MARKERS` in `index.ts`. A file with no marker entry never loads.
 
-Markers are searched in cwd and every directory above it. A workspace holding sibling repos gets nothing, since the search never descends. `cd` into the repo.
+Markers are searched in cwd and every directory above it, never below. A workspace holding sibling repos sees only what its own root declares, so `cd` into the repo. One consequence of walking up: if `$HOME` is itself a repo, as with dotfiles, `git.md` loads everywhere.
 
 ## Inject or make it a skill
 
