@@ -23,6 +23,7 @@
       "extensions",
       "node_modules/token-rate-pi/token-rate.ts",
       "node_modules/@ogulcancelik/pi-minimal-footer/index.ts"
-    ]
+    ],
+    "skills": ["skills"]
   }
 }

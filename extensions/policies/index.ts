@@ -1,23 +1,36 @@
-/**
- * Policies Extension
- *
- * Appends every *.md in this directory to the system prompt, every turn, every
- * model. Declared through settings.json (the pi-wares package entry) rather
- * than a global ~/.pi/agent/AGENTS.md symlink, so the policies travel with the
- * repo and apply in every project instead of only under pi-wares. Text is
- * byte-identical every turn and appended at the END, so it caches once per
- * session.
- */
+// INFO: fc 30jul26 appended at the END of the system prompt and byte-identical every turn, so it caches once per session
+// INFO: fc 30jul26 a when/*.md with no MARKERS entry never loads
 
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-const policies = readdirSync(__dirname)
-  .filter((f) => f.endsWith(".md"))
-  .sort()
-  .map((f) => readFileSync(join(__dirname, f), "utf8").trim())
-  .join("\n\n");
+const MARKERS: Record<string, string> = {
+  "git.md": ".git",
+  "rails.md": "config/application.rb",
+};
+
+function existsHereOrAbove(marker: string): boolean {
+  for (let dir = process.cwd(); ; ) {
+    if (existsSync(join(dir, marker))) return true;
+    const parent = dirname(dir);
+    if (parent === dir) return false;
+    dir = parent;
+  }
+}
+
+function load(dir: string, keep: (file: string) => boolean): string[] {
+  const here = join(import.meta.dirname, dir);
+  return readdirSync(here)
+    .filter((f) => f.endsWith(".md") && keep(f))
+    .sort()
+    .map((f) => readFileSync(join(here, f), "utf8").trim());
+}
+
+const policies = [
+  ...load("always", () => true),
+  ...load("when", (f) => Boolean(MARKERS[f]) && existsHereOrAbove(MARKERS[f])),
+].join("\n\n");
 
 export default function (pi: ExtensionAPI) {
   pi.on("before_agent_start", async (event) => ({
