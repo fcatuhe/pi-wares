@@ -32,6 +32,16 @@ function autoCompactEnabled(cwd: string): boolean {
 	return true;
 }
 
+const RIGHTMOST_STATUS_KEYS = ["usage", "token-rate"];
+
+function statusLine(statuses: ReadonlyMap<string, string>): string {
+	const rank = (key: string) => RIGHTMOST_STATUS_KEYS.indexOf(key);
+	return Array.from(statuses.entries())
+		.sort(([a], [b]) => rank(a) - rank(b) || a.localeCompare(b))
+		.map(([, text]) => text.replace(/[\r\n\t]+/g, " "))
+		.join(" ");
+}
+
 export default function (pi: ExtensionAPI) {
 	pi.on("session_start", (_event, ctx) => {
 		ctx.ui.setFooter((_tui, theme, footerData) => {
@@ -57,6 +67,7 @@ export default function (pi: ExtensionAPI) {
 					const lines = builtIn.render(width);
 					if (lines.length < 3) return lines;
 
+					lines[2] = statusLine(footerData.getExtensionStatuses());
 					const statusW = visibleWidth(lines[2]);
 					const maxW = width - statusW - 2;
 					let left = lines[0];

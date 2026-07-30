@@ -7,6 +7,7 @@ Squeezes pi's built-in 3-line footer into 2 lines by merging extension statuses 
 Reuses the built-in `FooterComponent` from `@earendil-works/pi-coding-agent`, then post-processes its output:
 
 - Renders the built-in footer normally (3 lines: path, model/usage, statuses).
+- Rebuilds the status line in its own order instead of the built-in alphabetical one: `usage` then `token-rate` pinned rightmost, every other status alphabetical to their left. Unknown or renamed keys just fall back into the alphabetical group.
 - Computes the visible width of the status line.
 - Truncates the path with an ellipsis if needed to make room.
 - Appends the status segment to the right side of the path line.
