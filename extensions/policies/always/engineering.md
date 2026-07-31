@@ -2,6 +2,21 @@
 
 Language and framework agnostic. Stack rules live in their own policy.
 
+## Before you write
+
+Read the code the change touches and trace the real flow first, then take the highest rung that holds:
+
+1. Does it need to exist at all? Speculative need, say so in one line and skip it.
+2. Already in this codebase? Reuse the helper, type, or pattern. Re-implementing what lives a few files over is the most common waste.
+3. Stdlib does it? Use it.
+4. Native platform feature covers it? `<input type="date">` over a picker library, CSS over JS, a DB constraint over app code.
+5. An installed dependency solves it? Use it. Never add one for what a few lines do.
+6. Then the smallest code that works.
+
+- No abstraction without a second caller: no interface with one implementation, no factory for one product, no config for a value that never changes.
+- No scaffolding for later. Later can scaffold for itself.
+- The smallest diff in the wrong place is a second bug, not laziness. Comprehension is never the thing you skip.
+
 ## Correctness
 
 - Fix the root cause, not the symptom. A ticket names a symptom; find where every caller routes through.
@@ -33,6 +48,7 @@ Language and framework agnostic. Stack rules live in their own policy.
 - No sleeps, no network, no wall-clock dependence in unit tests.
 - A test that fails one run in twenty is a broken test, not a flaky one.
 - Test behavior through the public entry point, not private internals.
+- New non-trivial logic (a branch, a loop, a parser, a money or security path) leaves one runnable check behind: the smallest thing that fails if the logic breaks. A one-liner needs none.
 
 ## Hygiene
 
