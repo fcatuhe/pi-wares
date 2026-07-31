@@ -1,21 +1,11 @@
 # clear-on-startup
 
-Clears the visible terminal once on a fresh pi process. Scrollback is
-preserved, so you can still scroll up to see whatever was in your shell
-before pi launched.
+Clears the terminal once on a fresh pi process, scrollback included, so the shell output from the command that launched pi is gone instead of sitting above the session.
 
-Writes `\x1b[2J\x1b[H` (clear screen + cursor home) before pi-tui paints
-its first frame. `\x1b[3J` (clear scrollback) is intentionally omitted.
+It does this by forcing a full pi-tui redraw (`tui.requestRender(true)`) rather than writing escape codes itself. pi paints its first frame before `session_start` fires, and pi-tui only emits diffs against a shadow buffer, so a raw `\x1b[2J` would erase the prompt bars without the renderer knowing and they would never come back. The forced render path emits `\x1b[2J\x1b[H\x1b[3J` and repaints the whole UI. Getting the TUI handle needs a widget factory, so the extension registers a zero-height placeholder and removes it in a microtask, before the next paint.
 
-Fires only on `session_start` with `reason: "startup"` — i.e. `pi`, `pi -r`,
-`pi -c`, `pi --fork`, ... Does **not** fire for `/reload`, `/new`, `/resume`,
-or `/fork` (those rebind extensions but with non-`startup` reasons, and
-clearing the screen there would destroy the visible conversation history).
+Fires only on `session_start` with `reason: "startup"`, so `pi`, `pi -r`, `pi -c`, `pi --fork`. Not on `/reload`, `/new`, `/resume`, or `/fork`, which rebind extensions with other reasons and where clearing would destroy the visible conversation.
 
-Skipped when stdout is not a TTY (piped/redirected output) and when
-`ctx.hasUI` is false (print/RPC/headless modes).
-
-Note: pi-tui itself may wipe scrollback on certain full re-render paths
-(e.g. terminal width change). That is outside this extension's control.
+Skipped when stdout is not a TTY (piped or redirected) and when `ctx.hasUI` is false or `ctx.mode` is not `tui` (print, RPC, headless).
 
 No config. No commands.
