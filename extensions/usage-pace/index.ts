@@ -138,7 +138,8 @@ export function parseCodex(data: any): Window[] {
 /** Last good windows, shared across sessions: a new session shows a bar before its
  *  first poll, and one poll per window serves every session, which matters because
  *  the Anthropic usage endpoint answers 429 when polled hard.
- *  ponytail: last writer wins across concurrent sessions, fine for a display cache. */
+ *  INFO: fc 31jul26 last writer wins across concurrent sessions, fine for a display
+ *  cache. Needs per-provider locking only if a caller ever reads it back as truth. */
 type Entry = { at: number; polledAt: number; windows: Window[] };
 type Snapshot = Record<string, Entry>;
 
@@ -256,7 +257,7 @@ export default function (pi: ExtensionAPI) {
 	let ctxRef: any = null;
 	let timer: ReturnType<typeof setInterval> | null = null;
 
-	// ponytail: countdown text only refreshes with the 5min poll, so it can lag
+	// INFO: fc 31jul26 countdown text only refreshes with the 5min poll, so it can lag
 	// by up to 5 minutes. Re-render on turn_end if that ever reads as wrong.
 	// ctx getters throw once the session is replaced/reloaded; a fresh ctx arrives
 	// with the next session_start, so drop the dead one and stop the timer.
