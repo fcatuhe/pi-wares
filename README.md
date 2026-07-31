@@ -1,6 +1,6 @@
 # pi-wares
 
-A small personal stash of extensions for [pi-coding-agent](https://github.com/earendil-works/pi-mono): slopware, forkware, freeware, all of the above. One pi package, individual wares toggled in `pi config`.
+A small personal stash of extensions for [pi-coding-agent](https://github.com/earendil-works/pi-mono).
 
 ## Install
 
@@ -10,6 +10,8 @@ pi install ~/fcode/pi-wares           # local path, global
 pi install ~/fcode/pi-wares -l        # local path, project-scoped
 pi -e ~/fcode/pi-wares                # this run only, no install
 ```
+
+One package, individual wares toggled in `pi config`.
 
 ## Wares
 
