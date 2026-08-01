@@ -1,6 +1,6 @@
 /** Self-check: npx tsx extensions/usage-pace/test.ts */
 import assert from "node:assert/strict";
-import { elapsedPercent, formatReset, paceColor, parseClaude, parseCodex } from "./index.ts";
+import { barCells, elapsedPercent, formatReset, paceColor, parseClaude, parseCodex } from "./index.ts";
 
 const HOUR = 3_600_000;
 const now = Date.now();
@@ -52,6 +52,20 @@ assert.equal(formatReset(now + 45 * 60_000, now), "45m");
 assert.equal(formatReset(now + 2 * HOUR + 38 * 60_000, now), "2h38m");
 assert.equal(formatReset(now + 3 * 24 * HOUR + 2 * HOUR, now), "3d2h");
 assert.equal(formatReset(now - 1000, now), "now");
+
+// Bar: half-cell fill, so each cell has three states and the default 10-wide bar steps every 5%.
+assert.equal(barCells(42, 40).length, 10);
+assert.deepEqual(barCells(42, 40).slice(0, 5), ["full", "full", "full", "full", "mark"]);
+assert.deepEqual(barCells(0, 0, 4), ["mark", "empty", "empty", "empty"]);
+assert.deepEqual(barCells(50, 100, 4), ["full", "full", "empty", "mark"]);
+assert.deepEqual(barCells(60, 100, 4), ["full", "full", "half", "mark"]);
+assert.deepEqual(barCells(100, 50, 4), ["full", "full", "mark", "full"]);
+// One eighth of a 4-wide bar is one half cell: the smallest move the old whole-cell fill missed.
+assert.deepEqual(barCells(12.5, 100, 4), ["half", "empty", "empty", "mark"]);
+assert.deepEqual(barCells(6, 100, 4), ["empty", "empty", "empty", "mark"]);
+// Narrow bars stay in range rather than pushing the marker off the end.
+assert.deepEqual(barCells(42, 40, 2), ["mark", "empty"]);
+assert.deepEqual(barCells(100, 100, 1), ["mark"]);
 
 // Clamps: past reset and over-100 usage stay in range.
 assert.equal(elapsedPercent({ label: "5h", usedPercent: 0, resetsAt: now - HOUR, durationMs: 5 * HOUR }, now), 100);
