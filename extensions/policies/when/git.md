@@ -2,15 +2,15 @@
 
 ## Commits
 
-- Conventional Commits, types `feat|fix|ui|content|refactor|infra|deps`.
+- Conventional Commits, types `feat|fix|ui|content|refactor|test|docs|perf|infra|deps`.
 - One concern per commit. Small, reviewable diffs.
 - English for everything in the repo and on GitHub: commits, branches, PRs, issues, reviews. Translated site content is content, not repo prose.
-- Never commit or push unless asked. The permission covers the next command only.
+- Never commit or push unless asked. The permission covers the next command only, except a CI-fix instruction, which covers every push in that loop.
 
 ## Safety
 
 - No destructive operation without consent: `reset --hard`, `clean`, `rm`, force push, branch deletion, history rewrite.
-- Never push to `main`. Branch, then pull request. The owner merges.
+- Never push to `main` on your own initiative. Branch, then pull request. The owner merges. An explicit owner instruction in the current turn overrides this.
 
 ## GitHub CLI
 

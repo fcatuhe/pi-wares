@@ -13,7 +13,7 @@ Ruby 4, Rails 8.1, Hotwire, Importmap, Propshaft, Solid Trifecta, Minitest. When
 - **CRUD only.** `index`, `show`, `new`, `create`, `edit`, `update`, `destroy`. An action that does not map to one of those means you need a new resource, not a custom action.
 - **Controllers talk to models directly.** Plain Active Record for simple cases, an intention-revealing model method for complex ones. No service layer between them.
 - **Strong params** in a private method, always `require().permit()`.
-- `form_with`. `form_for` and `form_tag` were removed in Rails 8.
+- `form_with`. `form_for` and `form_tag` still ship in 8.1 but are legacy: never write new ones.
 - `redirect_to` after a mutation, `render` on validation failure.
 
 ```ruby
@@ -163,6 +163,8 @@ end
 ## Tests
 
 - Minitest and fixtures. No RSpec, no FactoryBot, no mocks, no stubs.
+- External HTTP is the one exception: VCR cassettes over WebMock, recorded once against the real service, replayed everywhere else. Never hand-write a response stub.
+- Webhooks enter through the front door: an integration test posts a signed request (`post_stripe_webhook`), with `vcr_stripe_webhook` driving the real Stripe CLI at record time.
 - Hit the real database, let callbacks run, render real views.
 - Fixtures are a shared world of characters to pull from. Objects specific to one test are created inline.
 - Test one aspect, not one assertion. Two to four assertions per test is normal. `assert` and `assert_equal` cover almost everything.

@@ -39,7 +39,7 @@ Read the code the change touches and trace the real flow first, then take the hi
 
 ## Data, time, money
 
-- Money in integer minor units. Never float.
+- Money in integer minor units, or fixed-point decimal where the stack stores it natively. Never float. Rates and per-unit prices need more precision than a minor unit.
 - Store UTC. Durations use a monotonic clock, not wall time.
 - Destructive schema or data changes go expand, migrate, contract. Never drop in place.
 
@@ -54,8 +54,8 @@ Read the code the change touches and trace the real flow first, then take the hi
 
 - Delete dead code. Git remembers.
 - Never hand-edit generated files or lockfiles. Regenerate.
-- Files under 500 LOC. Split past that.
-- Methods ordered by invocation: callers above callees.
+- Files under 500 LOC. Split past that, unless the split breaks a cohesive unit. Generated and vendored files are exempt.
+- Methods ordered by invocation where the language allows: callers above callees.
 - Name after what it means in the domain, not a generic verb. `person.decease`, not `person.soft_delete`.
 - New dependency: check recent commits, adoption, maintenance before adding it.
-- Before handoff, the project gate runs green.
+- Before handoff, the project gate runs green: whatever the project defines (AGENTS.md, CI). Absent one, the test suite.

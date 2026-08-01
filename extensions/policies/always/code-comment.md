@@ -20,7 +20,7 @@ Ask what the comment actually explains, then kill that cause:
 
 ## Sanctioned comments
 
-Tagged notes only, `TAG: initials DDmmmYY description`, so they're greppable:
+Tagged notes only, `TAG: initials DDmmmYY description`, so they're greppable. Initials are the session owner's, agents included:
 
 - `TODO:` not done yet
 - `FIXME:` known broken
