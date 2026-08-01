@@ -5,10 +5,7 @@ A small personal stash of extensions for [pi-coding-agent](https://github.com/ea
 ## Install
 
 ```bash
-pi install git:github.com/<you>/pi-wares
-pi install ~/fcode/pi-wares           # local path, global
-pi install ~/fcode/pi-wares -l        # local path, project-scoped
-pi -e ~/fcode/pi-wares                # this run only, no install
+pi install git:github.com/fcatuhe/pi-wares
 ```
 
 One package, individual wares toggled in `pi config`.
