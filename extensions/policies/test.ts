@@ -25,14 +25,18 @@ const scratch = (files: string[]) => {
 
 const CASES = {
   // A bare directory under tmpdir: no .git anywhere above it, nothing else.
-  none: { files: [], git: false, html: false, rails: false },
-  git: { files: [".git/HEAD"], git: true, html: false, rails: false },
-  // A static site: HTML policy without Rails.
-  html: { files: ["index.html"], git: false, html: true, rails: false },
+  none: { files: [], git: false, frontend: false, rails: false },
+  git: { files: [".git/HEAD"], git: true, frontend: false, rails: false },
+  // A static site: frontend policy without Rails.
+  html: { files: ["index.html"], git: false, frontend: true, rails: false },
+  // Templates deep in the tree trigger it too.
+  slim: { files: ["app/views/home/index.slim"], git: false, frontend: true, rails: false },
+  // Vendored HTML is not ours to style.
+  dependency: { files: ["node_modules/pkg/index.html"], git: false, frontend: false, rails: false },
   rails: {
-    files: [".git/HEAD", "config/application.rb", "app/views/.keep"],
+    files: [".git/HEAD", "config/application.rb", "app/views/layouts/application.html.erb"],
     git: true,
-    html: true,
+    frontend: true,
     rails: true,
   },
 };
@@ -48,14 +52,14 @@ async function main() {
     return;
   }
 
-  const { files, git, html, rails } = CASES[which];
+  const { files, git, frontend, rails } = CASES[which];
   scratch(files);
   const prompt = await injected();
 
   assert.ok(prompt.startsWith("BASE\n\n"), "keeps the base prompt");
   assert.ok(prompt.includes("# Engineering Policy"), "always/ loads everywhere");
   assert.equal(prompt.includes("# Git Policy"), git, `${which}: git.md`);
-  assert.equal(prompt.includes("# Frontend Policy"), html, `${which}: html.md`);
+  assert.equal(prompt.includes("# Frontend Policy"), frontend, `${which}: frontend.md`);
   assert.equal(prompt.includes("# Rails Conventions"), rails, `${which}: rails.md`);
 }
 

@@ -13,7 +13,7 @@ when/     only when a marker file exists in cwd or above it
 | `always/writing-style.md` | always |
 | `always/engineering.md` | always |
 | `when/git.md` | `.git` exists |
-| `when/html.md` | `app/views` or `index.html` exists |
+| `when/frontend.md` | a `.html`, `.erb` or `.slim` file exists in the project (vendored dirs excluded) |
 | `when/rails.md` | `config/application.rb` exists |
 
 Adding a stack: drop the `.md` in `when/` and add its markers to `MARKERS` in `index.ts`. A file with no marker entry never loads.
