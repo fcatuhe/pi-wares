@@ -45,6 +45,16 @@ Third-party pi extensions folded in as npm `dependencies` and exposed through th
 
 Caret ranges, so unpinned. pi only re-runs `npm install` on a fresh install or when this repo's default branch gets a new commit, not on every `pi update`. Push a commit here, then `pi update --extensions` picks up newer bundled releases within the major.
 
+## Terminal
+
+We run pi through [herdr](https://herdr.dev), so the terminal is part of the setup rather than scenery around it.
+
+| Folder | What it does |
+|---|---|
+| [`herdr-app/`](./herdr-app/) | Builds `~/Applications/Herdr.app`: a Ghostty bundle rebranded as Herdr, opening straight into the herdr session, with its own Dock icon and name. |
+
+pi loads nothing from it. One `./herdr-app/build.sh` per machine, and again only when the launcher or the logo changes, not on Ghostty updates.
+
 ## Layout
 
 ```
@@ -55,6 +65,7 @@ pi-wares/
 │       ├── index.ts          ← entry point (required filename)
 │       ├── example.json      ← reference; pi only loads index.ts
 │       └── README.md         ← per-ware docs, co-located with code
+├── herdr-app/                ← macOS app that launches herdr, not a ware
 └── node_modules/             ← bundled external extensions (gitignored)
 ```
 
