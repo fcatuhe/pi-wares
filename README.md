@@ -33,6 +33,19 @@ Loaded on demand rather than injected, so they can be as long as they need to be
 | Skill | What it does |
 |---|---|
 | [`pr-description/`](./skills/pr-description/SKILL.md) | Section structure for a feature pull request body. Cited from `policies/when/git.md`. |
+| [`brave-search/`](./skills/brave-search/SKILL.md) | Web search and page-to-markdown extraction through the Brave Search API. Needs `BRAVE_API_KEY`. |
+| [`gog/`](./skills/gog/SKILL.md) | Safe [`gog`](https://github.com/openclaw/gogcli) Google Workspace automation: auth state, JSON output, scoped reads and writes. |
+
+### Vendored skills
+
+Copies of upstream skills, so one install covers them. They drift, resync deliberately.
+
+| Skill | Upstream | Copied at |
+|---|---|---|
+| `brave-search/` | [badlogic/pi-skills](https://github.com/badlogic/pi-skills) (MIT) | `90bb51c`, minus the `npm install` setup step |
+| `gog/` | [openclaw/gogcli](https://github.com/openclaw/gogcli) `.agents/skills/gog/` (MIT) | `v0.34.1`, verbatim. Track the installed `gog --version`: the skill documents flags the CLI only gained in that release. |
+
+`brave-search`'s runtime deps (`jsdom`, `turndown`, `@mozilla/readability`) sit in this package's `dependencies` instead of its own `package.json`, so pi's install covers them and Node resolves them from the package root.
 
 ## Bundled extensions
 
