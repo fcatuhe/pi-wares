@@ -6,6 +6,15 @@ Builds `~/Applications/Herdr.app`, a Ghostty bundle rebranded as Herdr that open
 ./build.sh          # ~1s, needs Ghostty in /Applications and the Xcode CLT
 ```
 
+It also builds variants: a name plus herdr flags gives a separate app with its own bundle id, so the Dock, Cmd-Tab and single-instance behavior treat each as a distinct app.
+
+```bash
+./build.sh "Herdr Work" --session work      # ~/Applications/Herdr Work.app
+./build.sh "Herdr Devbox" --remote devbox   # attaches over SSH
+```
+
+All variants share the same icon, and quotes are not allowed in the name or flags (they would end the shell command the launcher bakes in).
+
 Rerun it after changing the launcher or the logo. Not after a Ghostty update: everything but the `Info.plist`, the launcher and the icon is a symlink into `/Applications/Ghostty.app`, so updates flow through on the next launch. The bundle is 830 KB.
 
 Nothing here is loaded by pi. It sits in this repo because the terminal is part of how we run pi.

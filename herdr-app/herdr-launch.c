@@ -10,6 +10,15 @@
 #include <string.h>
 #include <unistd.h>
 
+// INFO: fc 01aug26 build.sh bakes these in with -D so one source builds many
+// apps: a plain Herdr, a --session one, a --remote one
+#ifndef APP_TITLE
+#define APP_TITLE "Herdr"
+#endif
+#ifndef HERDR_ARGS
+#define HERDR_ARGS ""
+#endif
+
 int main(void) {
   // INFO: fc 01aug26 open(1) forwards the caller's environment, and herdr
   // refuses to run nested inside one of its own panes
@@ -32,8 +41,8 @@ int main(void) {
   // with until herdr sends its own title
   char command[PATH_MAX];
   if (snprintf(command, sizeof(command),
-               "--command=/bin/zsh -lc 'printf \"\\033]0;Herdr\\a\"; exec %s/.local/bin/herdr'",
-               home) >= (int)sizeof(command))
+               "--command=/bin/zsh -lc 'printf \"\\033]0;%s\\a\"; exec %s/.local/bin/herdr%s'",
+               APP_TITLE, home, HERDR_ARGS) >= (int)sizeof(command))
     return 1;
 
   char *const args[] = {ghostty,
