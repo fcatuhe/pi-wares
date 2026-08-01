@@ -3,15 +3,15 @@
 Footer status showing the active subscription's usage as a bar with a **pace marker** and a reset countdown.
 
 ```
-5h ━━━╵── 42% 3h    7d ━━━━╵─ 61% 2d
+5h ━━━━╵───── 42% 3h    7d ━━━━━━─╵── 61% 2d
 ```
 
 - Light gray `─` = the whole window's quota (the track).
-- Thick `━` = quota used so far.
+- Thick `━` = quota used so far, `╾` = a half-filled cell, so the default 10-wide bar moves every 5%.
 - `╵` = how far into the window we are (time elapsed).
 - Thick bar short of the marker → under pace. Past it → burning quota faster than the clock.
 - Trailing text = absolute usage percent + time until the window resets.
-- `~` before the label (`~5h ━━━╵── 42% 3h`) = the numbers are older than two poll intervals (10 min), i.e. the endpoint has been failing. The countdown stays accurate, the percent does not.
+- `~` before the label (`~5h ━━━━╵───── 42% 3h`) = the numbers are older than two poll intervals (10 min), i.e. the endpoint has been failing. The countdown stays accurate, the percent does not.
 
 ## Color = pace, not usage
 
@@ -48,7 +48,7 @@ Any other provider clears the status. Tokens come from `~/.pi/agent/auth.json`, 
 
 ## Config
 
-- `PI_USAGE_BAR_WIDTH`: bar cells per window, default `6`. Lower it on narrow terminals (the status competes with the path for width in `compact-footer`).
+- `PI_USAGE_BAR_WIDTH`: bar cells per window, default `10`, i.e. 20 half-steps of 5% each, both bars plus their text running ~44 columns. Lower it on narrow terminals (the status competes with the path for width in `compact-footer`): `4` still reads fine at 12.5% steps. Below `4` the bar stops carrying signal, at `1` the marker is the whole bar. Raising it also shrinks the blind span under the marker cell, which hides one cell of fill.
 - `PI_USAGE_MARKER`: pace marker glyph, default `╵` (half-height, keeps the bar flat). Set to `│` or `┼` if your font renders it badly.
 
 ## Check

@@ -3,8 +3,9 @@
  *
  * Footer status showing the active subscription's usage as a bar with a pace
  * marker (╵ = how far into the window we are) plus a reset countdown. A light
- * gray track spans the whole window; the thick overlay is quota used. Overlay
- * short of the marker = under pace, past it = burning faster than the clock.
+ * gray track spans the whole window; the thick overlay is quota used, resolved to
+ * half a cell. Overlay short of the marker = under pace, past it = burning faster
+ * than the clock.
  *
  * Shows Claude (anthropic) or Codex (openai-codex), whichever model is active.
  * Set via ctx.ui.setStatus(), so the built-in footer, compact-footer and any
@@ -22,13 +23,18 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 const HOUR = 3_600_000;
 const REFRESH_MS = 5 * 60_000;
-const BAR_W = Number(process.env.PI_USAGE_BAR_WIDTH) || 6;
+const DEFAULT_BAR_W = 10;
+const BAR_W = Math.max(1, Math.round(Number(process.env.PI_USAGE_BAR_WIDTH)) || DEFAULT_BAR_W);
 // Half-height tick so the bar stays visually flat. Override if the font lacks U+2575.
 const MARKER = process.env.PI_USAGE_MARKER || "╵";
+// U+257E is heavy on its left half, light on its right: a half-filled track cell,
+// which doubles bar resolution without spending terminal columns.
+const GLYPH: Record<Cell, string> = { full: "━", half: "╾", empty: "─", mark: MARKER };
 const PROVIDERS: Record<string, Provider> = { anthropic: "claude", "openai-codex": "codex" };
 const SNAPSHOT_FILE = join(homedir(), ".pi", "agent", "usage-pace.json");
 
 type Provider = "claude" | "codex";
+type Cell = "full" | "half" | "empty" | "mark";
 
 /** Raw window state. Pace and countdown are derived at render time so a cached
  *  snapshot stays truthful between refreshes. */
@@ -228,17 +234,23 @@ export function paceColor(usedPercent: number, elapsed: number): "success" | "wa
 	return over <= 10 ? "warning" : "error";
 }
 
+/** Fill resolves to half a cell, so a 6-wide bar moves every ~8% instead of every ~17%. */
+export function barCells(usedPercent: number, elapsed: number, width = BAR_W): Cell[] {
+	const halves = Math.round((usedPercent / 100) * width * 2);
+	const mark = Math.min(width - 1, Math.floor((elapsed / 100) * width));
+	return Array.from({ length: width }, (_, i) => {
+		if (i === mark) return "mark";
+		if (halves >= 2 * i + 2) return "full";
+		return halves >= 2 * i + 1 ? "half" : "empty";
+	});
+}
+
 function renderWindow(w: Window, theme: any, now: number, stale: boolean): string {
 	const elapsed = elapsedPercent(w, now);
-	const filled = Math.round((w.usedPercent / 100) * BAR_W);
-	const mark = Math.min(BAR_W - 1, Math.floor((elapsed / 100) * BAR_W));
 	const color = paceColor(w.usedPercent, elapsed);
-
-	let bar = "";
-	for (let i = 0; i < BAR_W; i++) {
-		if (i === mark) bar += theme.fg("accent", MARKER);
-		else bar += i < filled ? theme.fg(color, "━") : theme.fg("dim", "─");
-	}
+	const bar = barCells(w.usedPercent, elapsed)
+		.map((cell) => theme.fg(cell === "mark" ? "accent" : cell === "empty" ? "dim" : color, GLYPH[cell]))
+		.join("");
 	return (
 		theme.fg("dim", `${stale ? "~" : ""}${w.label} `) +
 		bar +
