@@ -16,6 +16,7 @@ Everything works out of the box except two skills:
 
 - **`brave-search`** needs `BRAVE_API_KEY` in your shell profile. Free tier at [api-dashboard.search.brave.com](https://api-dashboard.search.brave.com/register): create a "Free AI" subscription (card required, not charged), then an API key.
 - **`gog`** needs the [`gog` CLI](https://github.com/openclaw/gogcli) installed separately, plus your own Google Cloud OAuth client: create a project in the [Google Cloud console](https://console.cloud.google.com/), enable the APIs you'll use (Gmail, Calendar, Drive, ...), create an OAuth "Desktop app" client, download its `credentials.json`, then `gog auth credentials set credentials.json` and `gog auth add you@example.com`. No env var in normal use.
+- **`outline-cli`** needs the [`ol` CLI](https://github.com/Doist/outline-cli) installed separately: `npm install -g @doist/outline-cli`, then `ol auth login` (OAuth, tokens expire) or `ol auth token <token>` with a personal API token from your Outline instance's Settings > API (doesn't expire, better for agents).
 
 The extensions that touch provider auth (`claude-code-use`, `usage-pace`) reuse pi's own credentials (`/login`, `~/.pi/agent/auth.json`) and need no setup.
 
@@ -41,6 +42,7 @@ Loaded on demand rather than injected, so they can be as long as they need to be
 | [`pr-description/`](./skills/pr-description/SKILL.md) | Section structure for a feature pull request body. Cited from `policies/when/git.md`. |
 | [`brave-search/`](./skills/brave-search/SKILL.md) | Web search and page-to-markdown extraction through the Brave Search API. Needs `BRAVE_API_KEY`. |
 | [`gog/`](./skills/gog/SKILL.md) | Safe [`gog`](https://github.com/openclaw/gogcli) Google Workspace automation: auth state, JSON output, scoped reads and writes. |
+| [`outline-cli/`](./skills/outline-cli/SKILL.md) | Search and manage [Outline](https://www.getoutline.com) wiki documents and collections via the [`ol`](https://github.com/Doist/outline-cli) CLI. Needs `ol` installed. |
 
 ### Vendored skills
 
@@ -50,6 +52,7 @@ Copies of upstream skills, so one install covers them. They drift, resync delibe
 |---|---|---|
 | `brave-search/` | [badlogic/pi-skills](https://github.com/badlogic/pi-skills) (MIT) | `90bb51c`, minus the `npm install` setup step |
 | `gog/` | [openclaw/gogcli](https://github.com/openclaw/gogcli) `.agents/skills/gog/` (MIT) | `v0.34.1`, verbatim. Track the installed `gog --version`: the skill documents flags the CLI only gained in that release. |
+| `outline-cli/` | [Doist/outline-cli](https://github.com/Doist/outline-cli) (MIT), embedded in the CLI, written by `ol skill install pi` | `v1.10.2`, verbatim. Resync after `ol update` when the skill drifts: `ol skill install pi` regenerates it into `~/.pi/skills/`, diff and copy. |
 
 `brave-search`'s runtime deps (`jsdom`, `turndown`, `@mozilla/readability`) sit in this package's `dependencies` instead of its own `package.json`, so pi's install covers them and Node resolves them from the package root.
 
