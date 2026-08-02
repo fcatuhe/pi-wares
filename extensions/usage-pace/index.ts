@@ -1,19 +1,4 @@
-/**
- * Usage Pace Extension
- *
- * Footer status showing the active subscription's usage as a bar with a pace
- * marker (╵ = how far into the window we are) plus a reset countdown. A light
- * gray track spans the whole window; the thick overlay is quota used, resolved to
- * half a cell. Overlay short of the marker = under pace, past it = burning faster
- * than the clock.
- *
- * Shows Claude (anthropic) or Codex (openai-codex), whichever model is active.
- * Set via ctx.ui.setStatus(), so the built-in footer, compact-footer and any
- * other footer pick it up without extra wiring.
- *
- * Auth discovery and the two usage endpoints are adapted from
- * @ogulcancelik/pi-minimal-footer (MIT).
- */
+// INFO: fc 02aug26 auth discovery and the two usage endpoints adapted from @ogulcancelik/pi-minimal-footer (MIT)
 
 import { execSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -25,10 +10,7 @@ const HOUR = 3_600_000;
 const REFRESH_MS = 5 * 60_000;
 const DEFAULT_BAR_W = 10;
 const BAR_W = Math.max(1, Math.round(Number(process.env.PI_USAGE_BAR_WIDTH)) || DEFAULT_BAR_W);
-// Half-height tick so the bar stays visually flat. Override if the font lacks U+2575.
 const MARKER = process.env.PI_USAGE_MARKER || "╵";
-// U+257E is heavy on its left half, light on its right: a half-filled track cell,
-// which doubles bar resolution without spending terminal columns.
 const GLYPH: Record<Cell, string> = { full: "━", half: "╾", empty: "─", mark: MARKER };
 const PROVIDERS: Record<string, Provider> = { anthropic: "claude", "openai-codex": "codex" };
 const SNAPSHOT_FILE = join(homedir(), ".pi", "agent", "usage-pace.json");
@@ -36,17 +18,12 @@ const SNAPSHOT_FILE = join(homedir(), ".pi", "agent", "usage-pace.json");
 type Provider = "claude" | "codex";
 type Cell = "full" | "half" | "empty" | "mark";
 
-/** Raw window state. Pace and countdown are derived at render time so a cached
- *  snapshot stays truthful between refreshes. */
 export interface Window {
 	label: string;
 	usedPercent: number;
-	/** Window end, epoch ms. */
 	resetsAt: number;
 	durationMs: number;
 }
-
-// ============ Auth ============
 
 function authJson(): Record<string, any> {
 	try {
@@ -59,7 +36,6 @@ function authJson(): Record<string, any> {
 function claudeToken(): string | undefined {
 	const access = authJson().anthropic?.access;
 	if (access) return access;
-	// Fallback: Claude Code's macOS keychain entry.
 	try {
 		const raw = execSync('security find-generic-password -s "Claude Code-credentials" -w', {
 			encoding: "utf8",
@@ -74,7 +50,6 @@ function claudeToken(): string | undefined {
 function codexToken(): { token: string; accountId?: string } | undefined {
 	const entry = authJson()["openai-codex"];
 	if (entry?.access) return { token: entry.access, accountId: entry.accountId };
-	// Fallback: Codex CLI's own auth file.
 	try {
 		const data = JSON.parse(
 			readFileSync(join(process.env.CODEX_HOME || join(homedir(), ".codex"), "auth.json"), "utf8"),
@@ -84,13 +59,11 @@ function codexToken(): { token: string; accountId?: string } | undefined {
 	return undefined;
 }
 
-// ============ Parsing ============
-
 function clamp(value: number): number {
 	return Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : 0;
 }
 
-/** Anthropic reports utilization as either a 0-1 fraction or a 0-100 percent. */
+// INFO: fc 02aug26 Anthropic reports utilization as either a 0-1 fraction or a 0-100 percent
 function normalizePercent(value: number): number {
 	return clamp(value > 0 && value <= 1 ? value * 100 : value);
 }
@@ -139,13 +112,8 @@ export function parseCodex(data: any): Window[] {
 	return windows;
 }
 
-// ============ Snapshot ============
-
-/** Last good windows, shared across sessions: a new session shows a bar before its
- *  first poll, and one poll per window serves every session, which matters because
- *  the Anthropic usage endpoint answers 429 when polled hard.
- *  INFO: fc 31jul26 last writer wins across concurrent sessions, fine for a display
- *  cache. Needs per-provider locking only if a caller ever reads it back as truth. */
+// INFO: fc 31jul26 the snapshot file shares last good windows across sessions, one poll serves all of them;
+// last writer wins, fine for a display cache, needs per-provider locking only if ever read back as truth
 type Entry = { at: number; polledAt: number; windows: Window[] };
 type Snapshot = Record<string, Entry>;
 
@@ -165,9 +133,8 @@ function patchSnapshot(provider: Provider, patch: Partial<Entry>): void {
 	} catch {}
 }
 
-/** Stake the next poll before doing it, so sessions starting in the same second
- *  don't all fetch. `polledAt` is the attempt, `at` the last success, so a failed
- *  attempt still holds the slot without making stale numbers look fresh. */
+// INFO: fc 02aug26 polledAt is the attempt, at the last success: a failed attempt still holds the poll
+// slot without making stale numbers look fresh
 function claimPoll(provider: Provider): void {
 	patchSnapshot(provider, { polledAt: Date.now() });
 }
@@ -175,8 +142,6 @@ function claimPoll(provider: Provider): void {
 function writeSnapshot(provider: Provider, windows: Window[]): void {
 	patchSnapshot(provider, { at: Date.now(), polledAt: Date.now(), windows });
 }
-
-// ============ Fetching ============
 
 async function fetchUsage(provider: Provider): Promise<Window[]> {
 	const signal = AbortSignal.timeout(5000);
@@ -203,9 +168,6 @@ async function fetchUsage(provider: Provider): Promise<Window[]> {
 	return res.ok ? parseCodex(await res.json()) : [];
 }
 
-// ============ Rendering ============
-
-/** Share of the window already spent, from its end time and total length. */
 export function elapsedPercent(w: Window, now: number): number {
 	return clamp(((w.durationMs - (w.resetsAt - now)) / w.durationMs) * 100);
 }
@@ -219,22 +181,14 @@ export function formatReset(resetsAt: number, now: number): string {
 	return hours % 24 ? `${Math.floor(hours / 24)}d${hours % 24}h` : `${Math.floor(hours / 24)}d`;
 }
 
-/**
- * Pace, not absolute usage: are we ahead of the window's clock?
- * Exception: under 10% of quota left is red however well paced, since there is
- * no room to spend at any rate.
- *
- * SLACK absorbs ordinary jitter so a couple of points over the clock isn't amber.
- */
-const SLACK = 2;
+const PACE_JITTER_POINTS = 2;
 export function paceColor(usedPercent: number, elapsed: number): "success" | "warning" | "error" {
 	if (usedPercent >= 90) return "error";
-	const over = usedPercent - elapsed - SLACK;
+	const over = usedPercent - elapsed - PACE_JITTER_POINTS;
 	if (over <= 0) return "success";
 	return over <= 10 ? "warning" : "error";
 }
 
-/** Fill resolves to half a cell, so a 6-wide bar moves every ~8% instead of every ~17%. */
 export function barCells(usedPercent: number, elapsed: number, width = BAR_W): Cell[] {
 	const halves = Math.round((usedPercent / 100) * width * 2);
 	const mark = Math.min(width - 1, Math.floor((elapsed / 100) * width));
@@ -258,12 +212,9 @@ function renderWindow(w: Window, theme: any, now: number, stale: boolean): strin
 	);
 }
 
-// ============ Extension ============
-
 export default function (pi: ExtensionAPI) {
 	const KEY = "usage";
 	const cache = new Map<Provider, { at: number; windows: Window[] }>();
-	// Two missed polls: usedPercent is old enough to mislead, so the label wears a ~.
 	const STALE_MS = 2 * REFRESH_MS;
 	let active: Provider | null = null;
 	let ctxRef: any = null;
@@ -271,8 +222,8 @@ export default function (pi: ExtensionAPI) {
 
 	// INFO: fc 31jul26 countdown text only refreshes with the 5min poll, so it can lag
 	// by up to 5 minutes. Re-render on turn_end if that ever reads as wrong.
-	// ctx getters throw once the session is replaced/reloaded; a fresh ctx arrives
-	// with the next session_start, so drop the dead one and stop the timer.
+	// INFO: fc 02aug26 ctx getters throw once the session is replaced/reloaded; drop the dead
+	// ctx and stop the timer, a fresh one arrives with the next session_start
 	function live(): any {
 		try {
 			ctxRef?.hasUI;
@@ -303,15 +254,17 @@ export default function (pi: ExtensionAPI) {
 		const saved = provider ? readSnapshot()[provider] : undefined;
 		if (provider && saved && saved.at > (cache.get(provider)?.at ?? 0))
 			cache.set(provider, { at: saved.at, windows: saved.windows.filter((w) => w.resetsAt > Date.now()) });
-		paint(); // cached snapshot first, or clears for non-subscription providers
+		paint();
 		if (!provider) return;
-		if (saved && Date.now() - saved.polledAt < REFRESH_MS) return; // another session has this window
+		const polledRecentlyBySomeSession = saved && Date.now() - saved.polledAt < REFRESH_MS;
+		if (polledRecentlyBySomeSession) return;
 		claimPoll(provider);
 		try {
 			const windows = await fetchUsage(provider);
-			if (active !== provider) return; // model switched mid-flight
+			const modelSwitchedMidFlight = active !== provider;
+			if (modelSwitchedMidFlight) return;
 			if (windows.length) {
-				cache.set(provider, { at: Date.now(), windows }); // keep last good on transient failure
+				cache.set(provider, { at: Date.now(), windows });
 				writeSnapshot(provider, windows);
 			}
 			paint();

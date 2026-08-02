@@ -1,26 +1,3 @@
-/**
- * Model Shortcuts Extension
- *
- * Slash-command shortcuts for switching model + thinking level.
- *
- *   /off  /minimal  /low  /medium  /high  /xhigh   Set thinking level
- *   /opus  /sonnet  /glm  /kimi  ...               Switch to a named model
- *   /opus:high  /glm:off  /sonnet:medium  ...      Switch model + thinking
- *
- * Shortcuts are read from JSON config files (project overrides global, merged by name):
- *   - ~/.pi/agent/extensions/pi-model-shortcuts.json
- *   - <cwd>/.pi/extensions/pi-model-shortcuts.json
- *
- * Schema — top-level keys are the shortcut names:
- *   {
- *     "opus":   { "provider": "anthropic", "model": "claude-opus-4-7" },
- *     "sonnet": { "provider": "anthropic", "model": "claude-sonnet-4-6", "thinkingLevel": "high" }
- *   }
- *
- * `thinkingLevel` is optional; the bare `/<name>` form applies it when set,
- * the explicit `/<name>:<level>` form always wins.
- */
-
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -47,11 +24,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null;
 }
 
-/**
- * Parse a raw shortcut entry into a Partial<Shortcut>. Validation that
- * `provider` and `model` are both present happens after merging, so a project
- * file can override individual fields without restating the whole shortcut.
- */
 function parseShortcut(raw: unknown): Partial<Shortcut> | undefined {
 	if (!isRecord(raw)) return undefined;
 	const out: Partial<Shortcut> = {};
@@ -82,13 +54,6 @@ function readConfigFile(path: string): PartialShortcutsConfig {
 	}
 }
 
-/**
- * Merge global + project the way pi-core merges settings.json: for each name
- * present in both, shallow-merge the entries so a project can override
- * individual fields (e.g. just `thinkingLevel`) without redeclaring
- * `provider` and `model`. Then drop any entry that is still missing required
- * fields after merging.
- */
 function loadShortcuts(cwd: string): ShortcutsConfig {
 	const globalPath = join(getAgentDir(), "extensions", CONFIG_FILENAME);
 	const projectPath = join(cwd, ".pi", "extensions", CONFIG_FILENAME);
@@ -113,7 +78,6 @@ export default function modelShortcutsExtension(pi: ExtensionAPI): void {
 	let shortcuts: ShortcutsConfig = {};
 	const registered = new Set<string>();
 
-	// --- Thinking-level commands (always available) ---
 	for (const level of LEVELS) {
 		registered.add(level);
 		pi.registerCommand(level, {
@@ -125,7 +89,6 @@ export default function modelShortcutsExtension(pi: ExtensionAPI): void {
 		});
 	}
 
-	/** Apply a shortcut, optionally overriding its thinking level. */
 	async function applyShortcut(
 		ctx: ExtensionContext,
 		name: string,
