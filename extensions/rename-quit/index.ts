@@ -1,8 +1,7 @@
-import { complete } from "@earendil-works/pi-ai";
-import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import { complete } from "@earendil-works/pi-ai/compat";
+import type { ExtensionAPI, ExtensionCommandContext, SessionEntry } from "@earendil-works/pi-coding-agent";
 
 type ContentBlock = { type?: string; text?: string; name?: string };
-type SessionEntry = { type: string; message?: { role?: string; content?: unknown } };
 
 const MAX_CONVO_CHARS = 12_000;
 // INFO: fc 02aug26 both ends kept: the first user message tends to define the topic, the tail is where the session ended
@@ -26,12 +25,12 @@ function extractText(content: unknown): string {
 function buildConversationText(entries: SessionEntry[]): string {
 	const sections: string[] = [];
 	for (const entry of entries) {
-		if (entry.type !== "message" || !entry.message?.role) continue;
-		const role = entry.message.role;
-		if (role !== "user" && role !== "assistant") continue;
-		const text = extractText(entry.message.content).trim();
+		if (entry.type !== "message") continue;
+		const { message } = entry;
+		if (message.role !== "user" && message.role !== "assistant") continue;
+		const text = extractText(message.content).trim();
 		if (!text) continue;
-		sections.push(`${role === "user" ? "User" : "Assistant"}: ${text}`);
+		sections.push(`${message.role === "user" ? "User" : "Assistant"}: ${text}`);
 	}
 	let joined = sections.join("\n\n");
 	if (joined.length > MAX_CONVO_CHARS) {
@@ -83,8 +82,7 @@ export default function (pi: ExtensionAPI) {
 				return;
 			}
 
-			const branch = ctx.sessionManager.getBranch() as SessionEntry[];
-			const convo = buildConversationText(branch);
+			const convo = buildConversationText(ctx.sessionManager.getBranch());
 
 			if (!convo) {
 				ctx.ui.notify("No conversation content to name from. Exiting without renaming.", "warning");
