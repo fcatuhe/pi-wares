@@ -4,7 +4,6 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@benvargas/pi-claude-code-use": "^1.0.0",
     "@mozilla/readability": "^0.6.0",
     "jsdom": "^27.0.1",
     "token-rate-pi": "^1.0.0",

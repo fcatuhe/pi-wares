@@ -18,7 +18,7 @@ Everything works out of the box except two skills:
 - **`gog`** needs the [`gog` CLI](https://github.com/openclaw/gogcli) installed separately, plus your own Google Cloud OAuth client: create a project in the [Google Cloud console](https://console.cloud.google.com/), enable the APIs you'll use (Gmail, Calendar, Drive, ...), create an OAuth "Desktop app" client, download its `credentials.json`, then `gog auth credentials set credentials.json` and `gog auth add you@example.com`. No env var in normal use.
 - **`outline-cli`** needs the [`ol` CLI](https://github.com/Doist/outline-cli) installed separately: `npm install -g @doist/outline-cli`, then `ol auth login` (OAuth, tokens expire) or `ol auth token <token>` with a personal API token from your Outline instance's Settings > API (doesn't expire, better for agents).
 
-The extensions that touch provider auth (`claude-code-use`, `usage-pace`) reuse pi's own credentials (`/login`, `~/.pi/agent/auth.json`) and need no setup.
+The extensions that touch provider auth (`pi-claude-wire`, `usage-pace`) reuse pi's own credentials (`/login`, `~/.pi/agent/auth.json`) and need no setup.
 
 ## Wares
 
@@ -27,6 +27,7 @@ The extensions that touch provider auth (`claude-code-use`, `usage-pace`) reuse 
 | [`model-shortcuts/`](./extensions/model-shortcuts/) | Slash shortcuts for model + thinking level: `/opus`, `/glm:high`, `/high`. |
 | [`compact-footer/`](./extensions/compact-footer/) | Folds pi's 3-line footer into 2 by merging statuses onto the path line. |
 | [`usage-pace/`](./extensions/usage-pace/) | Footer status: subscription usage bar, pace marker, reset countdown. |
+| [`pi-claude-wire/`](./extensions/pi-claude-wire/) | Aliases extension tool names to `mcp__*` in Anthropic OAuth payloads at request time, so live schemas pass through untouched. |
 | [`clear-on-startup/`](./extensions/clear-on-startup/) | Clears screen and scrollback once per pi launch. |
 | [`rename-quit/`](./extensions/rename-quit/) | `/rename-quit` names the session from its transcript, then exits. |
 | [`handoff/`](./extensions/handoff/) | `/handoff <goal>` starts a new linked session with an LLM-written brief. |
@@ -62,7 +63,6 @@ Third-party pi extensions folded in as npm `dependencies` and exposed through th
 
 | Package | What it does |
 |---|---|
-| [`@benvargas/pi-claude-code-use`](https://www.npmjs.com/package/@benvargas/pi-claude-code-use) | Patches Anthropic OAuth payloads for Claude Code-style subscription use. Re-exported from [`extensions/claude-code-use/`](./extensions/claude-code-use/) so `pi config` labels it by name instead of `index.ts`. |
 | [`token-rate-pi`](https://www.npmjs.com/package/token-rate-pi) | Footer status showing average output tokens/sec. |
 
 Caret ranges, so unpinned. pi only re-runs `npm install` on a fresh install or when this repo's default branch gets a new commit, not on every `pi update`. Push a commit here, then `pi update --extensions` picks up newer bundled releases within the major.
