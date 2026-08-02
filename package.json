@@ -5,7 +5,7 @@
   "type": "module",
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
-    "@ogulcancelik/pi-codex-subagents": "github:fcatuhe/pi-extensions#feat/spawn-model-thinking-override",
+    "@ogulcancelik/pi-codex-subagents": "git+https://github.com/fcatuhe/pi-extensions.git#feat/spawn-model-thinking-override",
     "jsdom": "^27.0.1",
     "token-rate-pi": "^1.0.0",
     "turndown": "^7.2.2",
