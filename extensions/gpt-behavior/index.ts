@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-const behavior = readFileSync(join(__dirname, "behavior.md"), "utf8").trim();
+const behavior = readFileSync(join(import.meta.dirname, "behavior.md"), "utf8").trim();
 
 function isGpt(model: { provider?: string; id?: string } | undefined): boolean {
   if (!model) return false;
