@@ -119,6 +119,10 @@ Each ware is a folder with `index.ts` as its entry. Everything else in the folde
 
 **A new bundled extension** goes in `dependencies`, then its entry file under `pi.extensions` as `node_modules/<pkg>/...`, plus a row in the table above. That path is the whole reason this package declares an explicit manifest instead of relying on convention discovery.
 
+## Checks
+
+`npm test` runs every ware self-check (`pi-claude-wire`, `policies`, `usage-pace`); CI runs it after `npm ci`. A new self-check is a `test.ts` next to its ware plus an entry in the `test` script.
+
 ## License
 
 MIT
