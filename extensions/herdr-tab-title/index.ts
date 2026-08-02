@@ -19,77 +19,108 @@ function requestId(): string {
 	return `herdr-tab-title:${Date.now()}:${Math.random().toString(36).slice(2)}`;
 }
 
-function request(method: string, params: Record<string, unknown>): Promise<any> {
-	return new Promise((resolve) => {
-		let done = false;
-		let buffer = "";
-		const finish = (result?: any) => {
-			if (done) return;
-			done = true;
-			clearTimeout(timeout);
-			socket.destroy();
-			resolve(result);
-		};
-
-		const socket = net.createConnection(socketEndpoint!);
-		socket.on("error", () => finish());
-		socket.on("end", () => finish());
-		socket.on("connect", () => socket.write(`${JSON.stringify({ id: requestId(), method, params })}\n`));
-		socket.on("data", (chunk) => {
-			buffer += chunk.toString();
-			const line = buffer.split("\n", 1)[0];
-			if (!buffer.includes("\n")) return;
-			try {
-				finish(JSON.parse(line).result);
-			} catch {
-				finish();
-			}
-		});
-		const timeout = setTimeout(finish, REQUEST_TIMEOUT_MS);
-		timeout.unref?.();
-	});
-}
-
-async function getTabLabel(): Promise<string | undefined> {
-	const result = await request("tab.get", { tab_id: tabId });
-	const label = result?.tab?.label;
-	return typeof label === "string" ? label : undefined;
+function truncateLabel(name: string): string {
+	return Array.from(name.trim()).slice(0, MAX_LABEL_CHARS).join("");
 }
 
 export default function (pi: ExtensionAPI) {
 	if (!enabled()) return;
 
-	let rootSession = false;
-	let lastLabel: string | undefined;
+	let started = false;
+	let shutdown = false;
+	let desiredLabel: string | undefined;
+	let syncedLabel: string | undefined;
 	let chain: Promise<void> = Promise.resolve();
 	let watcher: net.Socket | undefined;
 	let settleTimer: ReturnType<typeof setTimeout> | undefined;
 	let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
-	let shutdown = false;
+	const liveRequests = new Set<net.Socket>();
+
+	function request(method: string, params: Record<string, unknown>): Promise<any> {
+		return new Promise((resolve) => {
+			let done = false;
+			let buffer = "";
+			const socket = net.createConnection(socketEndpoint!);
+			liveRequests.add(socket);
+			socket.unref?.();
+			const timeout = setTimeout(() => finish(), REQUEST_TIMEOUT_MS);
+			timeout.unref?.();
+			const finish = (result?: any) => {
+				if (done) return;
+				done = true;
+				clearTimeout(timeout);
+				liveRequests.delete(socket);
+				socket.destroy();
+				resolve(result);
+			};
+			socket.on("error", () => finish());
+			socket.on("close", () => finish());
+			socket.on("connect", () =>
+				socket.write(`${JSON.stringify({ id: requestId(), method, params })}\n`),
+			);
+			socket.on("data", (chunk) => {
+				buffer += chunk.toString();
+				if (!buffer.includes("\n")) return;
+				try {
+					finish(JSON.parse(buffer.split("\n", 1)[0]).result);
+				} catch {
+					finish();
+				}
+			});
+		});
+	}
+
+	async function getTabLabel(): Promise<string | undefined> {
+		const result = await request("tab.get", { tab_id: tabId });
+		const label = result?.tab?.label;
+		return typeof label === "string" && label ? label : undefined;
+	}
+
+	async function renameTab(label: string): Promise<void> {
+		const result = await request("tab.rename", { tab_id: tabId, label });
+		if (result) syncedLabel = label;
+	}
 
 	function enqueue(task: () => Promise<void>): void {
-		chain = chain.then(task, () => {});
+		chain = chain
+			.then(async () => {
+				if (!shutdown) await task();
+			})
+			.catch(() => {});
 	}
 
 	function pushToTab(name: string): void {
-		const label = name.trim().slice(0, MAX_LABEL_CHARS);
-		if (!label || label === lastLabel) return;
-		lastLabel = label;
-		enqueue(() => request("tab.rename", { tab_id: tabId, label }));
+		const label = truncateLabel(name);
+		if (!label || label === desiredLabel) return;
+		desiredLabel = label;
+		enqueue(async () => {
+			const superseded = label !== desiredLabel;
+			if (superseded || label === syncedLabel) return;
+			await renameTab(label);
+		});
 	}
 
 	function pullFromTab(): void {
 		enqueue(async () => {
 			const label = await getTabLabel();
-			if (!label || label === lastLabel) return;
-			lastLabel = label;
-			pi.setSessionName(label);
+			if (!label) return;
+			if (syncedLabel === undefined) {
+				// INFO: fc 02aug26 first read only baselines: herdr's default numeric labels must not name sessions
+				syncedLabel = label;
+			}
+			if (label !== syncedLabel) {
+				syncedLabel = label;
+				desiredLabel = truncateLabel(label);
+				pi.setSessionName(label);
+				return;
+			}
+			const unconfirmedRename = desiredLabel && desiredLabel !== syncedLabel;
+			if (unconfirmedRename) await renameTab(desiredLabel!);
 		});
 	}
 
-	// Herdr replays a backlog of recent events on every subscribe, so event
-	// payloads are untrusted: any rename notification just triggers a re-read
-	// of the tab's current label, deduped against the last synced label.
+	// INFO: fc 02aug26 herdr replays a backlog of recent events on every subscribe, so event
+	// payloads are untrusted: any rename notification only triggers a re-read deduped above
 	function scheduleSync(): void {
 		clearTimeout(settleTimer);
 		settleTimer = setTimeout(pullFromTab, EVENT_SETTLE_MS);
@@ -111,6 +142,13 @@ export default function (pi: ExtensionAPI) {
 		const socket = net.createConnection(socketEndpoint!);
 		watcher = socket;
 		socket.unref?.();
+		const drop = () => {
+			if (watcher === socket) watcher = undefined;
+			socket.destroy();
+			scheduleReconnect();
+		};
+		socket.on("error", drop);
+		socket.on("close", drop);
 		socket.on("connect", () => {
 			socket.write(
 				`${JSON.stringify({
@@ -119,6 +157,7 @@ export default function (pi: ExtensionAPI) {
 					params: { subscriptions: [{ type: "tab.renamed" }] },
 				})}\n`,
 			);
+			scheduleSync();
 		});
 		socket.on("data", (chunk) => {
 			buffer += chunk.toString();
@@ -126,34 +165,32 @@ export default function (pi: ExtensionAPI) {
 			buffer = lines.pop() ?? "";
 			for (const line of lines) {
 				if (!line.trim()) continue;
+				let msg: any;
 				try {
-					const msg = JSON.parse(line);
-					if (msg.event === "tab_renamed" && msg.data?.tab_id === tabId) scheduleSync();
+					msg = JSON.parse(line);
 				} catch {
-					// skip malformed line, resync on the next event
+					continue;
+				}
+				if (msg.event === "tab_renamed" && msg.data?.tab_id === tabId) {
+					scheduleSync();
+				} else if (msg.id && msg.result?.type !== "subscription_started") {
+					return drop();
 				}
 			}
 		});
-		const drop = () => {
-			if (watcher === socket) watcher = undefined;
-			socket.destroy();
-			scheduleReconnect();
-		};
-		socket.on("error", drop);
-		socket.on("close", drop);
 	}
 
 	pi.on("session_start", async (_event, ctx) => {
 		if (ctx.hasUI !== true) return;
-		rootSession = true;
-		lastLabel = await getTabLabel();
+		started = true;
+		pullFromTab();
 		const name = pi.getSessionName();
 		if (name) pushToTab(name);
 		watchTabRenames();
 	});
 
 	pi.on("session_info_changed", async (event) => {
-		if (!rootSession || !event.name) return;
+		if (!started || !event.name) return;
 		pushToTab(event.name);
 	});
 
@@ -163,5 +200,7 @@ export default function (pi: ExtensionAPI) {
 		clearTimeout(reconnectTimer);
 		watcher?.destroy();
 		watcher = undefined;
+		for (const socket of liveRequests) socket.destroy();
+		liveRequests.clear();
 	});
 }
