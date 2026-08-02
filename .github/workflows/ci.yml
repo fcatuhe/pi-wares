@@ -13,6 +13,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: lts/*
-          cache: npm
-      # catches broken lockfiles and yanked packages in dependabot PRs
-      - run: npm ci
+      # no lockfile in the repo (gitignored), so install resolves ranges fresh;
+      # catches yanked packages and unresolvable ranges in dependabot PRs
+      - run: npm install
