@@ -282,7 +282,6 @@ export default function (pi: ExtensionAPI) {
 	}
 
 	pi.on("session_start", (_event, ctx) => start(ctx));
-	pi.on("session_switch", (_event, ctx) => start(ctx));
 	pi.on("model_select", (event, ctx) => {
 		ctxRef = ctx;
 		void refresh(event.model?.provider ?? ctx.model?.provider);
