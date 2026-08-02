@@ -30,6 +30,7 @@ export default function (pi: ExtensionAPI) {
 	let shutdown = false;
 	let desiredLabel: string | undefined;
 	let syncedLabel: string | undefined;
+	let originalLabel: string | undefined;
 	let chain: Promise<void> = Promise.resolve();
 	let watcher: net.Socket | undefined;
 	let settleTimer: ReturnType<typeof setTimeout> | undefined;
@@ -107,6 +108,7 @@ export default function (pi: ExtensionAPI) {
 			if (syncedLabel === undefined) {
 				// INFO: fc 02aug26 first read only baselines: herdr's default numeric labels must not name sessions
 				syncedLabel = label;
+				originalLabel = label;
 			}
 			if (label !== syncedLabel) {
 				syncedLabel = label;
@@ -200,7 +202,16 @@ export default function (pi: ExtensionAPI) {
 		clearTimeout(reconnectTimer);
 		watcher?.destroy();
 		watcher = undefined;
+		await restoreOriginalLabel();
 		for (const socket of liveRequests) socket.destroy();
 		liveRequests.clear();
 	});
+
+	// INFO: fc 02aug26 pi borrows the label and returns it on teardown, otherwise a dead
+	// session's name sticks to the tab forever: the next unnamed session never adopts it
+	async function restoreOriginalLabel(): Promise<void> {
+		if (!originalLabel || !syncedLabel || originalLabel === syncedLabel) return;
+		const labelIsStillOurs = (await getTabLabel()) === syncedLabel;
+		if (labelIsStillOurs) await request("tab.rename", { tab_id: tabId, label: originalLabel });
+	}
 }
