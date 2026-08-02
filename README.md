@@ -75,8 +75,19 @@ Third-party pi extensions folded in as npm `dependencies` and exposed through th
 | Package | What it does |
 |---|---|
 | [`token-rate-pi`](https://www.npmjs.com/package/token-rate-pi) | Footer status showing average output tokens/sec. |
+| [`@ogulcancelik/pi-codex-subagents`](https://github.com/ogulcancelik/pi-extensions/tree/main/packages/pi-codex-subagents) | Codex-shaped, session-scoped subagents: templates, waits, steering, live overlay, per-spawn model routing. Temporarily a git dependency on [our PR branch](https://github.com/ogulcancelik/pi-extensions/pull/21); once merged and released, swap to the npm package and shorten the manifest path to `node_modules/@ogulcancelik/pi-codex-subagents/index.ts`. The git dependency needs `allow-git=root` and `legacy-peer-deps=true`, set in this repo's `.npmrc` (pi provides the peers at runtime and itself installs with `--legacy-peer-deps`). |
 
-Caret ranges, so unpinned. pi only re-runs `npm install` on a fresh install or when this repo's default branch gets a new commit, not on every `pi update`. Push a commit here, then `pi update --extensions` picks up newer bundled releases within the major.
+Caret ranges, so unpinned (the subagents git dependency tracks its branch head instead). pi only re-runs `npm install` on a fresh install or when this repo's default branch gets a new commit, not on every `pi update`. Push a commit here, then `pi update --extensions` picks up newer bundled releases within the major.
+
+### Subagent model routing
+
+The subagents extension offers per-spawn `model` and `thinking` arguments only when its machine-local config allows models, at `~/.pi/agent/pi-codex-subagents/config.json`. We encourage reusing pi's own enabled models rather than maintaining a second list:
+
+```json
+{ "modelsFromEnabledModels": true }
+```
+
+The models already approved in pi (`/models`, `enabledModels` in `settings.json`) become the spawn allowlist, resolved and availability-checked by pi itself, so there is one approval list and nothing drifts. Exact extra routes can still be added next to it with `"models": ["provider/model-id"]`. This file is not shipped by this package; set it once per machine.
 
 ## Terminal
 
