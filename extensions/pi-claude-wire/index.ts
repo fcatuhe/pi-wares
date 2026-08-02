@@ -59,8 +59,8 @@ function escapeRegExp(text: string): string {
 	return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-// A flat name inside its own alias has no word boundary before it (mcp__ns__name),
-// so repeated rewrites are no-ops.
+// INFO: fc 02aug26 a flat name inside its own alias has no word boundary before it (mcp__ns__name),
+// so repeated rewrites are no-ops
 export function rewriteNameReferences(text: string, renames: AliasEntry[]): string {
 	let result = text;
 	for (const { flat, alias } of renames) {
@@ -225,9 +225,9 @@ export function unaliasToolCallsInPlace(message: unknown, maps: AliasMaps): void
 	}
 }
 
-// Runs on message_end, before pi resolves which tool to execute, so the original
-// extension's execute closure handles the call. Only names this extension aliased
-// are rewritten; real mcp__ tools from other extensions pass through untouched.
+// INFO: fc 02aug26 runs on message_end, before pi resolves which tool to execute, so the original
+// extension's execute closure handles the call; only names this extension aliased are rewritten,
+// real mcp__ tools from other extensions pass through untouched
 export function unaliasAssistantMessage(message: unknown, maps: AliasMaps): Record<string, unknown> | undefined {
 	if (!isPlainObject(message) || message.role !== "assistant" || !Array.isArray(message.content)) return undefined;
 	let changed = false;

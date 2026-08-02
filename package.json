@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "scripts": {
+    "test": "tsx extensions/pi-claude-wire/test.ts && tsx extensions/policies/test.ts && tsx extensions/usage-pace/test.ts"
+  },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
     "@ogulcancelik/pi-codex-subagents": "git+https://github.com/fcatuhe/pi-extensions.git#feat/spawn-model-thinking-override",
@@ -24,5 +27,8 @@
       "node_modules/@ogulcancelik/pi-codex-subagents/packages/pi-codex-subagents/index.ts"
     ],
     "skills": ["skills"]
+  },
+  "devDependencies": {
+    "tsx": "^4.23.4"
   }
 }

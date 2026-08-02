@@ -15,9 +15,9 @@ Order: **Summary -> User flow -> Behavior changes -> Visual changes -> Implement
 | User flow | Usually | How the user enters, completes and exits the feature, including the exceptional paths. |
 | Behavior changes | Always | Before and after, as a compact table. |
 | Visual changes | With UI | Screenshots by screen and viewport. |
-| Implementation notes | Always | Model, controller, Turbo, job and integration decisions. Not a list of changed files. |
+| Implementation notes | Always | The decisions behind the diff: data model, boundaries, framework mechanisms, integrations. Not a list of changed files. |
 | Design decisions | When useful | Alternatives considered and why they lost. |
 | Data and rollout | When applicable | Migrations, backfills, feature gates, configuration, compatibility, deployment order. |
 | Risks and edge cases | Substantial features | Concurrency, permissions, failure behavior, recovery. |
-| Tests | Always | Tested behavior by level: model, controller, system, job, integration. |
+| Tests | Always | Tested behavior by level, unit through system. |
 | Screenshots footer | With images | Where the long-lived screenshot assets live. |
