@@ -10,8 +10,8 @@ when/     only when a marker file exists in cwd or above it
 | File | Loaded when |
 |---|---|
 | `always/code-comment.md` | always |
-| `always/writing-style.md` | always |
 | `always/engineering.md` | always |
+| `always/writing-style.md` | always |
 | `when/git.md` | `.git` exists |
 | `when/frontend.md` | a `.html`, `.erb` or `.slim` file exists in the project (vendored dirs excluded) |
 | `when/rails.md` | `config/application.rb` exists |
