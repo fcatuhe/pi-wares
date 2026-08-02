@@ -55,12 +55,27 @@ export function rewritePromptText(text: string): string {
 		.replaceAll("pi packages", "cli packages");
 }
 
-export function rewriteSystemField(system: unknown): unknown {
-	if (typeof system === "string") return rewritePromptText(system);
+function escapeRegExp(text: string): string {
+	return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// A flat name inside its own alias has no word boundary before it (mcp__ns__name),
+// so repeated rewrites are no-ops.
+export function rewriteNameReferences(text: string, renames: AliasEntry[]): string {
+	let result = text;
+	for (const { flat, alias } of renames) {
+		result = result.replace(new RegExp(`\\b${escapeRegExp(flat)}\\b`, "g"), alias);
+	}
+	return result;
+}
+
+export function rewriteSystemField(system: unknown, renames: AliasEntry[]): unknown {
+	const rewrite = (text: string) => rewriteNameReferences(rewritePromptText(text), renames);
+	if (typeof system === "string") return rewrite(system);
 	if (!Array.isArray(system)) return system;
 	return system.map((block) => {
 		if (!isPlainObject(block) || block.type !== "text" || typeof block.text !== "string") return block;
-		const rewritten = rewritePromptText(block.text);
+		const rewritten = rewrite(block.text);
 		return rewritten === block.text ? block : { ...block, text: rewritten };
 	});
 }
@@ -102,10 +117,6 @@ export function transformPayload(
 ): Record<string, unknown> {
 	const payload = { ...raw };
 
-	if (payload.system !== undefined) {
-		payload.system = rewriteSystemField(payload.system);
-	}
-
 	const advertised = new Set<string>();
 	if (Array.isArray(payload.tools)) {
 		for (const tool of payload.tools) {
@@ -120,12 +131,26 @@ export function transformPayload(
 		maps.flatByAlias.set(aliasLc, entry.flat);
 	}
 
+	const renames = [...aliasIndex.values()].filter((entry) => maps.flatByAlias.get(lower(entry.alias)) === entry.flat);
+
+	if (payload.system !== undefined) {
+		payload.system = rewriteSystemField(payload.system, renames);
+	}
+
 	if (Array.isArray(payload.tools)) {
 		payload.tools = payload.tools.map((tool) => {
 			if (!isPlainObject(tool) || typeof tool.name !== "string") return tool;
 			if (typeof tool.type === "string" && tool.type.trim().length > 0) return tool;
 			const alias = maps.aliasByFlat.get(lower(tool.name));
-			return alias ? { ...tool, name: alias } : tool;
+			const description =
+				typeof tool.description === "string" ? rewriteNameReferences(tool.description, renames) : undefined;
+			const descriptionChanged = description !== undefined && description !== tool.description;
+			if (!alias && !descriptionChanged) return tool;
+			return {
+				...tool,
+				...(alias ? { name: alias } : {}),
+				...(descriptionChanged ? { description } : {}),
+			};
 		});
 	}
 
@@ -188,6 +213,18 @@ function remapHistoryBlock(block: unknown, maps: AliasMaps): unknown {
 	return block;
 }
 
+// INFO: fc 02aug26 message_update has no replacement channel, and the TUI resolves a
+// tool row's renderer from the streamed block name when the row is created, so the
+// streamed alias must be rewritten by mutating the block the TUI will read.
+export function unaliasToolCallsInPlace(message: unknown, maps: AliasMaps): void {
+	if (!isPlainObject(message) || message.role !== "assistant" || !Array.isArray(message.content)) return;
+	for (const block of message.content) {
+		if (!isPlainObject(block) || block.type !== "toolCall" || typeof block.name !== "string") continue;
+		const flat = maps.flatByAlias.get(lower(block.name));
+		if (flat && flat !== block.name) block.name = flat;
+	}
+}
+
 // Runs on message_end, before pi resolves which tool to execute, so the original
 // extension's execute closure handles the call. Only names this extension aliased
 // are rewritten; real mcp__ tools from other extensions pass through untouched.
@@ -207,12 +244,21 @@ export function unaliasAssistantMessage(message: unknown, maps: AliasMaps): Reco
 export default function piClaudeWire(pi: ExtensionAPI): void {
 	const maps = createAliasMaps();
 
+	pi.on("session_start", () => {
+		maps.aliasByFlat.clear();
+		maps.flatByAlias.clear();
+	});
+
 	pi.on("before_provider_request", (event, ctx) => {
 		const model = ctx.model;
 		if (!model || model.provider !== "anthropic" || !ctx.modelRegistry.isUsingOAuth(model)) return undefined;
 		if (!isPlainObject(event.payload)) return undefined;
 		const aliasIndex = buildAliasIndex(pi.getAllTools());
 		return transformPayload(event.payload as Record<string, unknown>, aliasIndex, maps);
+	});
+
+	pi.on("message_update", (event) => {
+		unaliasToolCallsInPlace(event.message, maps);
 	});
 
 	pi.on("message_end", (event) => {

@@ -4,9 +4,10 @@ import {
 	buildAliasIndex,
 	createAliasMaps,
 	namespaceFrom,
-	rewriteSystemField,
+	rewriteNameReferences,
 	transformPayload,
 	unaliasAssistantMessage,
+	unaliasToolCallsInPlace,
 } from "./index.ts";
 
 // Namespace derivation: package dir name minus pi- prefix, sanitized; wrapper dirs skipped.
@@ -25,6 +26,7 @@ const registry = [
 	{ name: "read", sourceInfo: { path: "<builtin:read>" } },
 	{ name: "spawn_agent", sourceInfo: { path: "/x/pi-codex-subagents/index.ts" } },
 	{ name: "wait_agent", sourceInfo: { path: "/x/pi-codex-subagents/index.ts" } },
+	{ name: "wait_all_agents", sourceInfo: { path: "/x/pi-codex-subagents/index.ts" } },
 	{ name: "mcp__linear__search", sourceInfo: { path: "/x/pi-linear/index.ts" } },
 	{ name: "handoff", sourceInfo: { path: "/x/pi-wares/extensions/handoff/index.ts" } },
 ];
@@ -39,13 +41,22 @@ assert.equal(index.get("handoff")?.alias, "mcp__handoff__handoff");
 const maps = createAliasMaps();
 const payload = {
 	system: [
-		{ type: "text", text: "questions about pi itself and pi packages", cache_control: { type: "ephemeral" } },
+		{
+			type: "text",
+			text: "questions about pi itself and pi packages; use spawn_agent for subtasks",
+			cache_control: { type: "ephemeral" },
+		},
 	],
 	tools: [
 		{ name: "Read", description: "read", input_schema: {} },
-		{ name: "spawn_agent", description: "dynamic templates list", input_schema: {}, cache_control: { type: "ephemeral" } },
+		{
+			name: "spawn_agent",
+			description: "Use `wait_agent` or wait_all_agents only when needed. Never respawn_agent.",
+			input_schema: {},
+			cache_control: { type: "ephemeral" },
+		},
 		{ name: "mcp__linear__search", description: "foreign mcp", input_schema: {} },
-		{ type: "web_search_20250305", name: "web_search" },
+		{ type: "web_search_20250305", name: "web_search", description: "see spawn_agent" },
 	],
 	tool_choice: { type: "tool", name: "spawn_agent" },
 	messages: [
@@ -66,12 +77,22 @@ const payload = {
 	],
 };
 const out = transformPayload(payload, index, maps);
-assert.equal((out.system as any)[0].text, "questions about the cli itself and cli packages");
+// System text: pi mentions neutralized and flat tool references aliased.
+assert.equal(
+	(out.system as any)[0].text,
+	"questions about the cli itself and cli packages; use mcp__codex_subagents__spawn_agent for subtasks",
+);
 assert.equal((out.system as any)[0].cache_control.type, "ephemeral");
 const toolNames = (out.tools as any[]).map((t) => t.name);
 assert.deepEqual(toolNames, ["Read", "mcp__codex_subagents__spawn_agent", "mcp__linear__search", "web_search"]);
 assert.equal((out.tools as any)[1].cache_control.type, "ephemeral");
-assert.equal((out.tools as any)[1].description, "dynamic templates list");
+// Descriptions: flat references aliased (backticked or bare), superstrings untouched,
+// native typed tools never touched.
+assert.equal(
+	(out.tools as any)[1].description,
+	"Use `mcp__codex_subagents__wait_agent` or mcp__codex_subagents__wait_all_agents only when needed. Never respawn_agent.",
+);
+assert.equal((out.tools as any)[3].description, "see spawn_agent");
 assert.equal((out.tool_choice as any).name, "mcp__codex_subagents__spawn_agent");
 assert.equal((out.messages as any)[0].content[0].name, "mcp__codex_subagents__spawn_agent");
 assert.equal((out.messages as any)[1].content[0].content[0].tool_name, "mcp__codex_subagents__wait_agent");
@@ -131,5 +152,30 @@ assert.equal(unaliasAssistantMessage({ role: "user", content: [] }, maps), undef
 // System string form and absent tools survive.
 const bare = transformPayload({ system: "about pi itself" }, index, createAliasMaps());
 assert.equal(bare.system, "about the cli itself");
+
+// Reference rewriting is idempotent: a flat name embedded in its own alias has no
+// leading word boundary, so a second pass changes nothing.
+const renames = [
+	{ flat: "spawn_agent", alias: "mcp__codex_subagents__spawn_agent" },
+	{ flat: "wait_agent", alias: "mcp__codex_subagents__wait_agent" },
+];
+const once = rewriteNameReferences("call spawn_agent then wait_agent", renames);
+assert.equal(once, "call mcp__codex_subagents__spawn_agent then mcp__codex_subagents__wait_agent");
+assert.equal(rewriteNameReferences(once, renames), once);
+
+// Streaming unalias mutates the toolCall blocks in place (the TUI reads the same
+// objects when it creates tool rows mid-stream), leaving foreign names alone.
+const streaming = {
+	role: "assistant",
+	content: [
+		{ type: "toolCall", id: "s1", name: "mcp__codex_subagents__spawn_agent", arguments: {} },
+		{ type: "toolCall", id: "s2", name: "mcp__linear__search", arguments: {} },
+		{ type: "text", text: "working" },
+	],
+};
+unaliasToolCallsInPlace(streaming, maps);
+assert.equal(streaming.content[0]!.name, "spawn_agent");
+assert.equal(streaming.content[1]!.name, "mcp__linear__search");
+unaliasToolCallsInPlace({ role: "user", content: [] }, maps);
 
 console.log("pi-claude-wire self-check passed");
