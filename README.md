@@ -10,6 +10,15 @@ pi install git:github.com/fcatuhe/pi-wares
 
 One package, individual wares toggled in `pi config`.
 
+### Credentials
+
+Everything works out of the box except two skills:
+
+- **`brave-search`** needs `BRAVE_API_KEY` in your shell profile. Free tier at [api-dashboard.search.brave.com](https://api-dashboard.search.brave.com/register): create a "Free AI" subscription (card required, not charged), then an API key.
+- **`gog`** needs the [`gog` CLI](https://github.com/openclaw/gogcli) installed separately, plus your own Google Cloud OAuth client: create a project in the [Google Cloud console](https://console.cloud.google.com/), enable the APIs you'll use (Gmail, Calendar, Drive, ...), create an OAuth "Desktop app" client, download its `credentials.json`, then `gog auth credentials set credentials.json` and `gog auth add you@example.com`. No env var in normal use.
+
+The extensions that touch provider auth (`claude-code-use`, `usage-pace`) reuse pi's own credentials (`/login`, `~/.pi/agent/auth.json`) and need no setup.
+
 ## Wares
 
 | Ware | What it does |
