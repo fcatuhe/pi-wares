@@ -42,5 +42,5 @@ The config file keeps the `pi-model-shortcuts.json` name it had before this ware
 ## Behavior
 
 - Loaded on every `session_start`, so `/reload` picks up edits.
-- Unsupported thinking levels fall back silently to the nearest level pi-ai reports.
+- Unsupported thinking levels fall back silently: `pi.setThinkingLevel` clamps to what the model supports.
 - Lookups go through `ctx.modelRegistry`, so anything registered by pi or another extension is reachable.
