@@ -2,11 +2,12 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
+import { getSupportedThinkingLevels } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
 const CONFIG_FILENAME = "pi-model-shortcuts.json";
-const LEVELS: ThinkingLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh"];
+const LEVELS: ThinkingLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 
 interface Shortcut {
 	provider: string;
@@ -103,7 +104,8 @@ export default function modelShortcutsExtension(pi: ExtensionAPI): void {
 				description: shortcut.thinkingLevel ? `${base} • thinking ${shortcut.thinkingLevel}` : base,
 				handler: async (_args, cmdCtx) => applyShortcut(cmdCtx, shortcut),
 			});
-			for (const level of LEVELS) {
+			const model = ctx.modelRegistry.find(shortcut.provider, shortcut.model);
+			for (const level of model ? getSupportedThinkingLevels(model) : LEVELS) {
 				pi.registerCommand(`${name}:${level}`, {
 					description: `${base} • thinking ${level}`,
 					handler: async (_args, cmdCtx) => applyShortcut(cmdCtx, shortcut, level),

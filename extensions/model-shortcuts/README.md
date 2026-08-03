@@ -3,12 +3,12 @@
 Slash shortcuts for switching model and thinking level.
 
 ```
-/off  /minimal  /low  /medium  /high  /xhigh     Set thinking level
+/off /minimal /low /medium /high /xhigh /max     Set thinking level
 /opus  /sonnet  /glm  /kimi  ...                 Switch to a named model
 /opus:high  /glm:off  /sonnet:medium             Switch model + thinking
 ```
 
-Type `/glm:` and autocomplete lists every thinking-level combo.
+Type `/glm:` and autocomplete lists the thinking levels that model actually supports.
 
 ## Configure
 
@@ -35,12 +35,13 @@ Top-level keys are the shortcut names, each value `{ provider, model, thinkingLe
 }
 ```
 
-With `thinkingLevel` set, bare `/<name>` switches model and pins thinking. Explicit `/<name>:<level>` always wins. Names colliding with a thinking-level command (`off`, `minimal`, `low`, `medium`, `high`, `xhigh`) are ignored.
+With `thinkingLevel` set, bare `/<name>` switches model and pins thinking. Explicit `/<name>:<level>` always wins. Names colliding with a thinking-level command (`off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`) are ignored.
 
 The config file keeps the `pi-model-shortcuts.json` name it had before this ware moved into `pi-wares`, so existing configs keep working. The filename is the config namespace, not the ware's identity.
 
 ## Behavior
 
 - Loaded on every `session_start`, so `/reload` picks up edits.
-- Unsupported thinking levels fall back silently: `pi.setThinkingLevel` clamps to what the model supports.
+- Combos come from `getSupportedThinkingLevels`, so `/glm:xhigh` is not offered when glm has no `xhigh`. A model the registry cannot resolve at `session_start` falls back to the full list, and its commands report the lookup failure when run.
+- A thinking level the model does not support still clamps silently: `pi.setThinkingLevel` picks the nearest one.
 - Lookups go through `ctx.modelRegistry`, so anything registered by pi or another extension is reachable.
