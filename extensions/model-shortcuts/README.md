@@ -43,5 +43,5 @@ The config file keeps the `pi-model-shortcuts.json` name it had before this ware
 
 - Loaded on every `session_start`, so `/reload` picks up edits.
 - Combos come from `getSupportedThinkingLevels`, so `/glm:xhigh` is not offered when glm has no `xhigh`. A model the registry cannot resolve at `session_start` falls back to the full list, and its commands report the lookup failure when run.
-- A thinking level the model does not support still clamps silently: `pi.setThinkingLevel` picks the nearest one.
+- A thinking level the model does not support clamps to the nearest one (`pi.setThinkingLevel`), and the notification reports the level that actually took effect: `/off` on a model that always thinks says `Thinking: minimal (off unsupported)`.
 - Lookups go through `ctx.modelRegistry`, so anything registered by pi or another extension is reachable.

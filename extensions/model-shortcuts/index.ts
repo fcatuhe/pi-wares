@@ -65,13 +65,17 @@ function loadShortcuts(cwd: string): Record<string, Shortcut> {
 	return out;
 }
 
+function thinkingNotice(requested: ThinkingLevel, effective: ThinkingLevel): string {
+	return requested === effective ? `Thinking: ${effective}` : `Thinking: ${effective} (${requested} unsupported)`;
+}
+
 export default function modelShortcutsExtension(pi: ExtensionAPI): void {
 	for (const level of LEVELS) {
 		pi.registerCommand(level, {
 			description: `Thinking ${level}`,
 			handler: async (_args, ctx) => {
 				pi.setThinkingLevel(level);
-				ctx.ui.notify(`Thinking: ${level}`, "info");
+				ctx.ui.notify(thinkingNotice(level, pi.getThinkingLevel()), "info");
 			},
 		});
 	}
@@ -93,8 +97,10 @@ export default function modelShortcutsExtension(pi: ExtensionAPI): void {
 		if (requested) pi.setThinkingLevel(requested);
 
 		const current = pi.getThinkingLevel();
-		const msg = previousThinking === current ? `Model: ${model.id}` : `Model: ${model.id} • Thinking: ${current}`;
-		ctx.ui.notify(msg, "info");
+		const parts = [`Model: ${model.id}`];
+		if (requested) parts.push(thinkingNotice(requested, current));
+		else if (previousThinking !== current) parts.push(`Thinking: ${current}`);
+		ctx.ui.notify(parts.join(" • "), "info");
 	}
 
 	pi.on("session_start", async (_event, ctx) => {
