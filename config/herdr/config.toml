@@ -1,8 +1,5 @@
 onboarding = false
 
-[theme]
-name = "catppuccin"
-
 [keys]
 prefix = "ctrl+space"
 previous_tab = "cmd+shift+left"
@@ -23,7 +20,6 @@ command = 'p=$(herdr tab create --focus); p=${p#*\"pane_id\":\"}; herdr pane run
 show_agent_labels_on_pane_borders = true
 prompt_new_tab_name = false
 pane_scrollbars = false
-agent_panel_sort = "spaces"
 
 # Inline images in pi, through Ghostty's kitty graphics protocol.
 [experimental]
