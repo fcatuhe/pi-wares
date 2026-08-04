@@ -11,7 +11,7 @@ curl -fsSL https://pi.dev/install.sh | sh
 curl -fsSL https://herdr.dev/install.sh | sh
 ```
 
-Both self-update afterwards, `pi update` and `herdr update`. Homebrew's `herdr` formula trails the installer's channel, so prefer the installer.
+Both self-update afterwards, `pi update` and `herdr update`.
 
 ### External CLIs
 
