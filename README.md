@@ -2,13 +2,16 @@
 
 A small personal stash of extensions for [pi-coding-agent](https://github.com/earendil-works/pi-mono).
 
-## Install
+## Requirements
+
+pi itself, and [herdr](https://herdr.dev) for the terminal side of the setup:
 
 ```bash
-pi install git:github.com/fcatuhe/pi-wares
+npm install -g --ignore-scripts @earendil-works/pi-coding-agent
+curl -fsSL https://herdr.dev/install.sh | sh
 ```
 
-One package, individual wares toggled in `pi config`.
+The herdr installer drops a self-updating binary in `~/.local/bin`, kept current with `herdr update`. Homebrew carries a `herdr` formula too, but it trails the installer's channel, so prefer the installer.
 
 ### External CLIs
 
@@ -27,6 +30,27 @@ Everything works out of the box except three skills:
 - **`outline-cli`** needs `ol auth login` (OAuth, tokens expire) or `ol auth token <token>` with a personal API token from your Outline instance's Settings > API (doesn't expire, better for agents).
 
 The extensions that touch provider auth (`pi-claude-wire`, `usage-pace`) reuse pi's own credentials (`/login`, `~/.pi/agent/auth.json`) and need no setup.
+
+## Install
+
+```bash
+pi install git:github.com/fcatuhe/pi-wares
+```
+
+One package, individual wares toggled in `pi config`.
+
+## Settings
+
+Some wares only work once pi or herdr is configured for them, so [`config/`](./config/README.md) carries that configuration as plain files, one per target, laid out like the paths they land in. `bin/wares-doctor` compares this machine against them:
+
+```bash
+~/.pi/agent/git/github.com/fcatuhe/pi-wares/bin/wares-doctor
+~/.pi/agent/git/github.com/fcatuhe/pi-wares/bin/wares-doctor --apply
+```
+
+It reports by default and exits non-zero when something is missing. `--apply` adds the missing keys and only those: a key you already set differently is listed as `kept` and left as it is, and each file is copied to `<file>.bak-<timestamp>` before being touched. Your comments, key order, and alignment survive, because both writers splice into the existing text rather than reserialize it ([`jsonc-parser`](https://github.com/microsoft/node-jsonc-parser) for JSON, [`toml-eslint-parser`](https://github.com/ota-meshi/toml-eslint-parser)'s CST for TOML).
+
+So it stays an adviser, not a dotfile manager: it never owns a file it did not create.
 
 ## Wares
 
@@ -88,7 +112,7 @@ The subagents extension offers per-spawn `model` and `thinking` arguments only w
 { "modelsFromEnabledModels": true }
 ```
 
-The models already approved in pi (`/models`, `enabledModels` in `settings.json`) become the spawn allowlist, resolved and availability-checked by pi itself, so there is one approval list and nothing drifts. Exact extra routes can still be added next to it with `"models": ["provider/model-id"]`. This file is not shipped by this package; set it once per machine.
+The models already approved in pi (`/models`, `enabledModels` in `settings.json`) become the spawn allowlist, resolved and availability-checked by pi itself, so there is one approval list and nothing drifts. Exact extra routes can still be added next to it with `"models": ["provider/model-id"]`. `bin/wares-doctor` sets this file up, see [Settings](#settings).
 
 ## Terminal
 
@@ -105,10 +129,11 @@ pi loads nothing from it. One `./herdr-app/build.sh` per machine, and again only
 ```
 pi-wares/
 ├── package.json              ← `pi` manifest + bundled npm dependencies
+├── bin/                      ← wares-doctor, the machine setup check
+├── config/                   ← the pi and herdr config it compares against
 ├── extensions/               ← every local ware
 │   └── model-shortcuts/
 │       ├── index.ts          ← entry point (required filename)
-│       ├── example.json      ← reference; pi only loads index.ts
 │       └── README.md         ← per-ware docs, co-located with code
 ├── herdr-app/                ← macOS app that launches herdr, not a ware
 └── node_modules/             ← bundled external extensions (gitignored)
@@ -122,7 +147,7 @@ Each ware is a folder with `index.ts` as its entry. Everything else in the folde
 
 ## Checks
 
-`npm test` runs every ware self-check (`pi-claude-wire`, `policies`, `usage-pace`); CI runs it after `npm ci`. A new self-check is a `test.ts` next to its ware plus an entry in the `test` script.
+`npm test` runs every self-check (`pi-claude-wire`, `policies`, `usage-pace`, `bin`); CI runs it after `npm ci`. A new self-check is a `test.ts` next to what it covers plus an entry in the `test` script.
 
 ## License
 
