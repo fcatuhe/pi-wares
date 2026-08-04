@@ -8,7 +8,7 @@
   },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
-    "@ogulcancelik/pi-codex-subagents": "git+https://github.com/fcatuhe/pi-extensions.git#feat/spawn-model-thinking-override",
+    "@ogulcancelik/pi-codex-subagents": "^0.3.3",
     "jsdom": "^30.0.1",
     "token-rate-pi": "^1.0.0",
     "turndown": "^7.2.2",
@@ -24,7 +24,7 @@
     "extensions": [
       "extensions",
       "node_modules/token-rate-pi/token-rate.ts",
-      "node_modules/@ogulcancelik/pi-codex-subagents/packages/pi-codex-subagents/index.ts"
+      "node_modules/@ogulcancelik/pi-codex-subagents/index.ts"
     ],
     "skills": ["skills"]
   },
