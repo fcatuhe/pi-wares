@@ -7,8 +7,9 @@ Footer status showing the active subscription's usage as a bar with a **pace mar
 ```
 
 - Light gray `─` = the whole window's quota (the track).
-- Thick `━` = quota used so far, `╾` = a half-filled cell, so the default 10-wide bar moves every 5%.
-- `╵` = how far into the window we are (time elapsed).
+- Thick `━` = quota used so far, one cell per tenth of the quota. Fill truncates, so colored ink never claims quota that is still available.
+- The bar is 10 cells wide, so both windows plus their text run ~44 columns. In [`compact-footer`](../compact-footer/) the status competes with the path for width.
+- `╵` = how far into the window we are (time elapsed). Half-height on purpose, so it never reads as fill.
 - Thick bar short of the marker → under pace. Past it → burning quota faster than the clock.
 - Trailing text = absolute usage percent + time until the window resets.
 - `~` before the label (`~5h ━━━━╵───── 42% 3h`) = the numbers are older than two poll intervals (10 min), i.e. the endpoint has been failing. The countdown stays accurate, the percent does not.
@@ -24,7 +25,7 @@ Color answers "will I run out before this window resets?", so a high absolute pe
 | further ahead than that | red |
 | less than 10% of quota left (`used% ≥ 90`) | red, regardless of pace |
 
-40% of the week burned on day one is **yellow**: that rate exhausts it by Thursday. 92% used with 12 minutes left is **red** even though the pacing was perfect: there is no room left to spend at any rate.
+22% of the week burned by the end of day one is **yellow**: that pace empties it around day five. 40% on day one is **red**, it runs dry on day three. 92% used with 12 minutes left is **red** even though the pacing was perfect: there is no room left to spend at any rate.
 
 ## Providers
 
@@ -46,18 +47,13 @@ Any other provider clears the status. Tokens come from `~/.pi/agent/auth.json`, 
 - Windows whose reset time has already passed are dropped on load rather than shown stale.
 - Both endpoints are unofficial. Failures are swallowed and hide the segment.
 
-## Config
-
-- `PI_USAGE_BAR_WIDTH`: bar cells per window, default `10`, i.e. 20 half-steps of 5% each, both bars plus their text running ~44 columns. Lower it on narrow terminals (the status competes with the path for width in `compact-footer`): `4` still reads fine at 12.5% steps. Below `4` the bar stops carrying signal, at `1` the marker is the whole bar. Raising it also shrinks the blind span under the marker cell, which hides one cell of fill.
-- `PI_USAGE_MARKER`: pace marker glyph, default `╵` (half-height, keeps the bar flat). Set to `│` or `┼` if your font renders it badly.
-
 ## Check
 
 ```bash
 npx tsx extensions/usage-pace/test.ts
 ```
 
-Covers the two payload parsers, pace math, clamping and the countdown formatter.
+Covers the two payload parsers, pace math (including the two weekly examples above), bar cells, clamping and the countdown formatter.
 
 ## Credit
 

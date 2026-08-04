@@ -8,15 +8,15 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 const HOUR = 3_600_000;
 const REFRESH_MS = 5 * 60_000;
-const DEFAULT_BAR_W = 10;
-const BAR_W = Math.max(1, Math.round(Number(process.env.PI_USAGE_BAR_WIDTH)) || DEFAULT_BAR_W);
-const MARKER = process.env.PI_USAGE_MARKER || "╵";
-const GLYPH: Record<Cell, string> = { full: "━", half: "╾", empty: "─", mark: MARKER };
+const BAR_WIDTH_CELLS = 10;
+// INFO: fc 04aug26 the marker is LIGHT UP, half-height: it rides above the bar's centerline so it
+// never reads as fill
+const GLYPH: Record<Cell, string> = { full: "━", empty: "─", mark: "╵" };
 const PROVIDERS: Record<string, Provider> = { anthropic: "claude", "openai-codex": "codex" };
 const SNAPSHOT_FILE = join(homedir(), ".pi", "agent", "usage-pace.json");
 
 type Provider = "claude" | "codex";
-type Cell = "full" | "half" | "empty" | "mark";
+type Cell = "full" | "empty" | "mark";
 
 export interface Window {
 	label: string;
@@ -189,14 +189,12 @@ export function paceColor(usedPercent: number, elapsed: number): "success" | "wa
 	return over <= 10 ? "warning" : "error";
 }
 
-export function barCells(usedPercent: number, elapsed: number, width = BAR_W): Cell[] {
-	const halves = Math.round((usedPercent / 100) * width * 2);
+// INFO: fc 04aug26 fill and marker both floor: a cell is colored only once its quota is fully spent,
+// so the bar never claims spend that has not happened and both sides of the comparison share a scale
+export function barCells(usedPercent: number, elapsed: number, width = BAR_WIDTH_CELLS): Cell[] {
+	const filled = Math.floor((usedPercent / 100) * width);
 	const mark = Math.min(width - 1, Math.floor((elapsed / 100) * width));
-	return Array.from({ length: width }, (_, i) => {
-		if (i === mark) return "mark";
-		if (halves >= 2 * i + 2) return "full";
-		return halves >= 2 * i + 1 ? "half" : "empty";
-	});
+	return Array.from({ length: width }, (_, i) => (i === mark ? "mark" : i < filled ? "full" : "empty"));
 }
 
 function renderWindow(w: Window, theme: any, now: number, stale: boolean): string {
