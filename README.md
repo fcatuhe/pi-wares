@@ -11,7 +11,7 @@ curl -fsSL https://pi.dev/install.sh | sh
 curl -fsSL https://herdr.dev/install.sh | sh
 ```
 
-Both self-update afterwards, `pi update` and `herdr update`. pi's installer wraps a global npm install, so `npm uninstall -g @earendil-works/pi-coding-agent` removes it; herdr's drops a binary in `~/.local/bin`. Homebrew carries a `herdr` formula too, but it trails the installer's channel, so prefer the installer.
+Both self-update afterwards, `pi update` and `herdr update`. Homebrew's `herdr` formula trails the installer's channel, so prefer the installer.
 
 ### External CLIs
 
@@ -41,16 +41,14 @@ One package, individual wares toggled in `pi config`.
 
 ## Settings
 
-Some wares only work once pi or herdr is configured for them, so [`config/`](./config/README.md) carries that configuration as plain files, one per target, laid out like the paths they land in. `bin/wares-doctor` compares this machine against them:
+[`config/`](./config/README.md) holds the pi and herdr configuration the wares assume. `bin/wares-doctor` compares this machine against it:
 
 ```bash
 ~/.pi/agent/git/github.com/fcatuhe/pi-wares/bin/wares-doctor
 ~/.pi/agent/git/github.com/fcatuhe/pi-wares/bin/wares-doctor --apply
 ```
 
-It reports by default and exits non-zero when something is missing. `--apply` adds the missing keys and only those: a key you already set differently is listed as `kept` and left as it is, and each file is copied to `<file>.bak-<timestamp>` before being touched. Your comments, key order, and alignment survive, because both writers splice into the existing text rather than reserialize it ([`jsonc-parser`](https://github.com/microsoft/node-jsonc-parser) for JSON, [`toml-eslint-parser`](https://github.com/ota-meshi/toml-eslint-parser)'s CST for TOML).
-
-So it stays an adviser, not a dotfile manager: it never owns a file it did not create.
+Reports by default, exits non-zero when something is missing. `--apply` only ever adds: a key you set differently comes back as `kept`, files are backed up first, and edits splice into the existing text so comments and formatting survive.
 
 ## Wares
 
