@@ -25,15 +25,17 @@ Shortcuts come from either file, project entries shallow-merging over global one
 { "glm": { "thinkingLevel": "low" } }
 ```
 
-Top-level keys are the shortcut names, each value `{ provider, model, thinkingLevel? }`. Copy [`example.json`](./example.json) to get started:
+Top-level keys are the shortcut names, each value `{ provider, model, thinkingLevel? }`:
 
 ```json
 {
-  "opus":    { "provider": "anthropic",    "model": "claude-opus-4-7" },
-  "gpt":     { "provider": "openai-codex", "model": "gpt-5.5" },
-  "glm":     { "provider": "fireworks",    "model": "accounts/fireworks/models/glm-5p1", "thinkingLevel": "high" }
+  "opus": { "provider": "anthropic", "model": "claude-opus-5" },
+  "gpt": { "provider": "openai-codex", "model": "gpt-5.6-sol" },
+  "glm": { "provider": "fireworks", "model": "accounts/fireworks/models/glm-5p2", "thinkingLevel": "high" }
 }
 ```
+
+The set this repo runs with is [`config/pi/extensions/pi-model-shortcuts.json`](../../config/pi/extensions/pi-model-shortcuts.json), which `bin/wares-doctor` installs for you.
 
 With `thinkingLevel` set, bare `/<name>` switches model and pins thinking. Explicit `/<name>:<level>` always wins. Names colliding with a thinking-level command (`off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`) are ignored.
 

@@ -1,0 +1,168 @@
+#!/usr/bin/env node
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, join } from "node:path";
+
+import { reconcileJson } from "./json-defaults.js";
+import { reconcileToml } from "./toml-defaults.js";
+
+const ROOT = join(import.meta.dirname, "..");
+const AGENT_DIR = process.env.PI_CODING_AGENT_DIR ?? join(homedir(), ".pi", "agent");
+const CONFIG_HOME = process.env.XDG_CONFIG_HOME ?? join(homedir(), ".config");
+
+const TARGETS = [
+	{
+		label: "pi settings",
+		reference: "config/pi/settings.json",
+		path: join(AGENT_DIR, "settings.json"),
+		format: "json",
+		hint: "restart pi to pick this up",
+	},
+	{
+		label: "model shortcuts",
+		reference: "config/pi/extensions/pi-model-shortcuts.json",
+		path: join(AGENT_DIR, "extensions", "pi-model-shortcuts.json"),
+		format: "json",
+		hint: "/reload in pi picks this up",
+	},
+	{
+		label: "codex subagents",
+		reference: "config/pi/pi-codex-subagents/config.json",
+		path: join(AGENT_DIR, "pi-codex-subagents", "config.json"),
+		format: "json",
+		hint: "restart pi to pick this up",
+	},
+	{
+		label: "herdr",
+		reference: "config/herdr/config.toml",
+		path: join(CONFIG_HOME, "herdr", "config.toml"),
+		format: "toml",
+		identity: { "keys.command": "key" },
+		hint: "herdr server reload-config picks this up",
+	},
+];
+
+const USAGE = `wares-doctor [--apply]
+
+Compares this machine against the reference configs in config/, reports what is
+missing, and never changes a value you already set.
+
+  --apply   write the missing keys, keeping a timestamped backup
+  --help    show this message`;
+
+main(process.argv.slice(2));
+
+function main(argv) {
+	if (argv.includes("--help") || argv.includes("-h")) return console.log(USAGE);
+	const unknown = argv.filter((arg) => arg !== "--apply");
+	if (unknown.length > 0) {
+		console.error(`wares-doctor: unknown argument ${unknown[0]}\n\n${USAGE}`);
+		process.exit(2);
+	}
+
+	const apply = argv.includes("--apply");
+	const reports = TARGETS.map((target) => inspect(target));
+	for (const report of reports) print(report, apply);
+	summarize(reports, apply);
+}
+
+function inspect(target) {
+	const referencePath = join(ROOT, target.reference);
+	const reference = readFileSync(referencePath, "utf-8");
+	if (!existsSync(target.path)) return { target, reference, missingFile: true, findings: [] };
+
+	const reconcile = target.format === "toml" ? reconcileToml : reconcileJson;
+	return { target, ...reconcile(readFileSync(target.path, "utf-8"), reference, target.identity) };
+}
+
+function print(report, apply) {
+	const { target, findings } = report;
+	console.log(`\n${target.label}  ${tildify(target.path)}`);
+
+	if (report.missingFile) {
+		say(apply ? "created" : "create", `from ${target.reference}`);
+		return;
+	}
+
+	for (const finding of findings.filter((finding) => isWritable(finding) && !finding.blocked)) {
+		say(apply ? "added" : "add", describe(finding));
+	}
+	for (const finding of findings.filter((finding) => finding.blocked)) {
+		say("manual", `${describe(finding)}  (${finding.blocked})`);
+	}
+	for (const finding of findings.filter((finding) => finding.state === "diverged")) {
+		for (const line of divergences(finding)) say("kept", line);
+	}
+	const ok = findings.filter((finding) => finding.state === "ok").length;
+	if (ok > 0) say("ok", `${ok} already match`);
+}
+
+function summarize(reports, apply) {
+	const pending = reports.filter((report) => report.missingFile || countWritable(report) > 0);
+	if (pending.length === 0) {
+		console.log("\nNothing to add.");
+		return;
+	}
+
+	if (!apply) {
+		const total = pending.reduce((sum, report) => sum + (report.missingFile ? 1 : countWritable(report)), 0);
+		console.log(`\n${total} to add. Re-run with --apply to write them.`);
+		process.exit(1);
+	}
+
+	for (const report of pending) write(report);
+	console.log("");
+	for (const report of pending) console.log(`${report.target.label}: ${report.target.hint}`);
+}
+
+function write(report) {
+	const { target } = report;
+	mkdirSync(dirname(target.path), { recursive: true });
+	if (report.missingFile) {
+		copyFileSync(join(ROOT, target.reference), target.path);
+		console.log(`\nwrote ${tildify(target.path)}`);
+		return;
+	}
+	const backup = `${target.path}.bak-${new Date().toISOString().replaceAll(/[:.]/g, "")}`;
+	copyFileSync(target.path, backup);
+	writeFileSync(target.path, report.text);
+	console.log(`\nwrote ${tildify(target.path)}, backup at ${tildify(backup)}`);
+}
+
+function say(status, detail) {
+	console.log(`  ${status.padEnd(8)} ${detail}`);
+}
+
+function countWritable(report) {
+	return report.findings.filter((finding) => isWritable(finding) && !finding.blocked).length;
+}
+
+function isWritable(finding) {
+	return finding.state === "missing" || finding.state === "incomplete";
+}
+
+function describe(finding) {
+	if (finding.kind === "members") return `${label(finding)} + ${finding.absent.map(show).join(", ")}`;
+	if (finding.kind === "entry") return `${label(finding)} ${finding.identity} = ${show(finding.expected[finding.identity])}`;
+	return `${label(finding)} = ${show(finding.expected)}`;
+}
+
+function label(finding) {
+	return finding.path.join(".");
+}
+
+function divergences(finding) {
+	if (finding.kind !== "entry") return [`${label(finding)} = ${show(finding.found)}  (default ${show(finding.expected)})`];
+	const entry = `${label(finding)}[${finding.identity}=${show(finding.expected[finding.identity])}]`;
+	return Object.entries(finding.expected)
+		.filter(([key, value]) => finding.found[key] !== value)
+		.map(([key, value]) => `${entry}.${key} = ${show(finding.found[key])}  (default ${show(value)})`);
+}
+
+function show(value) {
+	return JSON.stringify(value);
+}
+
+function tildify(path) {
+	return path.startsWith(homedir()) ? path.replace(homedir(), "~") : path;
+}

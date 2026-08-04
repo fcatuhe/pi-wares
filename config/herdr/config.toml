@@ -1,0 +1,30 @@
+onboarding = false
+
+[theme]
+name = "catppuccin"
+
+[keys]
+prefix = "ctrl+space"
+previous_tab = "cmd+shift+left"
+next_tab = "cmd+shift+right"
+previous_workspace = "cmd+shift+up"
+next_workspace = "cmd+shift+down"
+new_tab = "cmd+shift+t"
+close_tab = "cmd+shift+w"
+rename_tab = "cmd+shift+r"
+
+# New tab running pi, focused, in one keystroke.
+[[keys.command]]
+key = "cmd+shift+i"
+type = "shell"
+command = 'p=$(herdr tab create --focus); p=${p#*\"pane_id\":\"}; herdr pane run "${p%%\"*}" pi'
+
+[ui]
+show_agent_labels_on_pane_borders = true
+prompt_new_tab_name = false
+pane_scrollbars = false
+agent_panel_sort = "spaces"
+
+# Inline images in pi, through Ghostty's kitty graphics protocol.
+[experimental]
+kitty_graphics = true
