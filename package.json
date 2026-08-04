@@ -4,13 +4,15 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "tsx extensions/pi-claude-wire/test.ts && tsx extensions/policies/test.ts && tsx extensions/usage-pace/test.ts"
+    "test": "tsx extensions/pi-claude-wire/test.ts && tsx extensions/policies/test.ts && tsx extensions/usage-pace/test.ts && tsx bin/test.ts"
   },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
     "@ogulcancelik/pi-codex-subagents": "^0.3.3",
     "jsdom": "^30.0.1",
+    "jsonc-parser": "^3.3.1",
     "token-rate-pi": "^1.0.0",
+    "toml-eslint-parser": "^1.0.3",
     "turndown": "^7.2.2",
     "turndown-plugin-gfm": "^1.0.2"
   },
@@ -26,7 +28,9 @@
       "node_modules/token-rate-pi/token-rate.ts",
       "node_modules/@ogulcancelik/pi-codex-subagents/index.ts"
     ],
-    "skills": ["skills"]
+    "skills": [
+      "skills"
+    ]
   },
   "devDependencies": {
     "tsx": "^4.23.4"

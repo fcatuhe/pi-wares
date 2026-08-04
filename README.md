@@ -1,14 +1,17 @@
 # pi-wares
 
-A small personal stash of extensions for [pi-coding-agent](https://github.com/earendil-works/pi-mono).
+A small personal stash of extensions and skills for [pi-coding-agent](https://github.com/earendil-works/pi-mono), plus the pi and herdr config they assume.
 
-## Install
+## Requirements
+
+pi itself, and [herdr](https://herdr.dev) for the terminal side of the setup:
 
 ```bash
-pi install git:github.com/fcatuhe/pi-wares
+curl -fsSL https://pi.dev/install.sh | sh
+curl -fsSL https://herdr.dev/install.sh | sh
 ```
 
-One package, individual wares toggled in `pi config`.
+Both self-update afterwards, `pi update` and `herdr update`.
 
 ### External CLIs
 
@@ -28,11 +31,30 @@ Everything works out of the box except three skills:
 
 The extensions that touch provider auth (`pi-claude-wire`, `usage-pace`) reuse pi's own credentials (`/login`, `~/.pi/agent/auth.json`) and need no setup.
 
+## Install
+
+```bash
+pi install git:github.com/fcatuhe/pi-wares
+```
+
+One package, individual wares toggled in `pi config`.
+
+## Settings
+
+[`config/`](./config/README.md) holds the pi and herdr configuration the wares assume. `bin/wares-doctor` compares this machine against it:
+
+```bash
+~/.pi/agent/git/github.com/fcatuhe/pi-wares/bin/wares-doctor
+~/.pi/agent/git/github.com/fcatuhe/pi-wares/bin/wares-doctor --apply
+```
+
+Reports by default, exits non-zero when something is missing. `--apply` only ever adds: a key you set differently comes back as `kept`, files are backed up first, and edits splice into the existing text so comments and formatting survive.
+
 ## Wares
 
 | Ware | What it does |
 |---|---|
-| [`model-shortcuts/`](./extensions/model-shortcuts/) | Slash shortcuts for model + thinking level: `/opus`, `/glm:high`, `/high`. |
+| [`model-shortcuts/`](./extensions/model-shortcuts/) | Slash shortcuts for model + thinking level: `/opus`, `/opus:high`, `/high`. |
 | [`compact-footer/`](./extensions/compact-footer/) | Folds pi's 3-line footer into 2 by merging statuses onto the path line. |
 | [`usage-pace/`](./extensions/usage-pace/) | Footer status: subscription usage bar, pace marker, reset countdown. |
 | [`pi-claude-wire/`](./extensions/pi-claude-wire/) | Aliases extension tool names to `mcp__*` in Anthropic OAuth payloads at request time, so live schemas pass through untouched. |
@@ -67,28 +89,28 @@ Copies of upstream skills, so one install covers them. They drift, resync delibe
 | `outline-cli/` | [Doist/outline-cli](https://github.com/Doist/outline-cli) (MIT), embedded in the CLI, written by `ol skill install pi` | `v1.10.2`, verbatim. Resync after `ol update` when the skill drifts: `ol skill install pi` regenerates it into `~/.pi/skills/`, diff and copy. |
 | `agent-browser/` | [vercel-labs/agent-browser](https://github.com/vercel-labs/agent-browser) `skills/agent-browser/` (Apache-2.0) | `v0.33.2`, verbatim, Claude Code frontmatter (`allowed-tools`, `hidden`) included. A version-stable discovery stub: usage content comes from `agent-browser skills get core` at runtime, so it only drifts when upstream edits the stub itself. After a CLI update, diff against `$(npm root -g)/agent-browser/skills/agent-browser/SKILL.md`. |
 
-`brave-search`'s runtime deps (`jsdom`, `turndown`, `@mozilla/readability`) sit in this package's `dependencies` instead of its own `package.json`, so pi's install covers them and Node resolves them from the package root.
+Runtime deps sit in this package's `dependencies` rather than next to what needs them, so pi's install covers them and Node resolves them from the package root: `jsdom`, `turndown`, `turndown-plugin-gfm` and `@mozilla/readability` for `brave-search`, `jsonc-parser` and `toml-eslint-parser` for `bin/wares-doctor`.
 
 ## Bundled extensions
 
-Third-party pi extensions folded in as npm `dependencies` and exposed through the `pi` manifest, so one install sets up the whole config. They show up individually in `pi config`.
+Third-party pi extensions folded in as npm `dependencies` and exposed through the `pi` manifest, so one install covers them. They show up individually in `pi config`.
 
 | Package | What it does |
 |---|---|
 | [`token-rate-pi`](https://www.npmjs.com/package/token-rate-pi) | Footer status showing average output tokens/sec. |
-| [`@ogulcancelik/pi-codex-subagents`](https://github.com/ogulcancelik/pi-extensions/tree/main/packages/pi-codex-subagents) | Codex-shaped, session-scoped subagents: templates, waits, steering, live overlay, per-spawn model routing. Temporarily a git dependency on [our PR branch](https://github.com/ogulcancelik/pi-extensions/pull/21); once merged and released, swap to the npm package and shorten the manifest path to `node_modules/@ogulcancelik/pi-codex-subagents/index.ts`. The git dependency needs `allow-git=root` and `legacy-peer-deps=true`, set in this repo's `.npmrc` (pi provides the peers at runtime and itself installs with `--legacy-peer-deps`). |
+| [`@ogulcancelik/pi-codex-subagents`](https://github.com/ogulcancelik/pi-extensions/tree/main/packages/pi-codex-subagents) | Codex-shaped, session-scoped subagents: templates, waits, steering, live overlay, per-spawn model routing, the last one [ours](https://github.com/ogulcancelik/pi-extensions/pull/21) and upstream since `0.3.3`. |
 
-Caret ranges, so unpinned (the subagents git dependency tracks its branch head instead). pi only re-runs `npm install` on a fresh install or when this repo's default branch gets a new commit, not on every `pi update`. Push a commit here, then `pi update --extensions` picks up newer bundled releases within the major.
+Caret ranges, so unpinned. `legacy-peer-deps=true` in this repo's `.npmrc` covers the `@earendil-works/*` and `typebox` peers, which pi provides at runtime. pi only re-runs `npm install` on a fresh install or when this repo's default branch gets a new commit, not on every `pi update`. Push a commit here, then `pi update --extensions` picks up newer bundled releases within the major.
 
 ### Subagent model routing
 
-The subagents extension offers per-spawn `model` and `thinking` arguments only when its machine-local config allows models, at `~/.pi/agent/pi-codex-subagents/config.json`. We encourage reusing pi's own enabled models rather than maintaining a second list:
+The subagents extension offers its per-spawn `model` and `thinking` arguments only when `~/.pi/agent/pi-codex-subagents/config.json` allows models, and it can read pi's own list instead of a second one:
 
 ```json
 { "modelsFromEnabledModels": true }
 ```
 
-The models already approved in pi (`/models`, `enabledModels` in `settings.json`) become the spawn allowlist, resolved and availability-checked by pi itself, so there is one approval list and nothing drifts. Exact extra routes can still be added next to it with `"models": ["provider/model-id"]`. This file is not shipped by this package; set it once per machine.
+So `/models` stays the single approval list, resolved and availability-checked by pi itself. Exact extra routes can sit next to it as `"models": ["provider/model-id"]`. [`config/`](./config/README.md) ships this file, `bin/wares-doctor` writes it.
 
 ## Terminal
 
@@ -105,11 +127,13 @@ pi loads nothing from it. One `./herdr-app/build.sh` per machine, and again only
 ```
 pi-wares/
 ├── package.json              ← `pi` manifest + bundled npm dependencies
+├── bin/                      ← wares-doctor, the machine setup check
+├── config/                   ← the pi and herdr config it compares against
 ├── extensions/               ← every local ware
 │   └── model-shortcuts/
 │       ├── index.ts          ← entry point (required filename)
-│       ├── example.json      ← reference; pi only loads index.ts
 │       └── README.md         ← per-ware docs, co-located with code
+├── skills/                   ← one folder per skill, each a SKILL.md
 ├── herdr-app/                ← macOS app that launches herdr, not a ware
 └── node_modules/             ← bundled external extensions (gitignored)
 ```
@@ -122,7 +146,7 @@ Each ware is a folder with `index.ts` as its entry. Everything else in the folde
 
 ## Checks
 
-`npm test` runs every ware self-check (`pi-claude-wire`, `policies`, `usage-pace`); CI runs it after `npm ci`. A new self-check is a `test.ts` next to its ware plus an entry in the `test` script.
+`npm test` runs every self-check (`pi-claude-wire`, `policies`, `usage-pace`, `bin`); CI runs it after `npm ci`. A new self-check is a `test.ts` next to what it covers plus an entry in the `test` script.
 
 ## License
 

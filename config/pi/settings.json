@@ -1,0 +1,11 @@
+{
+  "defaultProvider": "anthropic",
+  "defaultModel": "claude-opus-5",
+  "defaultThinkingLevel": "high",
+  "enabledModels": [
+    "anthropic/claude-fable-5",
+    "anthropic/claude-opus-5",
+    "anthropic/claude-sonnet-5",
+    "openai-codex/gpt-5.6-sol"
+  ]
+}
