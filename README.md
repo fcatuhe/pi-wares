@@ -7,11 +7,11 @@ A small personal stash of extensions for [pi-coding-agent](https://github.com/ea
 pi itself, and [herdr](https://herdr.dev) for the terminal side of the setup:
 
 ```bash
-npm install -g --ignore-scripts @earendil-works/pi-coding-agent
+curl -fsSL https://pi.dev/install.sh | sh
 curl -fsSL https://herdr.dev/install.sh | sh
 ```
 
-The herdr installer drops a self-updating binary in `~/.local/bin`, kept current with `herdr update`. Homebrew carries a `herdr` formula too, but it trails the installer's channel, so prefer the installer.
+Both self-update afterwards, `pi update` and `herdr update`. pi's installer wraps a global npm install, so `npm uninstall -g @earendil-works/pi-coding-agent` removes it; herdr's drops a binary in `~/.local/bin`. Homebrew carries a `herdr` formula too, but it trails the installer's channel, so prefer the installer.
 
 ### External CLIs
 
