@@ -5,7 +5,6 @@ import {
 	createAliasMaps,
 	namespaceFrom,
 	rewriteNameReferences,
-	rewritePromptText,
 	transformPayload,
 	unaliasAssistantMessage,
 	unaliasToolCallsInPlace,
@@ -24,8 +23,8 @@ assert.equal(namespaceFrom(undefined), "local");
 assert.equal(namespaceFrom({ path: "/---/index.ts" }), "local");
 assert.equal(namespaceFrom({ path: "<builtin:ls>" }), "local");
 
-// Alias index: allowlisted names and real mcp__ tools are never aliased, everything else is,
-// including harness builtins outside the provider allowlist.
+// Alias index holds a candidate for every registered tool except real mcp__ ones. Whether a
+// candidate applies is decided per payload, not here.
 const registry = [
 	{ name: "read", sourceInfo: { path: "<builtin:read>" } },
 	{ name: "spawn_agent", sourceInfo: { path: "/x/pi-codex-subagents/index.ts" } },
@@ -37,31 +36,36 @@ const registry = [
 	{ name: "find", sourceInfo: { path: "<builtin:find>" } },
 ];
 const index = buildAliasIndex(registry);
-assert.equal(index.has("read"), false);
 assert.equal(index.has("mcp__linear__search"), false);
 assert.equal(index.get("spawn_agent")?.alias, "mcp__codex_subagents__spawn_agent");
 assert.equal(index.get("handoff")?.alias, "mcp__handoff__handoff");
 assert.equal(index.get("ls")?.alias, "mcp__local__ls");
+assert.equal(index.get("read")?.alias, "mcp__local__read");
 
-// Payload transform: system rewrite, tool rename with metadata preserved, native and
-// core passthrough, tool_choice and history remap.
+// Payload transform: system rewrite, tool rename with metadata preserved, canonicalized and
+// native passthrough, tool_choice and history remap.
 const maps = createAliasMaps();
 const payload = {
 	system: [
 		{
 			type: "text",
-			text: "questions about pi itself and pi packages, use spawn_agent for subtasks",
+			text: "use spawn_agent for subtasks",
 			cache_control: { type: "ephemeral" },
 		},
 	],
 	tools: [
+		// The transport canonicalized the registered "read" to "Read" before this hook, which is
+		// how we know it accepts that name unaliased. "ls" came through untouched, so it needs one.
 		{ name: "Read", description: "read", input_schema: {} },
+		{ name: "ls", description: "list a directory", input_schema: {} },
 		{
 			name: "spawn_agent",
 			description: "Use `wait_agent` or wait_all_agents only when needed. Never respawn_agent.",
 			input_schema: {},
 			cache_control: { type: "ephemeral" },
 		},
+		{ name: "wait_agent", input_schema: {} },
+		{ name: "wait_all_agents", input_schema: {} },
 		{ name: "mcp__linear__search", description: "foreign mcp", input_schema: {} },
 		{ type: "web_search_20250305", name: "web_search", description: "see spawn_agent" },
 	],
@@ -84,27 +88,35 @@ const payload = {
 	],
 };
 const out = transformPayload(payload, index, maps);
-// System text: harness mentions neutralized and flat tool references aliased.
-assert.equal(
-	(out.system as any)[0].text,
-	"questions about the harness itself and the harness packages, use mcp__codex_subagents__spawn_agent for subtasks",
-);
+// System text: flat tool references aliased.
+assert.equal((out.system as any)[0].text, "use mcp__codex_subagents__spawn_agent for subtasks");
 assert.equal((out.system as any)[0].cache_control.type, "ephemeral");
-const toolNames = (out.tools as any[]).map((t) => t.name);
-assert.deepEqual(toolNames, ["Read", "mcp__codex_subagents__spawn_agent", "mcp__linear__search", "web_search"]);
-assert.equal((out.tools as any)[1].cache_control.type, "ephemeral");
+const outTool = (name: string) => (out.tools as any[]).find((tool) => tool.name === name);
+assert.deepEqual(
+	(out.tools as any[]).map((t) => t.name),
+	[
+		"Read",
+		"mcp__local__ls",
+		"mcp__codex_subagents__spawn_agent",
+		"mcp__codex_subagents__wait_agent",
+		"mcp__codex_subagents__wait_all_agents",
+		"mcp__linear__search",
+		"web_search",
+	],
+);
+assert.equal(outTool("mcp__codex_subagents__spawn_agent").cache_control.type, "ephemeral");
 // Descriptions: flat references aliased (backticked or bare), superstrings untouched,
 // native typed tools never touched.
 assert.equal(
-	(out.tools as any)[1].description,
+	outTool("mcp__codex_subagents__spawn_agent").description,
 	"Use `mcp__codex_subagents__wait_agent` or mcp__codex_subagents__wait_all_agents only when needed. Never respawn_agent.",
 );
-assert.equal((out.tools as any)[3].description, "see spawn_agent");
+assert.equal(outTool("web_search").description, "see spawn_agent");
 assert.equal((out.tool_choice as any).name, "mcp__codex_subagents__spawn_agent");
 assert.equal((out.messages as any)[0].content[0].name, "mcp__codex_subagents__spawn_agent");
 assert.equal((out.messages as any)[1].content[0].content[0].tool_name, "mcp__codex_subagents__wait_agent");
 // Original payload untouched.
-assert.equal((payload.tools as any)[1].name, "spawn_agent");
+assert.ok((payload.tools as any[]).some((tool) => tool.name === "spawn_agent"));
 assert.equal(payload.messages[0].content[0].name, "spawn_agent");
 
 // Idempotency: transforming the transformed payload changes nothing.
@@ -156,25 +168,39 @@ assert.deepEqual(names, ["spawn_agent", "wait_agent", "mcp__linear__search", "Re
 assert.equal(unaliasAssistantMessage({ role: "assistant", content: [{ type: "text", text: "hi" }] }, maps), undefined);
 assert.equal(unaliasAssistantMessage({ role: "user", content: [] }, maps), undefined);
 
-// System string form and absent tools survive.
-const bare = transformPayload({ system: "about pi itself" }, index, createAliasMaps());
-assert.equal(bare.system, "about the harness itself");
+// A canonicalized name is left alone wherever it appears, including history for a tool the
+// current request no longer advertises. An untouched one is aliased from the registry there too.
+const historyMaps = createAliasMaps();
+const historyOut = transformPayload(
+	{
+		messages: [
+			{
+				role: "assistant",
+				content: [
+					{ type: "tool_use", id: "h1", name: "Read", input: {} },
+					{ type: "tool_use", id: "h2", name: "ls", input: {} },
+				],
+			},
+		],
+	},
+	index,
+	historyMaps,
+);
+assert.equal((historyOut.messages as any)[0].content[0].name, "Read");
+assert.equal((historyOut.messages as any)[0].content[1].name, "mcp__local__ls");
+// Anything put on the wire is reversible, so the call comes back to the registered name.
+assert.equal(
+	(unaliasAssistantMessage(
+		{ role: "assistant", content: [{ type: "toolCall", id: "h3", name: "mcp__local__ls", arguments: {} }] },
+		historyMaps,
+	)?.content as any)[0].name,
+	"ls",
+);
 
-// Harness neutralization covers the shapes the stock prompt actually uses, and leaves
-// package paths byte-identical: a bare \bpi\b would also match inside pi-coding-agent.
-assert.equal(
-	rewritePromptText("You are an expert coding assistant operating inside pi, a coding agent harness."),
-	"You are an expert coding assistant operating inside a coding agent harness.",
-);
-assert.equal(
-	rewritePromptText("Pi documentation (read only when the user asks about pi itself, its SDK)"),
-	"Harness documentation (read only when the user asks about the harness itself, its SDK)",
-);
-assert.equal(rewritePromptText("When reading pi docs or working on pi topics"), "When reading the harness docs or working on the harness topics");
-assert.equal(rewritePromptText("Always read pi .md files completely"), "Always read the harness .md files completely");
-const docsPath = "- Main documentation: /opt/homebrew/lib/node_modules/@earendil-works/pi-coding-agent/README.md";
-assert.equal(rewritePromptText(docsPath), docsPath);
-assert.equal(rewritePromptText("PI_SESSION_ID stays a variable name"), "PI_SESSION_ID stays a variable name");
+// Prose is no longer touched: the transport already declares its own client identity in headers
+// and in the first system block, so scrubbing this one corrupted unrelated text for nothing.
+const promptMentioningPi = "Read pi docs for pi itself. Calculate pi to 20 digits on a Raspberry Pi.";
+assert.equal(transformPayload({ system: promptMentioningPi }, index, createAliasMaps()).system, promptMentioningPi);
 
 // Reference rewriting is idempotent: a flat name embedded in its own alias has no
 // leading word boundary, so a second pass changes nothing.

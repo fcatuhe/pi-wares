@@ -1,41 +1,9 @@
 import { basename, dirname } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-// INFO: fc 02aug26 the provider's pass-as-is tool-name allowlist, mirrors claudeCodeTools in
-// pi-ai anthropic-messages.ts. Not the harness builtin set, so harness tools outside this
-// list (ls, find, ...) do get aliased.
-export const PASSTHROUGH_TOOL_NAMES = new Set([
-	"read",
-	"write",
-	"edit",
-	"bash",
-	"grep",
-	"glob",
-	"askuserquestion",
-	"enterplanmode",
-	"exitplanmode",
-	"killshell",
-	"notebookedit",
-	"skill",
-	"task",
-	"taskoutput",
-	"todowrite",
-	"webfetch",
-	"websearch",
-]);
-
 const PROVIDER_TOOL_NAME_PATTERN = /^[a-zA-Z0-9_-]{1,128}$/;
 const WRAPPER_DIRS = new Set(["extensions", "dist", "src", "build"]);
 const FALLBACK_NAMESPACE = "local";
-const HARNESS_NOUN = "harness";
-
-// INFO: fc 02aug26 lookarounds keep paths intact: a bare \bpi\b also matches inside
-// pi-coding-agent and would rewrite every doc path in the prompt
-const HARNESS_NAME_PATTERN = /(?<![\w/-])([Pp])i(?![\w/-])/g;
-const HARNESS_PHRASES: Array<[string, string]> = [
-	["operating inside pi, a coding agent harness", `operating inside a coding agent ${HARNESS_NOUN}`],
-	["Pi documentation", "Harness documentation"],
-];
 
 export interface AliasEntry {
 	flat: string;
@@ -57,16 +25,6 @@ export function lower(name: unknown): string {
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-export function rewritePromptText(text: string): string {
-	let result = text;
-	for (const [phrase, replacement] of HARNESS_PHRASES) {
-		result = result.replaceAll(phrase, replacement);
-	}
-	return result.replace(HARNESS_NAME_PATTERN, (_match, initial: string) =>
-		initial === "P" ? `The ${HARNESS_NOUN}` : `the ${HARNESS_NOUN}`,
-	);
 }
 
 function escapeRegExp(text: string): string {
@@ -91,7 +49,7 @@ export function rewriteNameReferences(text: string, renames: AliasEntry[]): stri
 }
 
 export function rewriteSystemField(system: unknown, renames: AliasEntry[]): unknown {
-	const rewrite = (text: string) => rewriteNameReferences(rewritePromptText(text), renames);
+	const rewrite = (text: string) => rewriteNameReferences(text, renames);
 	if (typeof system === "string") return rewrite(system);
 	if (!Array.isArray(system)) return system;
 	return system.map((block) => {
@@ -117,13 +75,15 @@ export function namespaceFrom(sourceInfo?: { path?: string; baseDir?: string }):
 	return FALLBACK_NAMESPACE;
 }
 
+// INFO: fc 05aug26 candidates only. Which ones apply is decided per request in transformPayload,
+// because only the outgoing payload says which names the transport accepts unaliased.
 export function buildAliasIndex(
 	tools: Array<{ name: string; sourceInfo?: { path?: string; baseDir?: string } }>,
 ): Map<string, AliasEntry> {
 	const index = new Map<string, AliasEntry>();
 	for (const tool of tools) {
 		const nameLc = lower(tool.name);
-		if (!nameLc || PASSTHROUGH_TOOL_NAMES.has(nameLc) || nameLc.startsWith("mcp__")) continue;
+		if (!nameLc || nameLc.startsWith("mcp__")) continue;
 		const alias = `mcp__${namespaceFrom(tool.sourceInfo)}__${tool.name}`;
 		if (!PROVIDER_TOOL_NAME_PATTERN.test(alias)) continue;
 		index.set(nameLc, { flat: tool.name, alias });
@@ -137,19 +97,31 @@ export function transformPayload(
 	maps: AliasMaps,
 ): Record<string, unknown> {
 	const payload = { ...raw };
+	const tools = Array.isArray(payload.tools) ? payload.tools : [];
 
 	const advertised = new Set<string>();
-	if (Array.isArray(payload.tools)) {
-		for (const tool of payload.tools) {
-			if (isPlainObject(tool)) advertised.add(lower(tool.name));
-		}
+	for (const tool of tools) {
+		if (isPlainObject(tool)) advertised.add(lower(tool.name));
 	}
 
-	for (const entry of aliasIndex.values()) {
-		const aliasLc = lower(entry.alias);
-		if (advertised.has(aliasLc)) continue;
-		maps.aliasByFlat.set(lower(entry.flat), entry.alias);
-		maps.flatByAlias.set(aliasLc, entry.flat);
+	// INFO: fc 05aug26 the transport renames every tool it accepts as-is to its own casing
+	// (read -> Read) while building this payload, before the hook runs, so a name still spelled
+	// exactly as registered is one it left alone, and that is the one needing an alias. Deriving
+	// this beats copying the transport's private allowlist, where a stale copy would silently drop
+	// an alias and get the request rejected.
+	const resolve = (name: string): string | undefined => {
+		const committed = maps.aliasByFlat.get(lower(name));
+		if (committed) return committed;
+		const candidate = aliasIndex.get(lower(name));
+		if (!candidate || candidate.flat !== name) return undefined;
+		if (advertised.has(lower(candidate.alias))) return undefined;
+		maps.aliasByFlat.set(lower(candidate.flat), candidate.alias);
+		maps.flatByAlias.set(lower(candidate.alias), candidate.flat);
+		return candidate.alias;
+	};
+
+	for (const tool of tools) {
+		if (isPlainObject(tool) && typeof tool.name === "string") resolve(tool.name);
 	}
 
 	const renames = [...aliasIndex.values()].filter((entry) => maps.flatByAlias.get(lower(entry.alias)) === entry.flat);
@@ -162,7 +134,7 @@ export function transformPayload(
 		payload.tools = payload.tools.map((tool) => {
 			if (!isPlainObject(tool) || typeof tool.name !== "string") return tool;
 			if (typeof tool.type === "string" && tool.type.trim().length > 0) return tool;
-			const alias = maps.aliasByFlat.get(lower(tool.name));
+			const alias = resolve(tool.name);
 			const description =
 				typeof tool.description === "string" ? rewriteNameReferences(tool.description, renames) : undefined;
 			const descriptionChanged = description !== undefined && description !== tool.description;
@@ -180,24 +152,26 @@ export function transformPayload(
 		payload.tool_choice.type === "tool" &&
 		typeof payload.tool_choice.name === "string"
 	) {
-		const alias = maps.aliasByFlat.get(lower(payload.tool_choice.name));
+		const alias = resolve(payload.tool_choice.name);
 		if (alias) payload.tool_choice = { ...payload.tool_choice, name: alias };
 	}
 
 	if (Array.isArray(payload.messages)) {
-		payload.messages = remapHistory(payload.messages, maps);
+		payload.messages = remapHistory(payload.messages, resolve);
 	}
 
 	return payload;
 }
 
-function remapHistory(messages: unknown[], maps: AliasMaps): unknown[] {
+type AliasResolver = (name: string) => string | undefined;
+
+function remapHistory(messages: unknown[], resolve: AliasResolver): unknown[] {
 	let anyChanged = false;
 	const result = messages.map((msg) => {
 		if (!isPlainObject(msg) || !Array.isArray(msg.content)) return msg;
 		let changed = false;
 		const content = msg.content.map((block) => {
-			const next = remapHistoryBlock(block, maps);
+			const next = remapHistoryBlock(block, resolve);
 			if (next !== block) changed = true;
 			return next;
 		});
@@ -208,11 +182,11 @@ function remapHistory(messages: unknown[], maps: AliasMaps): unknown[] {
 	return anyChanged ? result : messages;
 }
 
-function remapHistoryBlock(block: unknown, maps: AliasMaps): unknown {
+function remapHistoryBlock(block: unknown, resolve: AliasResolver): unknown {
 	if (!isPlainObject(block)) return block;
 
 	if (block.type === "tool_use" && typeof block.name === "string") {
-		const alias = maps.aliasByFlat.get(lower(block.name));
+		const alias = resolve(block.name);
 		return alias && alias !== block.name ? { ...block, name: alias } : block;
 	}
 
@@ -220,7 +194,7 @@ function remapHistoryBlock(block: unknown, maps: AliasMaps): unknown {
 		let changed = false;
 		const content = block.content.map((inner) => {
 			if (isPlainObject(inner) && inner.type === "tool_reference" && typeof inner.tool_name === "string") {
-				const alias = maps.aliasByFlat.get(lower(inner.tool_name));
+				const alias = resolve(inner.tool_name);
 				if (alias && alias !== inner.tool_name) {
 					changed = true;
 					return { ...inner, tool_name: alias };
@@ -246,9 +220,9 @@ export function unaliasToolCallsInPlace(message: unknown, maps: AliasMaps): void
 	}
 }
 
-// INFO: fc 02aug26 runs on message_end, before the harness resolves which tool to execute, so the original
-// extension's execute closure handles the call; only names this extension aliased are rewritten,
-// real mcp__ tools from other extensions pass through untouched
+// INFO: fc 02aug26 runs on message_end, before pi resolves which tool to execute, so the original
+// extension's execute closure handles the call. Only names this extension aliased are rewritten,
+// real mcp__ tools from other extensions pass through untouched.
 export function unaliasAssistantMessage(message: unknown, maps: AliasMaps): Record<string, unknown> | undefined {
 	if (!isPlainObject(message) || message.role !== "assistant" || !Array.isArray(message.content)) return undefined;
 	let changed = false;
