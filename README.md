@@ -13,24 +13,6 @@ curl -fsSL https://herdr.dev/install.sh | sh
 
 Both self-update afterwards, `pi update` and `herdr update`.
 
-### External CLIs
-
-Some skills drive CLIs this package does not install:
-
-- **`gog`**: the [`gog` CLI](https://github.com/openclaw/gogcli), install per its README.
-- **`outline-cli`**: `npm install -g @doist/outline-cli`
-- **`agent-browser`**: `npm install -g agent-browser && agent-browser install` (the second command downloads its own Chrome). The skill is a stub pointing at `agent-browser skills get core`, so keep the CLI current: `npm i -g agent-browser` again to update.
-
-### Credentials
-
-Everything works out of the box except three skills:
-
-- **`brave-search`** needs `BRAVE_API_KEY` in your shell profile. Free tier at [api-dashboard.search.brave.com](https://api-dashboard.search.brave.com/register): create a "Free AI" subscription (card required, not charged), then an API key.
-- **`gog`** needs your own Google Cloud OAuth client: create a project in the [Google Cloud console](https://console.cloud.google.com/), enable the APIs you'll use (Gmail, Calendar, Drive, ...), create an OAuth "Desktop app" client, download its `credentials.json`, then `gog auth credentials set credentials.json` and `gog auth add you@example.com`. No env var in normal use.
-- **`outline-cli`** needs `ol auth login` (OAuth, tokens expire) or `ol auth token <token>` with a personal API token from your Outline instance's Settings > API (doesn't expire, better for agents).
-
-The extensions that touch provider auth (`oauth-tool-alias`, `usage-pace`) reuse pi's own credentials (`/login`, `~/.pi/agent/auth.json`) and need no setup.
-
 ## Install
 
 ```bash
@@ -49,6 +31,24 @@ One package, individual wares toggled in `pi config`.
 ```
 
 Reports by default, exits non-zero when something is missing. `--apply` only ever adds: a key you set differently comes back as `kept`, files are backed up first, and edits splice into the existing text so comments and formatting survive.
+
+## External CLIs
+
+Some skills drive CLIs this package does not install:
+
+- **`gog`**: the [`gog` CLI](https://github.com/openclaw/gogcli), install per its README.
+- **`outline-cli`**: `npm install -g @doist/outline-cli`
+- **`agent-browser`**: `npm install -g agent-browser && agent-browser install` (the second command downloads its own Chrome). The skill is a stub pointing at `agent-browser skills get core`, so keep the CLI current: `npm i -g agent-browser` again to update.
+
+## Credentials
+
+Everything works out of the box except three skills:
+
+- **`brave-search`** needs `BRAVE_API_KEY` in your shell profile. Free tier at [api-dashboard.search.brave.com](https://api-dashboard.search.brave.com/register): create a "Free AI" subscription (card required, not charged), then an API key.
+- **`gog`** needs your own Google Cloud OAuth client: create a project in the [Google Cloud console](https://console.cloud.google.com/), enable the APIs you'll use (Gmail, Calendar, Drive, ...), create an OAuth "Desktop app" client, download its `credentials.json`, then `gog auth credentials set credentials.json` and `gog auth add you@example.com`. No env var in normal use.
+- **`outline-cli`** needs `ol auth login` (OAuth, tokens expire) or `ol auth token <token>` with a personal API token from your Outline instance's Settings > API (doesn't expire, better for agents).
+
+The extensions that touch provider auth (`oauth-tool-alias`, `usage-pace`) reuse pi's own credentials (`/login`, `~/.pi/agent/auth.json`) and need no setup.
 
 ## Wares
 
