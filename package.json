@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "tsx extensions/pi-claude-wire/test.ts && tsx extensions/policies/test.ts && tsx extensions/usage-pace/test.ts && tsx bin/test.ts"
+    "test": "tsx extensions/oauth-tool-alias/test.ts && tsx extensions/policies/test.ts && tsx extensions/usage-pace/test.ts && tsx bin/test.ts"
   },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
