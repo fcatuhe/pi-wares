@@ -1,10 +1,11 @@
-/** Self-check: npx tsx extensions/pi-claude-wire/test.ts */
+/** Self-check: npx tsx extensions/oauth-tool-alias/test.ts */
 import assert from "node:assert/strict";
 import {
 	buildAliasIndex,
 	createAliasMaps,
 	namespaceFrom,
 	rewriteNameReferences,
+	rewritePromptText,
 	transformPayload,
 	unaliasAssistantMessage,
 	unaliasToolCallsInPlace,
@@ -17,11 +18,14 @@ assert.equal(namespaceFrom({ path: "/x/pi-wares/extensions/usage-pace/index.ts" 
 assert.equal(namespaceFrom({ baseDir: "/x/token-rate-pi" }), "token_rate_pi");
 // path wins over baseDir (baseDir can be a monorepo root).
 assert.equal(namespaceFrom({ path: "/repo/packages/pi-foo/index.ts", baseDir: "/repo" }), "foo");
-// No usable source info falls back to the generic namespace.
-assert.equal(namespaceFrom(undefined), "pi");
-assert.equal(namespaceFrom({ path: "/---/index.ts" }), "pi");
+// No usable source info falls back to a namespace that does not name the harness: builtins
+// have no source dir, and mcp__pi__ls on the wire would undo the prompt neutralization.
+assert.equal(namespaceFrom(undefined), "local");
+assert.equal(namespaceFrom({ path: "/---/index.ts" }), "local");
+assert.equal(namespaceFrom({ path: "<builtin:ls>" }), "local");
 
-// Alias index: core tools and real mcp__ tools are never aliased; everything else is.
+// Alias index: allowlisted names and real mcp__ tools are never aliased, everything else is,
+// including harness builtins outside the provider allowlist.
 const registry = [
 	{ name: "read", sourceInfo: { path: "<builtin:read>" } },
 	{ name: "spawn_agent", sourceInfo: { path: "/x/pi-codex-subagents/index.ts" } },
@@ -29,12 +33,15 @@ const registry = [
 	{ name: "wait_all_agents", sourceInfo: { path: "/x/pi-codex-subagents/index.ts" } },
 	{ name: "mcp__linear__search", sourceInfo: { path: "/x/pi-linear/index.ts" } },
 	{ name: "handoff", sourceInfo: { path: "/x/pi-wares/extensions/handoff/index.ts" } },
+	{ name: "ls", sourceInfo: { path: "<builtin:ls>" } },
+	{ name: "find", sourceInfo: { path: "<builtin:find>" } },
 ];
 const index = buildAliasIndex(registry);
 assert.equal(index.has("read"), false);
 assert.equal(index.has("mcp__linear__search"), false);
 assert.equal(index.get("spawn_agent")?.alias, "mcp__codex_subagents__spawn_agent");
 assert.equal(index.get("handoff")?.alias, "mcp__handoff__handoff");
+assert.equal(index.get("ls")?.alias, "mcp__local__ls");
 
 // Payload transform: system rewrite, tool rename with metadata preserved, native and
 // core passthrough, tool_choice and history remap.
@@ -43,7 +50,7 @@ const payload = {
 	system: [
 		{
 			type: "text",
-			text: "questions about pi itself and pi packages; use spawn_agent for subtasks",
+			text: "questions about pi itself and pi packages, use spawn_agent for subtasks",
 			cache_control: { type: "ephemeral" },
 		},
 	],
@@ -77,10 +84,10 @@ const payload = {
 	],
 };
 const out = transformPayload(payload, index, maps);
-// System text: pi mentions neutralized and flat tool references aliased.
+// System text: harness mentions neutralized and flat tool references aliased.
 assert.equal(
 	(out.system as any)[0].text,
-	"questions about the cli itself and cli packages; use mcp__codex_subagents__spawn_agent for subtasks",
+	"questions about the harness itself and the harness packages, use mcp__codex_subagents__spawn_agent for subtasks",
 );
 assert.equal((out.system as any)[0].cache_control.type, "ephemeral");
 const toolNames = (out.tools as any[]).map((t) => t.name);
@@ -151,7 +158,23 @@ assert.equal(unaliasAssistantMessage({ role: "user", content: [] }, maps), undef
 
 // System string form and absent tools survive.
 const bare = transformPayload({ system: "about pi itself" }, index, createAliasMaps());
-assert.equal(bare.system, "about the cli itself");
+assert.equal(bare.system, "about the harness itself");
+
+// Harness neutralization covers the shapes the stock prompt actually uses, and leaves
+// package paths byte-identical: a bare \bpi\b would also match inside pi-coding-agent.
+assert.equal(
+	rewritePromptText("You are an expert coding assistant operating inside pi, a coding agent harness."),
+	"You are an expert coding assistant operating inside a coding agent harness.",
+);
+assert.equal(
+	rewritePromptText("Pi documentation (read only when the user asks about pi itself, its SDK)"),
+	"Harness documentation (read only when the user asks about the harness itself, its SDK)",
+);
+assert.equal(rewritePromptText("When reading pi docs or working on pi topics"), "When reading the harness docs or working on the harness topics");
+assert.equal(rewritePromptText("Always read pi .md files completely"), "Always read the harness .md files completely");
+const docsPath = "- Main documentation: /opt/homebrew/lib/node_modules/@earendil-works/pi-coding-agent/README.md";
+assert.equal(rewritePromptText(docsPath), docsPath);
+assert.equal(rewritePromptText("PI_SESSION_ID stays a variable name"), "PI_SESSION_ID stays a variable name");
 
 // Reference rewriting is idempotent: a flat name embedded in its own alias has no
 // leading word boundary, so a second pass changes nothing.
@@ -162,6 +185,26 @@ const renames = [
 const once = rewriteNameReferences("call spawn_agent then wait_agent", renames);
 assert.equal(once, "call mcp__codex_subagents__spawn_agent then mcp__codex_subagents__wait_agent");
 assert.equal(rewriteNameReferences(once, renames), once);
+
+// Single-word tool names are English words too. The stock prompt guideline below talks about
+// shell commands, and rewriting it fed the model "like mcp__local__ls, rg, mcp__local__find".
+// Bare mentions of a single-word name stay put, backticks mean the tool is meant.
+const wordNames = [
+	{ flat: "ls", alias: "mcp__local__ls" },
+	{ flat: "find", alias: "mcp__local__find" },
+	{ flat: "handoff", alias: "mcp__handoff__handoff" },
+];
+const guideline = "Use bash for file operations like ls, rg, find";
+assert.equal(rewriteNameReferences(guideline, wordNames), guideline);
+assert.equal(rewriteNameReferences("a clean handoff of the work", wordNames), "a clean handoff of the work");
+assert.equal(rewriteNameReferences("call `handoff` first", wordNames), "call `mcp__handoff__handoff` first");
+// Identifier-shaped names are rewritten either way, and both passes stay idempotent.
+const mixed = rewriteNameReferences("`wait_agent` or spawn_agent, then `handoff`", [...renames, ...wordNames]);
+assert.equal(
+	mixed,
+	"`mcp__codex_subagents__wait_agent` or mcp__codex_subagents__spawn_agent, then `mcp__handoff__handoff`",
+);
+assert.equal(rewriteNameReferences(mixed, [...renames, ...wordNames]), mixed);
 
 // Streaming unalias mutates the toolCall blocks in place (the TUI reads the same
 // objects when it creates tool rows mid-stream), leaving foreign names alone.
@@ -178,4 +221,4 @@ assert.equal(streaming.content[0]!.name, "spawn_agent");
 assert.equal(streaming.content[1]!.name, "mcp__linear__search");
 unaliasToolCallsInPlace({ role: "user", content: [] }, maps);
 
-console.log("pi-claude-wire self-check passed");
+console.log("oauth-tool-alias self-check passed");

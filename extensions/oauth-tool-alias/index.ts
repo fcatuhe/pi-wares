@@ -1,9 +1,10 @@
 import { basename, dirname } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-// INFO: fc 02aug26 mirrors claudeCodeTools in pi-ai anthropic-messages.ts; Anthropic OAuth
-// fingerprints tool names, these pass as-is, other flat names must be mcp__ prefixed
-export const CORE_TOOL_NAMES = new Set([
+// INFO: fc 02aug26 the provider's pass-as-is tool-name allowlist, mirrors claudeCodeTools in
+// pi-ai anthropic-messages.ts. Not the harness builtin set, so harness tools outside this
+// list (ls, find, ...) do get aliased.
+export const PASSTHROUGH_TOOL_NAMES = new Set([
 	"read",
 	"write",
 	"edit",
@@ -23,8 +24,18 @@ export const CORE_TOOL_NAMES = new Set([
 	"websearch",
 ]);
 
-const ANTHROPIC_TOOL_NAME_PATTERN = /^[a-zA-Z0-9_-]{1,128}$/;
+const PROVIDER_TOOL_NAME_PATTERN = /^[a-zA-Z0-9_-]{1,128}$/;
 const WRAPPER_DIRS = new Set(["extensions", "dist", "src", "build"]);
+const FALLBACK_NAMESPACE = "local";
+const HARNESS_NOUN = "harness";
+
+// INFO: fc 02aug26 lookarounds keep paths intact: a bare \bpi\b also matches inside
+// pi-coding-agent and would rewrite every doc path in the prompt
+const HARNESS_NAME_PATTERN = /(?<![\w/-])([Pp])i(?![\w/-])/g;
+const HARNESS_PHRASES: Array<[string, string]> = [
+	["operating inside pi, a coding agent harness", `operating inside a coding agent ${HARNESS_NOUN}`],
+	["Pi documentation", "Harness documentation"],
+];
 
 export interface AliasEntry {
 	flat: string;
@@ -49,22 +60,32 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 export function rewritePromptText(text: string): string {
-	return text
-		.replaceAll("pi itself", "the cli itself")
-		.replaceAll("pi .md files", "cli .md files")
-		.replaceAll("pi packages", "cli packages");
+	let result = text;
+	for (const [phrase, replacement] of HARNESS_PHRASES) {
+		result = result.replaceAll(phrase, replacement);
+	}
+	return result.replace(HARNESS_NAME_PATTERN, (_match, initial: string) =>
+		initial === "P" ? `The ${HARNESS_NOUN}` : `the ${HARNESS_NOUN}`,
+	);
 }
 
 function escapeRegExp(text: string): string {
 	return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-// INFO: fc 02aug26 a flat name inside its own alias has no word boundary before it (mcp__ns__name),
-// so repeated rewrites are no-ops
+// INFO: fc 02aug26 a bare single-word tool name collides with English prose (a guideline about
+// the shell commands ls and find became one about mcp__local__ls), so only identifier-shaped
+// names are rewritten bare. Backticks mark a name as a tool name whatever its shape.
+// A flat name inside its own alias has no word boundary before it (mcp__ns__name), so repeated
+// rewrites are no-ops.
 export function rewriteNameReferences(text: string, renames: AliasEntry[]): string {
 	let result = text;
 	for (const { flat, alias } of renames) {
-		result = result.replace(new RegExp(`\\b${escapeRegExp(flat)}\\b`, "g"), alias);
+		const escaped = escapeRegExp(flat);
+		result = result.replace(new RegExp(`\`${escaped}\``, "g"), `\`${alias}\``);
+		if (flat.includes("_")) {
+			result = result.replace(new RegExp(`\\b${escaped}\\b`, "g"), alias);
+		}
 	}
 	return result;
 }
@@ -93,7 +114,7 @@ export function namespaceFrom(sourceInfo?: { path?: string; baseDir?: string }):
 			.replace(/^_+|_+$/g, "");
 		if (ns) return ns;
 	}
-	return "pi";
+	return FALLBACK_NAMESPACE;
 }
 
 export function buildAliasIndex(
@@ -102,9 +123,9 @@ export function buildAliasIndex(
 	const index = new Map<string, AliasEntry>();
 	for (const tool of tools) {
 		const nameLc = lower(tool.name);
-		if (!nameLc || CORE_TOOL_NAMES.has(nameLc) || nameLc.startsWith("mcp__")) continue;
+		if (!nameLc || PASSTHROUGH_TOOL_NAMES.has(nameLc) || nameLc.startsWith("mcp__")) continue;
 		const alias = `mcp__${namespaceFrom(tool.sourceInfo)}__${tool.name}`;
-		if (!ANTHROPIC_TOOL_NAME_PATTERN.test(alias)) continue;
+		if (!PROVIDER_TOOL_NAME_PATTERN.test(alias)) continue;
 		index.set(nameLc, { flat: tool.name, alias });
 	}
 	return index;
@@ -225,7 +246,7 @@ export function unaliasToolCallsInPlace(message: unknown, maps: AliasMaps): void
 	}
 }
 
-// INFO: fc 02aug26 runs on message_end, before pi resolves which tool to execute, so the original
+// INFO: fc 02aug26 runs on message_end, before the harness resolves which tool to execute, so the original
 // extension's execute closure handles the call; only names this extension aliased are rewritten,
 // real mcp__ tools from other extensions pass through untouched
 export function unaliasAssistantMessage(message: unknown, maps: AliasMaps): Record<string, unknown> | undefined {
@@ -241,7 +262,7 @@ export function unaliasAssistantMessage(message: unknown, maps: AliasMaps): Reco
 	return changed ? { ...message, content } : undefined;
 }
 
-export default function piClaudeWire(pi: ExtensionAPI): void {
+export default function oauthToolAlias(pi: ExtensionAPI): void {
 	const maps = createAliasMaps();
 
 	pi.on("session_start", () => {

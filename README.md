@@ -29,7 +29,7 @@ Everything works out of the box except three skills:
 - **`gog`** needs your own Google Cloud OAuth client: create a project in the [Google Cloud console](https://console.cloud.google.com/), enable the APIs you'll use (Gmail, Calendar, Drive, ...), create an OAuth "Desktop app" client, download its `credentials.json`, then `gog auth credentials set credentials.json` and `gog auth add you@example.com`. No env var in normal use.
 - **`outline-cli`** needs `ol auth login` (OAuth, tokens expire) or `ol auth token <token>` with a personal API token from your Outline instance's Settings > API (doesn't expire, better for agents).
 
-The extensions that touch provider auth (`pi-claude-wire`, `usage-pace`) reuse pi's own credentials (`/login`, `~/.pi/agent/auth.json`) and need no setup.
+The extensions that touch provider auth (`oauth-tool-alias`, `usage-pace`) reuse pi's own credentials (`/login`, `~/.pi/agent/auth.json`) and need no setup.
 
 ## Install
 
@@ -57,7 +57,7 @@ Reports by default, exits non-zero when something is missing. `--apply` only eve
 | [`model-shortcuts/`](./extensions/model-shortcuts/) | Slash shortcuts for model + thinking level: `/opus`, `/opus:high`, `/high`. |
 | [`compact-footer/`](./extensions/compact-footer/) | Folds pi's 3-line footer into 2 by merging statuses onto the path line. |
 | [`usage-pace/`](./extensions/usage-pace/) | Footer status: subscription usage bar, pace marker, reset countdown. |
-| [`pi-claude-wire/`](./extensions/pi-claude-wire/) | Aliases extension tool names to `mcp__*` in Anthropic OAuth payloads at request time, so live schemas pass through untouched. |
+| [`oauth-tool-alias/`](./extensions/oauth-tool-alias/) | Renames extension tools to `mcp__*` on the wire for OAuth subscription transports, and back before they execute. |
 | [`clear-on-startup/`](./extensions/clear-on-startup/) | Clears screen and scrollback once per pi launch. |
 | [`rename-quit/`](./extensions/rename-quit/) | `/rename-quit` names the session from its transcript, then exits. |
 | [`herdr-tab-title/`](./extensions/herdr-tab-title/) | Syncs the herdr tab label and the pi session name, both directions. |
@@ -146,7 +146,7 @@ Each ware is a folder with `index.ts` as its entry. Everything else in the folde
 
 ## Checks
 
-`npm test` runs every self-check (`pi-claude-wire`, `policies`, `usage-pace`, `bin`); CI runs it after `npm ci`. A new self-check is a `test.ts` next to what it covers plus an entry in the `test` script.
+`npm test` runs every self-check (`oauth-tool-alias`, `policies`, `usage-pace`, `bin`); CI runs it after `npm ci`. A new self-check is a `test.ts` next to what it covers plus an entry in the `test` script.
 
 ## License
 
