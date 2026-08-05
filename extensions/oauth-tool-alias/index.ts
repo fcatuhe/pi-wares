@@ -48,7 +48,7 @@ export function rewritePromptText(text: string): string {
 	return result;
 }
 
-// INFO: fc 05aug26 pi's stock prompt declares each tool as "- <name>: <snippet>" under "Available tools". Prose mentions stay: a bare tool name is an English word too.
+// INFO: fc 05aug26 pi's stock prompt declares each tool as "- <name>: <snippet>" under "Available tools".
 function rewriteToolDeclarations(text: string, renames: Array<[string, string]>): string {
 	let result = text;
 	for (const [flat, alias] of renames) {

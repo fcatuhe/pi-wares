@@ -12,7 +12,7 @@ Mentions of pi by name in the system prompt are renamed to "the cli", matching w
 
 Per request it renames the `tools` array, a pinned `tool_choice`, and prior `tool_use` / `tool_reference` blocks in history, so activating mid-session leaves no mixed names. In the system prompt it also renames the `- <name>: <snippet>` line pi writes under `Available tools`, because that line tells the model which tools this payload carries, and it would otherwise declare a name the payload no longer has.
 
-Never renamed: prose, including tool descriptions and any sentence mentioning a tool. The schema is what the model calls from, and a bare single-word tool name is an English word too, so rewriting mentions turned a guideline about the shell commands `ls` and `find` into one about `mcp__local__ls`. Also never renamed: names the transport already canonicalized, genuine `mcp__` tools from other extensions, native server tools (entries carrying a `type`, like `web_search`), and any name whose alias a real tool already advertises.
+Never renamed: prose, including tool descriptions and any sentence mentioning a tool. Names the transport already canonicalized, genuine `mcp__` tools from other extensions, native server tools (entries carrying a `type`, like `web_search`), and any name whose alias a real tool already advertises.
 
 Streaming tool calls are renamed back on `message_update` by mutating the shared block in place: the TUI resolves a tool row's custom renderer from the streamed name when the row is created, before `message_end` fires, so without this the row renders generically under the `mcp__` name instead of through the tool's own `renderCall` / `renderResult`. Alias maps are cleared on `session_start`.
 
