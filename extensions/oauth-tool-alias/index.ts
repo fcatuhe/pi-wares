@@ -5,6 +5,20 @@ const PROVIDER_TOOL_NAME_PATTERN = /^[a-zA-Z0-9_-]{1,128}$/;
 const WRAPPER_DIRS = new Set(["extensions", "dist", "src", "build"]);
 const FALLBACK_NAMESPACE = "local";
 
+// INFO: fc 05aug26 "cli" because the transport's own first system block calls itself one.
+// Only phrases where a lowercase pi is unambiguously the product name: a general \bpi\b pass
+// also renames "Raspberry Pi" and "calculate pi" in project instructions, and an entry quoting
+// a whole upstream sentence breaks silently the day that sentence is reworded.
+const CLIENT_NAME_PHRASES: Array<[string | RegExp, string]> = [
+	["pi itself", "the cli itself"],
+	["pi packages", "cli packages"],
+	["pi docs", "cli docs"],
+	["pi topics", "cli topics"],
+	["pi .md files", "cli .md files"],
+	// Anchored: mid-sentence this is "Raspberry Pi documentation", at line start it is pi's own heading.
+	[/^Pi documentation/gm, "CLI documentation"],
+];
+
 export interface AliasEntry {
 	flat: string;
 	alias: string;
@@ -25,6 +39,15 @@ export function lower(name: unknown): string {
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export function rewritePromptText(text: string): string {
+	let result = text;
+	for (const [pattern, replacement] of CLIENT_NAME_PHRASES) {
+		result =
+			typeof pattern === "string" ? result.replaceAll(pattern, replacement) : result.replace(pattern, replacement);
+	}
+	return result;
 }
 
 function escapeRegExp(text: string): string {
@@ -49,7 +72,7 @@ export function rewriteNameReferences(text: string, renames: AliasEntry[]): stri
 }
 
 export function rewriteSystemField(system: unknown, renames: AliasEntry[]): unknown {
-	const rewrite = (text: string) => rewriteNameReferences(text, renames);
+	const rewrite = (text: string) => rewriteNameReferences(rewritePromptText(text), renames);
 	if (typeof system === "string") return rewrite(system);
 	if (!Array.isArray(system)) return system;
 	return system.map((block) => {

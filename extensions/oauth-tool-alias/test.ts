@@ -5,6 +5,7 @@ import {
 	createAliasMaps,
 	namespaceFrom,
 	rewriteNameReferences,
+	rewritePromptText,
 	transformPayload,
 	unaliasAssistantMessage,
 	unaliasToolCallsInPlace,
@@ -197,10 +198,29 @@ assert.equal(
 	"ls",
 );
 
-// Prose is no longer touched: the transport already declares its own client identity in headers
-// and in the first system block, so scrubbing this one corrupted unrelated text for nothing.
-const promptMentioningPi = "Read pi docs for pi itself. Calculate pi to 20 digits on a Raspberry Pi.";
-assert.equal(transformPayload({ system: promptMentioningPi }, index, createAliasMaps()).system, promptMentioningPi);
+// Client-name phrases from the stock prompt are neutralized.
+assert.equal(
+	transformPayload({ system: "questions about pi itself and pi packages" }, index, createAliasMaps()).system,
+	"questions about the cli itself and cli packages",
+);
+assert.equal(
+	rewritePromptText("When reading pi docs, working on pi topics, always read pi .md files completely"),
+	"When reading cli docs, working on cli topics, always read cli .md files completely",
+);
+assert.equal(rewritePromptText("Pi documentation (read only when asked)"), "CLI documentation (read only when asked)");
+
+// Words that are not the product name survive: a general \bpi\b pass turned these into nonsense
+// in project instructions, and the heading rewrite is line-anchored for the same reason.
+const unrelated = [
+	"Calculate pi to 20 digits.",
+	"Raspberry Pi support is required.",
+	"See the Raspberry Pi documentation for pinout details.",
+	"- Main documentation: /opt/homebrew/lib/node_modules/@earendil-works/pi-coding-agent/README.md",
+	"PI_SESSION_ID stays a variable name",
+];
+for (const text of unrelated) {
+	assert.equal(rewritePromptText(text), text);
+}
 
 // Reference rewriting is idempotent: a flat name embedded in its own alias has no
 // leading word boundary, so a second pass changes nothing.

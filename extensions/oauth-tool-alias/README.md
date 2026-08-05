@@ -8,6 +8,8 @@ Which names need an alias is derived per request instead of copied from the tran
 
 The namespace comes from the tool's source package dir, `pi-` prefix stripped, sanitized to `[a-z0-9_]`, wrapper dirs (`extensions`, `dist`, `src`, `build`) skipped. `spawn_agent` from `pi-codex-subagents` becomes `mcp__codex_subagents__spawn_agent`. Tools with no source dir, pi's builtins, land in the `local` namespace.
 
+Mentions of pi by name in the system prompt are renamed to "the cli", matching what the transport's own first system block calls itself. Only phrases where a lowercase `pi` is unambiguously the product name (`pi itself`, `pi packages`, `pi docs`, `pi topics`, `pi .md files`) plus a line-anchored `Pi documentation` heading. A general word-boundary pass would also rename `Raspberry Pi` and `calculate pi` in project instructions, and a phrase quoting a whole upstream sentence breaks the day that sentence is reworded.
+
 Per request it renames the `tools` array, a pinned `tool_choice`, and prior `tool_use` / `tool_reference` blocks in history, so activating mid-session leaves no mixed names. Tool names mentioned in descriptions and in the system prompt are rewritten to match the wire, but only where the mention is unambiguous: backticked (`` `wait_agent` ``) whatever the name, bare only for identifier-shaped names containing `_`. A bare single-word name is an English word too, and rewriting those corrupted the prose around them.
 
 Never renamed: names the transport already canonicalized, genuine `mcp__` tools from other extensions, native server tools (entries carrying a `type`, like `web_search`), and any name whose alias a real tool already advertises.
