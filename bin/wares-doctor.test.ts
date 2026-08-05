@@ -111,8 +111,13 @@ const bare = (() => {
 })();
 assert.ok(bare, "a bare machine exited 0 instead of reporting work");
 assert.match(bare.stdout, /4 to add/, "a bare machine did not report every target");
-assert.match(doctor("--apply"), /wrote/);
-assert.match(doctor(), /Nothing to add\./, "the applied config still reports work");
+// One line per file and a closing count, nothing per key.
+assert.equal(bare.stdout.trim().split("\n").length, 6, "the report is no longer one line per file");
+
+const applied = doctor("--apply");
+assert.match(applied, /pi settings +created .*settings\.json {2}\(restart pi\)/, "apply lost the one-line shape");
+assert.equal(applied.trim().split("\n").length, 4, "apply printed more than one line per file");
+assert.doesNotMatch(doctor(), /add/, "the applied config still reports work");
 const root = join(import.meta.dirname, "..");
 for (const file of ["agent/settings.json", "agent/extensions/pi-model-shortcuts.json", "config/herdr/config.toml"]) {
   const reference = file.startsWith("agent/") ? `config/pi/${file.slice("agent/".length)}` : "config/herdr/config.toml";

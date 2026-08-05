@@ -16,21 +16,21 @@ const TARGETS = [
 		reference: "config/pi/settings.json",
 		path: join(AGENT_DIR, "settings.json"),
 		format: "json",
-		hint: "restart pi to pick this up",
+		hint: "restart pi",
 	},
 	{
 		label: "model shortcuts",
 		reference: "config/pi/extensions/pi-model-shortcuts.json",
 		path: join(AGENT_DIR, "extensions", "pi-model-shortcuts.json"),
 		format: "json",
-		hint: "/reload in pi picks this up",
+		hint: "/reload in pi",
 	},
 	{
 		label: "codex subagents",
 		reference: "config/pi/pi-codex-subagents/config.json",
 		path: join(AGENT_DIR, "pi-codex-subagents", "config.json"),
 		format: "json",
-		hint: "restart pi to pick this up",
+		hint: "restart pi",
 	},
 	{
 		label: "herdr",
@@ -38,7 +38,7 @@ const TARGETS = [
 		path: join(CONFIG_HOME, "herdr", "config.toml"),
 		format: "toml",
 		identity: { "keys.command": "key" },
-		hint: "herdr server reload-config picks this up",
+		hint: "herdr server reload-config",
 	},
 ];
 
@@ -47,7 +47,7 @@ const USAGE = `wares-doctor [--apply]
 Compares this machine against the reference configs in config/, reports what is
 missing, and never changes a value you already set.
 
-  --apply   write the missing keys, keeping a timestamped backup
+  --apply   write the missing keys
   --help    show this message`;
 
 main(process.argv.slice(2));
@@ -62,8 +62,14 @@ function main(argv) {
 
 	const apply = argv.includes("--apply");
 	const reports = TARGETS.map((target) => inspect(target));
-	for (const report of reports) print(report, apply);
-	summarize(reports, apply);
+	const pending = reports.filter((report) => report.missingFile || countWritable(report) > 0);
+	if (apply) for (const report of pending) write(report);
+	render(reports, apply);
+
+	if (apply || pending.length === 0) return;
+	const total = pending.reduce((sum, report) => sum + (report.missingFile ? 1 : countWritable(report)), 0);
+	console.log(`\n${total} to add. Re-run with --apply to write them.`);
+	process.exit(1);
 }
 
 function inspect(target) {
@@ -75,92 +81,55 @@ function inspect(target) {
 	return { target, ...reconcile(readFileSync(target.path, "utf-8"), reference, target.identity) };
 }
 
-function print(report, apply) {
-	const { target, findings } = report;
-	console.log(`\n${target.label}  ${tildify(target.path)}`);
-
-	if (report.missingFile) {
-		say(apply ? "created" : "create", `from ${target.reference}`);
-		return;
-	}
-
-	for (const finding of findings.filter((finding) => isWritable(finding) && !finding.blocked)) {
-		say(apply ? "added" : "add", describe(finding));
-	}
-	for (const finding of findings.filter((finding) => finding.blocked)) {
-		say("manual", `${describe(finding)}  (${finding.blocked})`);
-	}
-	for (const finding of findings.filter((finding) => finding.state === "diverged")) {
-		for (const line of divergences(finding)) say("kept", line);
-	}
-	const ok = findings.filter((finding) => finding.state === "ok").length;
-	if (ok > 0) say("ok", `${ok} already match`);
+function render(reports, apply) {
+	const labels = width(reports.map((report) => report.target.label));
+	const states = reports.map((report) => state(report, apply));
+	const column = width(states);
+	reports.forEach((report, index) => {
+		const note = report.written ? `  (${report.target.hint})` : "";
+		console.log(`${report.target.label.padEnd(labels)}  ${states[index].padEnd(column)}  ${tildify(report.target.path)}${note}`);
+	});
 }
 
-function summarize(reports, apply) {
-	const pending = reports.filter((report) => report.missingFile || countWritable(report) > 0);
-	if (pending.length === 0) {
-		console.log("\nNothing to add.");
-		return;
-	}
+function state(report, apply) {
+	if (report.missingFile) return apply ? "created" : "create";
+	const counts = [
+		[apply ? "added" : "add", countWritable(report)],
+		["manual", tally(report, (finding) => finding.blocked)],
+		["kept", tally(report, (finding) => finding.state === "diverged")],
+		["ok", tally(report, (finding) => finding.state === "ok")],
+	];
+	return counts
+		.filter(([, count]) => count > 0)
+		.map(([word, count]) => `${word} ${count}`)
+		.join(", ");
+}
 
-	if (!apply) {
-		const total = pending.reduce((sum, report) => sum + (report.missingFile ? 1 : countWritable(report)), 0);
-		console.log(`\n${total} to add. Re-run with --apply to write them.`);
-		process.exit(1);
-	}
-
-	for (const report of pending) write(report);
-	console.log("");
-	for (const report of pending) console.log(`${report.target.label}: ${report.target.hint}`);
+function width(strings) {
+	return Math.max(...strings.map((string) => string.length));
 }
 
 function write(report) {
 	const { target } = report;
 	mkdirSync(dirname(target.path), { recursive: true });
+	report.written = true;
 	if (report.missingFile) {
 		copyFileSync(join(ROOT, target.reference), target.path);
-		console.log(`\nwrote ${tildify(target.path)}`);
 		return;
 	}
-	const backup = `${target.path}.bak-${new Date().toISOString().replaceAll(/[:.]/g, "")}`;
-	copyFileSync(target.path, backup);
 	writeFileSync(target.path, report.text);
-	console.log(`\nwrote ${tildify(target.path)}, backup at ${tildify(backup)}`);
-}
-
-function say(status, detail) {
-	console.log(`  ${status.padEnd(8)} ${detail}`);
 }
 
 function countWritable(report) {
-	return report.findings.filter((finding) => isWritable(finding) && !finding.blocked).length;
+	return tally(report, (finding) => isWritable(finding) && !finding.blocked);
+}
+
+function tally(report, predicate) {
+	return report.findings.filter(predicate).length;
 }
 
 function isWritable(finding) {
 	return finding.state === "missing" || finding.state === "incomplete";
-}
-
-function describe(finding) {
-	if (finding.kind === "members") return `${label(finding)} + ${finding.absent.map(show).join(", ")}`;
-	if (finding.kind === "entry") return `${label(finding)} ${finding.identity} = ${show(finding.expected[finding.identity])}`;
-	return `${label(finding)} = ${show(finding.expected)}`;
-}
-
-function label(finding) {
-	return finding.path.join(".");
-}
-
-function divergences(finding) {
-	if (finding.kind !== "entry") return [`${label(finding)} = ${show(finding.found)}  (default ${show(finding.expected)})`];
-	const entry = `${label(finding)}[${finding.identity}=${show(finding.expected[finding.identity])}]`;
-	return Object.entries(finding.expected)
-		.filter(([key, value]) => finding.found[key] !== value)
-		.map(([key, value]) => `${entry}.${key} = ${show(finding.found[key])}  (default ${show(value)})`);
-}
-
-function show(value) {
-	return JSON.stringify(value);
 }
 
 function tildify(path) {

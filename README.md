@@ -30,7 +30,7 @@ One package, individual wares toggled in `pi config`.
 ~/.pi/agent/git/github.com/fcatuhe/pi-wares/bin/wares-doctor --apply
 ```
 
-Reports by default, exits non-zero when something is missing. `--apply` only ever adds: a key you set differently comes back as `kept`, files are backed up first, and edits splice into the existing text so comments and formatting survive.
+Reports by default, exits non-zero when something is missing. `--apply` only ever adds: a key you set differently comes back as `kept`, and edits splice into the existing text so comments and formatting survive. No backups, git holds the reference and your own file only ever gains keys.
 
 ## External CLIs
 
@@ -146,7 +146,7 @@ Each ware is a folder with `index.ts` as its entry. Everything else in the folde
 
 ## Checks
 
-`npm test` runs every self-check (`oauth-tool-alias`, `policies`, `usage-pace`, `bin`); CI runs it after `npm ci`. A new self-check is a `test.ts` next to what it covers plus an entry in the `test` script.
+`npm test` runs every self-check (`oauth-tool-alias`, `policies`, `usage-pace`, `wares-doctor`); CI runs it after `npm ci`. A new self-check is a `<subject>.test.ts` next to what it covers plus an entry in the `test` script.
 
 ## License
 
