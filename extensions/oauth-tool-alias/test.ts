@@ -4,8 +4,8 @@ import {
 	buildAliasIndex,
 	createAliasMaps,
 	namespaceFrom,
-	rewriteNameReferences,
 	rewritePromptText,
+	rewriteToolDeclarations,
 	transformPayload,
 	unaliasAssistantMessage,
 	unaliasToolCallsInPlace,
@@ -43,6 +43,25 @@ assert.equal(index.get("handoff")?.alias, "mcp__handoff__handoff");
 assert.equal(index.get("ls")?.alias, "mcp__local__ls");
 assert.equal(index.get("read")?.alias, "mcp__local__read");
 
+// Names differing only in case are separate tools in the registry, so they keep separate
+// aliases. A lowercase-keyed index dropped one of them, and it went out unaliased.
+const caseIndex = buildAliasIndex([
+	{ name: "Run", sourceInfo: { path: "/x/pi-alpha/index.ts" } },
+	{ name: "run", sourceInfo: { path: "/x/pi-beta/index.ts" } },
+]);
+assert.equal(caseIndex.get("Run")?.alias, "mcp__alpha__Run");
+assert.equal(caseIndex.get("run")?.alias, "mcp__beta__run");
+
+// Over the provider's 128-char name limit the namespace is truncated, never the flat name:
+// the flat name is what routes the call back. Skipped only when it cannot fit at all.
+const longName = "a".repeat(100);
+const longAlias = buildAliasIndex([{ name: longName, sourceInfo: { path: "/x/pi-a-very-long-package-name/i.ts" } }]).get(
+	longName,
+)?.alias;
+assert.equal(longAlias?.length, 128);
+assert.ok(longAlias?.endsWith(`__${longName}`));
+assert.equal(buildAliasIndex([{ name: "b".repeat(125), sourceInfo: { path: "/x/pi-a/i.ts" } }]).size, 0);
+
 // Payload transform: system rewrite, tool rename with metadata preserved, canonicalized and
 // native passthrough, tool_choice and history remap.
 const maps = createAliasMaps();
@@ -50,7 +69,7 @@ const payload = {
 	system: [
 		{
 			type: "text",
-			text: "use spawn_agent for subtasks",
+			text: "Available tools:\n- ls: List directory contents\n- read: Read file contents\n\nRun ls before spawn_agent.",
 			cache_control: { type: "ephemeral" },
 		},
 	],
@@ -61,7 +80,7 @@ const payload = {
 		{ name: "ls", description: "list a directory", input_schema: {} },
 		{
 			name: "spawn_agent",
-			description: "Use `wait_agent` or wait_all_agents only when needed. Never respawn_agent.",
+			description: "Use `wait_agent` or wait_all_agents only when needed.",
 			input_schema: {},
 			cache_control: { type: "ephemeral" },
 		},
@@ -89,8 +108,13 @@ const payload = {
 	],
 };
 const out = transformPayload(payload, index, maps);
-// System text: flat tool references aliased.
-assert.equal((out.system as any)[0].text, "use mcp__codex_subagents__spawn_agent for subtasks");
+// System text: the "Available tools" declaration follows the wire name, since it tells the model
+// which tools exist in this payload. Prose mentioning a tool is left as the author wrote it, and
+// the declaration for a tool the transport canonicalized is untouched.
+assert.equal(
+	(out.system as any)[0].text,
+	"Available tools:\n- mcp__local__ls: List directory contents\n- read: Read file contents\n\nRun ls before spawn_agent.",
+);
 assert.equal((out.system as any)[0].cache_control.type, "ephemeral");
 const outTool = (name: string) => (out.tools as any[]).find((tool) => tool.name === name);
 assert.deepEqual(
@@ -106,11 +130,10 @@ assert.deepEqual(
 	],
 );
 assert.equal(outTool("mcp__codex_subagents__spawn_agent").cache_control.type, "ephemeral");
-// Descriptions: flat references aliased (backticked or bare), superstrings untouched,
-// native typed tools never touched.
+// Descriptions are never rewritten, aliased tool or native typed one.
 assert.equal(
 	outTool("mcp__codex_subagents__spawn_agent").description,
-	"Use `mcp__codex_subagents__wait_agent` or mcp__codex_subagents__wait_all_agents only when needed. Never respawn_agent.",
+	"Use `wait_agent` or wait_all_agents only when needed.",
 );
 assert.equal(outTool("web_search").description, "see spawn_agent");
 assert.equal((out.tool_choice as any).name, "mcp__codex_subagents__spawn_agent");
@@ -222,35 +245,19 @@ for (const text of unrelated) {
 	assert.equal(rewritePromptText(text), text);
 }
 
-// Reference rewriting is idempotent: a flat name embedded in its own alias has no
-// leading word boundary, so a second pass changes nothing.
-const renames = [
-	{ flat: "spawn_agent", alias: "mcp__codex_subagents__spawn_agent" },
-	{ flat: "wait_agent", alias: "mcp__codex_subagents__wait_agent" },
-];
-const once = rewriteNameReferences("call spawn_agent then wait_agent", renames);
-assert.equal(once, "call mcp__codex_subagents__spawn_agent then mcp__codex_subagents__wait_agent");
-assert.equal(rewriteNameReferences(once, renames), once);
-
-// Single-word tool names are English words too. The stock prompt guideline below talks about
-// shell commands, and rewriting it fed the model "like mcp__local__ls, rg, mcp__local__find".
-// Bare mentions of a single-word name stay put, backticks mean the tool is meant.
-const wordNames = [
+// Only a declaration at line start is renamed, and renaming it twice is a no-op. Prose is left
+// alone: the stock guideline below is about the shell commands, and rewriting mentions fed the
+// model "like mcp__local__ls, rg, mcp__local__find".
+const declRenames = [
 	{ flat: "ls", alias: "mcp__local__ls" },
 	{ flat: "find", alias: "mcp__local__find" },
-	{ flat: "handoff", alias: "mcp__handoff__handoff" },
+	{ flat: "spawn_agent", alias: "mcp__codex_subagents__spawn_agent" },
 ];
-const guideline = "Use bash for file operations like ls, rg, find";
-assert.equal(rewriteNameReferences(guideline, wordNames), guideline);
-assert.equal(rewriteNameReferences("a clean handoff of the work", wordNames), "a clean handoff of the work");
-assert.equal(rewriteNameReferences("call `handoff` first", wordNames), "call `mcp__handoff__handoff` first");
-// Identifier-shaped names are rewritten either way, and both passes stay idempotent.
-const mixed = rewriteNameReferences("`wait_agent` or spawn_agent, then `handoff`", [...renames, ...wordNames]);
-assert.equal(
-	mixed,
-	"`mcp__codex_subagents__wait_agent` or mcp__codex_subagents__spawn_agent, then `mcp__handoff__handoff`",
-);
-assert.equal(rewriteNameReferences(mixed, [...renames, ...wordNames]), mixed);
+const declared = rewriteToolDeclarations("- ls: List directory contents\n- find: Find files by glob pattern", declRenames);
+assert.equal(declared, "- mcp__local__ls: List directory contents\n- mcp__local__find: Find files by glob pattern");
+assert.equal(rewriteToolDeclarations(declared, declRenames), declared);
+const prose = "Use bash for file operations like ls, rg, find. Call `spawn_agent` or ls - now.";
+assert.equal(rewriteToolDeclarations(prose, declRenames), prose);
 
 // Streaming unalias mutates the toolCall blocks in place (the TUI reads the same
 // objects when it creates tool rows mid-stream), leaving foreign names alone.

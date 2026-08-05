@@ -1,7 +1,8 @@
 import { basename, dirname } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-const PROVIDER_TOOL_NAME_PATTERN = /^[a-zA-Z0-9_-]{1,128}$/;
+const PROVIDER_TOOL_NAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
+const MAX_TOOL_NAME_LENGTH = 128;
 const WRAPPER_DIRS = new Set(["extensions", "dist", "src", "build"]);
 const FALLBACK_NAMESPACE = "local";
 
@@ -54,25 +55,22 @@ function escapeRegExp(text: string): string {
 	return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-// INFO: fc 02aug26 a bare single-word tool name collides with English prose (a guideline about
-// the shell commands ls and find became one about mcp__local__ls), so only identifier-shaped
-// names are rewritten bare. Backticks mark a name as a tool name whatever its shape.
-// A flat name inside its own alias has no word boundary before it (mcp__ns__name), so repeated
-// rewrites are no-ops.
-export function rewriteNameReferences(text: string, renames: AliasEntry[]): string {
+// INFO: fc 05aug26 pi's default prompt declares one line per tool under "Available tools",
+// `- <name>: <snippet>`, so an aliased tool would be declared under a name this payload no
+// longer carries. Only that declaration is renamed, anchored to line start. Prose mentioning a
+// tool is left alone: the schema is what the model calls from, and a bare single-word name is
+// an English word too (a guideline about the shell commands ls and find became one about
+// mcp__local__ls).
+export function rewriteToolDeclarations(text: string, renames: AliasEntry[]): string {
 	let result = text;
 	for (const { flat, alias } of renames) {
-		const escaped = escapeRegExp(flat);
-		result = result.replace(new RegExp(`\`${escaped}\``, "g"), `\`${alias}\``);
-		if (flat.includes("_")) {
-			result = result.replace(new RegExp(`\\b${escaped}\\b`, "g"), alias);
-		}
+		result = result.replace(new RegExp(`^- ${escapeRegExp(flat)}:`, "gm"), `- ${alias}:`);
 	}
 	return result;
 }
 
 export function rewriteSystemField(system: unknown, renames: AliasEntry[]): unknown {
-	const rewrite = (text: string) => rewriteNameReferences(rewritePromptText(text), renames);
+	const rewrite = (text: string) => rewriteToolDeclarations(rewritePromptText(text), renames);
 	if (typeof system === "string") return rewrite(system);
 	if (!Array.isArray(system)) return system;
 	return system.map((block) => {
@@ -98,18 +96,28 @@ export function namespaceFrom(sourceInfo?: { path?: string; baseDir?: string }):
 	return FALLBACK_NAMESPACE;
 }
 
+// INFO: fc 05aug26 the namespace is what gets truncated when the alias would exceed the
+// provider's name limit: the flat name has to survive whole, it is what the model reads and
+// what routes the call back to the right tool.
+function aliasFor(name: string, sourceInfo?: { path?: string; baseDir?: string }): string | undefined {
+	const room = MAX_TOOL_NAME_LENGTH - "mcp____".length - name.length;
+	if (room < 1) return undefined;
+	const alias = `mcp__${namespaceFrom(sourceInfo).slice(0, room)}__${name}`;
+	return PROVIDER_TOOL_NAME_PATTERN.test(alias) ? alias : undefined;
+}
+
 // INFO: fc 05aug26 candidates only. Which ones apply is decided per request in transformPayload,
-// because only the outgoing payload says which names the transport accepts unaliased.
+// because only the outgoing payload says which names the transport accepts unaliased. Keyed by
+// the exact registered name, so two tools differing only in case keep separate aliases.
 export function buildAliasIndex(
 	tools: Array<{ name: string; sourceInfo?: { path?: string; baseDir?: string } }>,
 ): Map<string, AliasEntry> {
 	const index = new Map<string, AliasEntry>();
 	for (const tool of tools) {
-		const nameLc = lower(tool.name);
-		if (!nameLc || nameLc.startsWith("mcp__")) continue;
-		const alias = `mcp__${namespaceFrom(tool.sourceInfo)}__${tool.name}`;
-		if (!PROVIDER_TOOL_NAME_PATTERN.test(alias)) continue;
-		index.set(nameLc, { flat: tool.name, alias });
+		if (!tool.name || lower(tool.name).startsWith("mcp__")) continue;
+		const alias = aliasFor(tool.name, tool.sourceInfo);
+		if (!alias) continue;
+		index.set(tool.name, { flat: tool.name, alias });
 	}
 	return index;
 }
@@ -133,13 +141,13 @@ export function transformPayload(
 	// this beats copying the transport's private allowlist, where a stale copy would silently drop
 	// an alias and get the request rejected.
 	const resolve = (name: string): string | undefined => {
-		const committed = maps.aliasByFlat.get(lower(name));
+		const committed = maps.aliasByFlat.get(name);
 		if (committed) return committed;
-		const candidate = aliasIndex.get(lower(name));
-		if (!candidate || candidate.flat !== name) return undefined;
+		const candidate = aliasIndex.get(name);
+		if (!candidate) return undefined;
 		if (advertised.has(lower(candidate.alias))) return undefined;
-		maps.aliasByFlat.set(lower(candidate.flat), candidate.alias);
-		maps.flatByAlias.set(lower(candidate.alias), candidate.flat);
+		maps.aliasByFlat.set(candidate.flat, candidate.alias);
+		maps.flatByAlias.set(candidate.alias, candidate.flat);
 		return candidate.alias;
 	};
 
@@ -147,7 +155,7 @@ export function transformPayload(
 		if (isPlainObject(tool) && typeof tool.name === "string") resolve(tool.name);
 	}
 
-	const renames = [...aliasIndex.values()].filter((entry) => maps.flatByAlias.get(lower(entry.alias)) === entry.flat);
+	const renames = [...aliasIndex.values()].filter((entry) => maps.flatByAlias.get(entry.alias) === entry.flat);
 
 	if (payload.system !== undefined) {
 		payload.system = rewriteSystemField(payload.system, renames);
@@ -158,15 +166,7 @@ export function transformPayload(
 			if (!isPlainObject(tool) || typeof tool.name !== "string") return tool;
 			if (typeof tool.type === "string" && tool.type.trim().length > 0) return tool;
 			const alias = resolve(tool.name);
-			const description =
-				typeof tool.description === "string" ? rewriteNameReferences(tool.description, renames) : undefined;
-			const descriptionChanged = description !== undefined && description !== tool.description;
-			if (!alias && !descriptionChanged) return tool;
-			return {
-				...tool,
-				...(alias ? { name: alias } : {}),
-				...(descriptionChanged ? { description } : {}),
-			};
+			return alias ? { ...tool, name: alias } : tool;
 		});
 	}
 
@@ -238,7 +238,7 @@ export function unaliasToolCallsInPlace(message: unknown, maps: AliasMaps): void
 	if (!isPlainObject(message) || message.role !== "assistant" || !Array.isArray(message.content)) return;
 	for (const block of message.content) {
 		if (!isPlainObject(block) || block.type !== "toolCall" || typeof block.name !== "string") continue;
-		const flat = maps.flatByAlias.get(lower(block.name));
+		const flat = maps.flatByAlias.get(block.name);
 		if (flat && flat !== block.name) block.name = flat;
 	}
 }
@@ -251,7 +251,7 @@ export function unaliasAssistantMessage(message: unknown, maps: AliasMaps): Reco
 	let changed = false;
 	const content = message.content.map((block) => {
 		if (!isPlainObject(block) || block.type !== "toolCall" || typeof block.name !== "string") return block;
-		const flat = maps.flatByAlias.get(lower(block.name));
+		const flat = maps.flatByAlias.get(block.name);
 		if (!flat || flat === block.name) return block;
 		changed = true;
 		return { ...block, name: flat };
