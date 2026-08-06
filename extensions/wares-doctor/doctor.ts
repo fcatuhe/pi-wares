@@ -22,9 +22,22 @@ interface Target {
 }
 
 interface Finding {
+	kind: "value" | "members" | "entry";
 	path: string[];
 	state: "ok" | "missing" | "incomplete" | "diverged";
+	identity?: string;
+	expected?: unknown;
 	blocked?: string;
+}
+
+export interface Note {
+	tone: "text" | "warning";
+	text: string;
+}
+
+export interface Report {
+	rows: string[];
+	notes: Note[];
 }
 
 interface Inspection {
@@ -44,29 +57,42 @@ export function runDoctor(pi: ExtensionAPI, args: string, ctx: ExtensionCommandC
 	}
 
 	try {
-		pi.appendEntry<string[]>(REPORT_ENTRY, report(mode));
+		pi.appendEntry<Report>(REPORT_ENTRY, report(mode));
 	} catch (err) {
 		ctx.ui.notify(`${COMMAND} failed: ${err instanceof Error ? err.message : String(err)}`, "error");
 	}
 }
 
-export function report(mode: string): string[] {
+export function report(mode: string): Report {
 	const apply = mode !== "";
 	const force = mode === FORCE;
 	const inspections = targets().map((target) => inspect(target, force));
 	const pending = inspections.filter((it) => needsWrite(it, force));
 	if (apply) for (const inspection of pending) write(inspection);
 
-	const lines = describe(inspections, apply, force);
-	if (apply) return lines;
+	const notes: Note[] = [];
+	if (!apply) {
+		const total = pending.reduce((sum, it) => sum + (it.missing ? 1 : writable(it, false)), 0);
+		if (total > 0) notes.push({ tone: "text", text: `${total} to add. Re-run as /${COMMAND} ${APPLY} to write them.` });
+	}
+	const kept = force ? [] : inspections.flatMap(keptNames);
+	if (kept.length > 0) {
+		notes.push({
+			tone: "warning",
+			text: `${kept.length} kept as yours: ${kept.join(", ")}. /${COMMAND} ${FORCE} takes the reference instead.`,
+		});
+	}
+	return { rows: describe(inspections, apply, force), notes };
+}
 
-	const total = pending.reduce((sum, it) => sum + (it.missing ? 1 : writable(it, false)), 0);
-	const kept = inspections.reduce((sum, it) => sum + keeping(it), 0);
-	return [
-		...lines,
-		...(total > 0 ? [`${total} to add. Re-run as /${COMMAND} ${APPLY} to write them.`] : []),
-		...(kept > 0 ? [`${kept} kept as yours. /${COMMAND} ${FORCE} takes the reference instead.`] : []),
-	];
+function keptNames(inspection: Inspection): string[] {
+	return inspection.findings.filter(diverging).map((finding) => `${inspection.target.label} ${name(finding)}`);
+}
+
+function name(finding: Finding): string {
+	const path = finding.path.join(".");
+	if (finding.kind !== "entry" || !finding.identity) return path;
+	return `${path}[${(finding.expected as Record<string, unknown>)[finding.identity]}]`;
 }
 
 // INFO: fc 06aug26 read per call, not at load: PI_CODING_AGENT_DIR and XDG_CONFIG_HOME are what the self-check points at a temp dir
@@ -150,7 +176,11 @@ function writable(inspection: Inspection, force: boolean): number {
 }
 
 function keeping(inspection: Inspection): number {
-	return inspection.findings.filter((finding) => !finding.blocked && finding.state === "diverged").length;
+	return inspection.findings.filter(diverging).length;
+}
+
+function diverging(finding: Finding): boolean {
+	return !finding.blocked && finding.state === "diverged";
 }
 
 function width(strings: string[]): number {

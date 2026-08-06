@@ -2,11 +2,16 @@ import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-c
 import type { AutocompleteItem } from "@earendil-works/pi-tui";
 import { Text } from "@earendil-works/pi-tui";
 
-import { APPLY, COMMAND, FORCE, MODES, REPORT_ENTRY, runDoctor } from "./doctor.ts";
+import { APPLY, COMMAND, FORCE, MODES, type Report, REPORT_ENTRY, runDoctor } from "./doctor.ts";
 
 export default function (pi: ExtensionAPI) {
-	pi.registerEntryRenderer<string[]>(REPORT_ENTRY, (entry, _options, theme) => {
-		const body = [theme.fg("accent", `/${COMMAND}`), ...(entry.data ?? [])].join("\n");
+	pi.registerEntryRenderer<Report>(REPORT_ENTRY, (entry, _options, theme) => {
+		const { rows = [], notes = [] } = entry.data ?? {};
+		const body = [
+			theme.fg("accent", `/${COMMAND}`),
+			...rows,
+			...notes.map((note) => theme.fg(note.tone, note.text)),
+		].join("\n");
 		return new Text(body, 1, 1, (text) => theme.bg("customMessageBg", text));
 	});
 

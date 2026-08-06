@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseTOML } from "toml-eslint-parser";
 
-import { APPLY, FORCE, report, runDoctor } from "./doctor.ts";
+import { APPLY, FORCE, report, type Report, runDoctor } from "./doctor.ts";
 import { reconcileJson } from "./json-defaults.js";
 import { reconcileToml } from "./toml-defaults.js";
 
@@ -133,41 +133,60 @@ function bareMachine(): string {
 
 const home = bareMachine();
 const bare = report("");
-assert.match(bare.join("\n"), /4 to add/, "a bare machine did not report every target");
-// One line per file, then the closing count, nothing per key.
-assert.equal(bare.length, 5, "the report is no longer one line per file");
-assert.match(bare[0], /^pi settings +create /, "the report lost its one-line shape");
+assert.deepEqual(
+  bare.notes.map((note) => note.tone),
+  ["text"],
+  "a bare machine has nothing to keep, so it gets one note",
+);
+assert.match(bare.notes[0].text, /4 to add/, "a bare machine did not report every target");
+// One line per file, nothing per key.
+assert.equal(bare.rows.length, 4, "the report is no longer one line per file");
+assert.match(bare.rows[0], /^pi settings +create /, "the report lost its one-line shape");
 
 const applied = report(APPLY);
-assert.match(applied[0], /pi settings +created .*settings\.json {2}\(restart pi\)/, "apply lost the one-line shape");
-assert.equal(applied.length, 4, "apply printed more than one line per file");
-assert.doesNotMatch(report("").join("\n"), /add/, "the applied config still reports work");
+assert.match(applied.rows[0], /pi settings +created .*settings\.json {2}\(restart pi\)/, "apply lost the one-line shape");
+assert.equal(applied.rows.length, 4, "apply printed more than one line per file");
+assert.deepEqual(report("").notes, [], "the applied config still reports work");
 const root = join(import.meta.dirname, "..", "..");
 for (const file of ["agent/settings.json", "agent/extensions/pi-model-shortcuts.json", "config/herdr/config.toml"]) {
   const source = file.startsWith("agent/") ? `config/pi/${file.slice("agent/".length)}` : "config/herdr/config.toml";
   assert.equal(readFileSync(join(home, file), "utf-8"), readFileSync(join(root, source), "utf-8"), `${file} is not the reference`);
 }
 
-// A machine that diverged: the report offers force, force says what it replaced, and a second force is quiet.
+// A machine that diverged: the report names the key it kept, in warning tone, and offers force.
 const settings = join(home, "agent/settings.json");
 writeFileSync(settings, readFileSync(settings, "utf-8").replace(`"high"`, `"low"`));
 const diverging = report("");
-assert.match(diverging.at(-1)!, new RegExp(`1 kept as yours\\. /wares-doctor ${FORCE}`), "the report never mentions force");
-assert.match(diverging[0], /pi settings +kept 1, ok /, "a diverged key is no longer reported as kept");
+const kept = diverging.notes.at(-1)!;
+assert.match(
+  kept.text,
+  new RegExp(`1 kept as yours: pi settings defaultThinkingLevel\\. /wares-doctor ${FORCE}`),
+  "the report does not say which value it kept, or never mentions force",
+);
+assert.equal(kept.tone, "warning", "keeping the user's own value is a warning, not an error");
+assert.match(diverging.rows[0], /pi settings +kept 1, ok /, "a diverged key is no longer reported as kept");
+
+// apply keeps that value and still says so: the note is not a report-only footer.
+const keptOnApply = report(APPLY);
+assert.deepEqual(keptOnApply.notes, [kept], "apply dropped the kept note");
+assert.match(readFileSync(settings, "utf-8"), /"defaultThinkingLevel": "low"/, "apply overwrote a value the user set");
+
+// force says what it replaced, has nothing left to keep, and a second force is quiet.
 const replaced = report(FORCE);
-assert.match(replaced[0], /pi settings +replaced 1, ok .*\(restart pi\)/, "force did not report what it replaced");
+assert.match(replaced.rows[0], /pi settings +replaced 1, ok .*\(restart pi\)/, "force did not report what it replaced");
+assert.deepEqual(replaced.notes, [], "force still offers to take what it just took");
 assert.match(readFileSync(settings, "utf-8"), /"defaultThinkingLevel": "high"/, "force did not write the reference value");
-assert.equal(report(FORCE).length, 4, "a forced machine still has work to do");
+assert.equal(report(FORCE).rows.length, 4, "a forced machine still has work to do");
 
 // The command itself: a report becomes one custom entry, and bad input touches nothing.
 interface Run {
-  entries: string[][];
+  entries: Report[];
   notices: [string, string | undefined][];
 }
 
 function command() {
   const run: Run = { entries: [], notices: [] };
-  const pi = { appendEntry: (_customType: string, data: string[]) => run.entries.push(data) };
+  const pi = { appendEntry: (_customType: string, data: Report) => run.entries.push(data) };
   const ctx = { ui: { notify: (message: string, type?: string) => run.notices.push([message, type]) } };
   return { run, call: (args: string) => runDoctor(pi as any, args, ctx as any) };
 }
@@ -177,11 +196,11 @@ bareMachine();
 const reported = command();
 reported.call("");
 assert.deepEqual(reported.run.notices, [], "a clean report was reported as a failure");
-assert.match(reported.run.entries[0][0], /^pi settings +create /, "the entry did not carry the report");
+assert.match(reported.run.entries[0].rows[0], /^pi settings +create /, "the entry did not carry the report");
 
 const applying = command();
 applying.call(` ${APPLY} `);
-assert.match(applying.run.entries[0][0], /created .*\(restart pi\)/, "apply left no trace in the report");
+assert.match(applying.run.entries[0].rows[0], /created .*\(restart pi\)/, "apply left no trace in the report");
 
 const unknown = command();
 unknown.call("--apply");

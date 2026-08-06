@@ -29,7 +29,7 @@ One package, individual wares toggled in `pi config`.
 /wares-doctor force   # add it, and overwrite what you set differently
 ```
 
-`apply` only ever adds: a key you set differently comes back as `kept`, and the report says how many. `force` is the one that takes the reference over your value, key by key, leaving keys the reference never mentions alone. Edits splice into the existing text so comments and formatting survive. No backups, git holds the reference.
+`apply` only ever adds: a key you set differently comes back as `kept`, and every run names which ones. `force` is the one that takes the reference over your value, key by key, leaving keys the reference never mentions alone. Edits splice into the existing text so comments and formatting survive. No backups, git holds the reference.
 
 ## macOS App
 
