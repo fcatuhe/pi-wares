@@ -10,8 +10,35 @@ import { reconcileToml } from "./toml-defaults.js";
 export const COMMAND = "wares-doctor";
 export const APPLY = "apply";
 export const FORCE = "force";
-export const MODES = [APPLY, FORCE];
 export const REPORT_ENTRY = "wares-doctor-report";
+
+export interface DoctorCommand {
+	name: string;
+	mode: string;
+	description: string;
+}
+
+export const COMMANDS: DoctorCommand[] = [
+	{
+		name: commandName(""),
+		mode: "",
+		description: "Compare this machine against the wares reference config",
+	},
+	{
+		name: commandName(APPLY),
+		mode: APPLY,
+		description: "Write the reference keys this machine is missing, keeping the values you set",
+	},
+	{
+		name: commandName(FORCE),
+		mode: FORCE,
+		description: "Write those, and overwrite the keys where you differ from the reference",
+	},
+];
+
+function commandName(mode: string): string {
+	return mode === "" ? COMMAND : `${COMMAND}:${mode}`;
+}
 
 interface Target {
 	label: string;
@@ -36,6 +63,7 @@ export interface Note {
 }
 
 export interface Report {
+	command: string;
 	rows: string[];
 	notes: Note[];
 }
@@ -49,17 +77,16 @@ interface Inspection {
 
 const ROOT = join(import.meta.dirname, "..", "..");
 
-export function runDoctor(pi: ExtensionAPI, args: string, ctx: ExtensionCommandContext): void {
-	const mode = args.trim();
-	if (mode !== "" && !MODES.includes(mode)) {
-		ctx.ui.notify(`${COMMAND}: unknown argument ${mode}, expected "${APPLY}" or "${FORCE}"`, "warning");
+export function runDoctor(pi: ExtensionAPI, command: DoctorCommand, args: string, ctx: ExtensionCommandContext): void {
+	if (args.trim() !== "") {
+		ctx.ui.notify(`${command.name}: takes no argument, got ${args.trim()}`, "warning");
 		return;
 	}
 
 	try {
-		pi.appendEntry<Report>(REPORT_ENTRY, report(mode));
+		pi.appendEntry<Report>(REPORT_ENTRY, report(command.mode));
 	} catch (err) {
-		ctx.ui.notify(`${COMMAND} failed: ${err instanceof Error ? err.message : String(err)}`, "error");
+		ctx.ui.notify(`${command.name} failed: ${err instanceof Error ? err.message : String(err)}`, "error");
 	}
 }
 
@@ -73,23 +100,23 @@ export function report(mode: string): Report {
 	const notes: Note[] = [];
 	if (!apply) {
 		const total = pending.reduce((sum, it) => sum + (it.missing ? 1 : writable(it, false)), 0);
-		if (total > 0) notes.push({ tone: "text", text: `${total} to add. Re-run as /${COMMAND} ${APPLY} to write them.` });
+		if (total > 0) notes.push({ tone: "text", text: `${total} to add. Run /${commandName(APPLY)} to write them.` });
 	}
 	const kept = force ? [] : inspections.flatMap(keptNames);
 	if (kept.length > 0) {
 		notes.push({
 			tone: "warning",
-			text: `${kept.length} kept as yours: ${kept.join(", ")}. /${COMMAND} ${FORCE} takes the reference instead.`,
+			text: `${kept.length} kept as yours: ${kept.join(", ")}. /${commandName(FORCE)} takes the reference instead.`,
 		});
 	}
-	return { rows: describe(inspections, apply, force), notes };
+	return { command: commandName(mode), rows: describe(inspections, apply, force), notes };
 }
 
 function keptNames(inspection: Inspection): string[] {
-	return inspection.findings.filter(diverging).map((finding) => `${inspection.target.label} ${name(finding)}`);
+	return inspection.findings.filter(diverging).map((finding) => `${inspection.target.label} ${keptName(finding)}`);
 }
 
-function name(finding: Finding): string {
+function keptName(finding: Finding): string {
 	const path = finding.path.join(".");
 	if (finding.kind !== "entry" || !finding.identity) return path;
 	return `${path}[${(finding.expected as Record<string, unknown>)[finding.identity]}]`;

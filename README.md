@@ -25,11 +25,11 @@ One package, individual wares toggled in `pi config`.
 
 ```text
 /wares-doctor         # report what is missing
-/wares-doctor apply   # add it
-/wares-doctor force   # add it, and overwrite what you set differently
+/wares-doctor:apply   # add it
+/wares-doctor:force   # add it, and overwrite what you set differently
 ```
 
-`apply` only ever adds: a key you set differently comes back as `kept`, and every run names which ones. `force` is the one that takes the reference over your value, key by key, leaving keys the reference never mentions alone. Edits splice into the existing text so comments and formatting survive. No backups, git holds the reference.
+`:apply` only ever adds: a key you set differently comes back as `kept`, and every run names which ones. `:force` is the one that takes the reference over your value, key by key, leaving keys the reference never mentions alone. Edits splice into the existing text so comments and formatting survive. No backups, git holds the reference.
 
 ## macOS App
 
@@ -76,7 +76,7 @@ Some skills drive CLIs this package does not install:
 | [`handoff/`](./extensions/handoff/) | `/handoff <goal>` starts a new linked session with an LLM-written brief. |
 | [`gpt-behavior/`](./extensions/gpt-behavior/) | Appends a behavior guide to the system prompt, GPT models only. |
 | [`policies/`](./extensions/policies/) | House rules in the system prompt: `always/` everywhere, `when/` per marker file. |
-| [`wares-doctor/`](./extensions/wares-doctor/) | `/wares-doctor` runs the machine setup check in-session, `apply` writes what is missing, `force` also overwrites what differs. |
+| [`wares-doctor/`](./extensions/wares-doctor/) | `/wares-doctor` runs the machine setup check in-session, `/wares-doctor:apply` writes what is missing, `/wares-doctor:force` also overwrites what differs. |
 | [`anthropic-token-login/`](./extensions/anthropic-token-login/) | Adds a `sk-ant-oat01` token method to Anthropic's `/login`: one paste, good for a year. |
 
 ## Skills

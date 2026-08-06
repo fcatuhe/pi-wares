@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseTOML } from "toml-eslint-parser";
 
-import { APPLY, FORCE, report, type Report, runDoctor } from "./doctor.ts";
+import { APPLY, COMMANDS, FORCE, report, type Report, runDoctor } from "./doctor.ts";
 import { reconcileJson } from "./json-defaults.js";
 import { reconcileToml } from "./toml-defaults.js";
 
@@ -138,7 +138,7 @@ assert.deepEqual(
   ["text"],
   "a bare machine has nothing to keep, so it gets one note",
 );
-assert.match(bare.notes[0].text, /4 to add/, "a bare machine did not report every target");
+assert.match(bare.notes[0].text, /^4 to add\. Run \/wares-doctor:apply /, "a bare machine did not report every target");
 // One line per file, nothing per key.
 assert.equal(bare.rows.length, 4, "the report is no longer one line per file");
 assert.match(bare.rows[0], /^pi settings +create /, "the report lost its one-line shape");
@@ -160,7 +160,7 @@ const diverging = report("");
 const kept = diverging.notes.at(-1)!;
 assert.match(
   kept.text,
-  new RegExp(`1 kept as yours: pi settings defaultThinkingLevel\\. /wares-doctor ${FORCE}`),
+  new RegExp(`1 kept as yours: pi settings defaultThinkingLevel\\. /wares-doctor:${FORCE} `),
   "the report does not say which value it kept, or never mentions force",
 );
 assert.equal(kept.tone, "warning", "keeping the user's own value is a warning, not an error");
@@ -178,34 +178,47 @@ assert.deepEqual(replaced.notes, [], "force still offers to take what it just to
 assert.match(readFileSync(settings, "utf-8"), /"defaultThinkingLevel": "high"/, "force did not write the reference value");
 assert.equal(report(FORCE).rows.length, 4, "a forced machine still has work to do");
 
+// One command per mode, so the palette shows all three rather than hiding two behind an argument.
+assert.deepEqual(
+  COMMANDS.map((it) => it.name),
+  ["wares-doctor", "wares-doctor:apply", "wares-doctor:force"],
+  "the registered command names changed",
+);
+
 // The command itself: a report becomes one custom entry, and bad input touches nothing.
 interface Run {
   entries: Report[];
   notices: [string, string | undefined][];
 }
 
+const byMode = new Map(COMMANDS.map((it) => [it.mode, it]));
+
 function command() {
   const run: Run = { entries: [], notices: [] };
   const pi = { appendEntry: (_customType: string, data: Report) => run.entries.push(data) };
   const ctx = { ui: { notify: (message: string, type?: string) => run.notices.push([message, type]) } };
-  return { run, call: (args: string) => runDoctor(pi as any, args, ctx as any) };
+  return { run, call: (mode: string, args = "") => runDoctor(pi as any, byMode.get(mode)!, args, ctx as any) };
 }
 
-// The state column is what says whether a run wrote, so the entry carries no flag of its own.
+// The entry names the command that produced it, so a force run is not read as a plain report.
 bareMachine();
 const reported = command();
 reported.call("");
 assert.deepEqual(reported.run.notices, [], "a clean report was reported as a failure");
+assert.equal(reported.run.entries[0].command, "wares-doctor");
 assert.match(reported.run.entries[0].rows[0], /^pi settings +create /, "the entry did not carry the report");
 
 const applying = command();
-applying.call(` ${APPLY} `);
+applying.call(APPLY);
+assert.equal(applying.run.entries[0].command, "wares-doctor:apply");
 assert.match(applying.run.entries[0].rows[0], /created .*\(restart pi\)/, "apply left no trace in the report");
 
-const unknown = command();
-unknown.call("--apply");
-assert.deepEqual(unknown.run.entries, [], "an unknown argument still ran the check");
-assert.equal(unknown.run.notices[0][1], "warning");
+// The mode is the command now, so anything typed after it is a mistake worth saying out loud.
+const unwanted = command();
+unwanted.call(APPLY, " --now ");
+assert.deepEqual(unwanted.run.entries, [], "an argument still ran the check");
+assert.equal(unwanted.run.notices[0][1], "warning");
+assert.match(unwanted.run.notices[0][0], /^wares-doctor:apply: takes no argument, got --now$/);
 
 // A machine where the target directory cannot exist: say so, never draw a blank card.
 const file = join(home, "not-a-dir");
@@ -215,6 +228,6 @@ const broken = command();
 broken.call(APPLY);
 assert.deepEqual(broken.run.entries, [], "a failed run still appended a report");
 assert.equal(broken.run.notices[0][1], "error");
-assert.match(broken.run.notices[0][0], /^wares-doctor failed: /);
+assert.match(broken.run.notices[0][0], /^wares-doctor:apply failed: /);
 
 console.log("wares-doctor: ok");
