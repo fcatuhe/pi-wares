@@ -2,53 +2,65 @@
 
 A small personal stash of extensions and skills for [pi-coding-agent](https://github.com/earendil-works/pi-mono), plus the pi and herdr config they assume.
 
-## Requirements
-
-pi itself, and [herdr](https://herdr.dev) for the terminal side of the setup:
-
-```bash
-curl -fsSL https://pi.dev/install.sh | sh
-curl -fsSL https://herdr.dev/install.sh | sh
-```
-
-Both self-update afterwards, `pi update` and `herdr update`.
-
 ## Install
 
 ```bash
+curl -fsSL https://pi.dev/install.sh | sh     # pi
+curl -fsSL https://herdr.dev/install.sh | sh  # herdr, the terminal we run pi in
 pi install git:github.com/fcatuhe/pi-wares
 ```
 
-One package, individual wares toggled in `pi config`.
+One package, individual wares toggled in `pi config`. Both CLIs self-update: `pi update`, `herdr update`.
 
-## Settings
+## Machine setup
 
 [`config/`](./config/README.md) holds the pi and herdr configuration the wares assume. `bin/wares-doctor` compares this machine against it:
 
 ```bash
-~/.pi/agent/git/github.com/fcatuhe/pi-wares/bin/wares-doctor
-~/.pi/agent/git/github.com/fcatuhe/pi-wares/bin/wares-doctor --apply
+~/.pi/agent/git/github.com/fcatuhe/pi-wares/bin/wares-doctor          # report, non-zero if incomplete
+~/.pi/agent/git/github.com/fcatuhe/pi-wares/bin/wares-doctor --apply  # add what is missing
 ```
 
-Reports by default, exits non-zero when something is missing. `--apply` only ever adds: a key you set differently comes back as `kept`, and edits splice into the existing text so comments and formatting survive. No backups, git holds the reference and your own file only ever gains keys.
+`--apply` only ever adds: a key you set differently comes back as `kept`, and edits splice into the existing text so comments and formatting survive. No backups, git holds the reference.
 
-## External CLIs
+### External CLIs
 
 Some skills drive CLIs this package does not install:
 
-- **`gog`**: the [`gog` CLI](https://github.com/openclaw/gogcli), install per its README.
-- **`outline-cli`**: `npm install -g @doist/outline-cli`
-- **`agent-browser`**: `npm install -g agent-browser && agent-browser install` (the second command downloads its own Chrome). The skill is a stub pointing at `agent-browser skills get core`, so keep the CLI current: `npm i -g agent-browser` again to update.
+- **`gog`**: the [`gog` CLI](https://github.com/openclaw/gogcli), install per its README. Needs your own Google Cloud OAuth "Desktop app" client: download its `credentials.json`, then `gog auth credentials set credentials.json` and `gog auth add you@example.com`.
+- **`outline-cli`**: `npm i -g @doist/outline-cli`, then `ol auth token <token>` with a personal token from Settings > API. `ol auth login` also works, but those tokens expire.
+- **`agent-browser`**: `npm i -g agent-browser && agent-browser install` (the second downloads its own Chrome). The skill is a stub pointing at `agent-browser skills get core`, so keep the CLI current.
 
-## Credentials
-
-Everything works out of the box except three skills:
+### Keys
 
 - **`brave-search`** needs `BRAVE_API_KEY` in your shell profile. Free tier at [api-dashboard.search.brave.com](https://api-dashboard.search.brave.com/register): create a "Free AI" subscription (card required, not charged), then an API key.
-- **`gog`** needs your own Google Cloud OAuth client: create a project in the [Google Cloud console](https://console.cloud.google.com/), enable the APIs you'll use (Gmail, Calendar, Drive, ...), create an OAuth "Desktop app" client, download its `credentials.json`, then `gog auth credentials set credentials.json` and `gog auth add you@example.com`. No env var in normal use.
-- **`outline-cli`** needs `ol auth login` (OAuth, tokens expire) or `ol auth token <token>` with a personal API token from your Outline instance's Settings > API (doesn't expire, better for agents).
+- **`oauth-tool-alias`** and **`usage-pace`** reuse pi's own credentials (`/login`, `~/.pi/agent/auth.json`) and need no setup.
 
-The extensions that touch provider auth (`oauth-tool-alias`, `usage-pace`) reuse pi's own credentials (`/login`, `~/.pi/agent/auth.json`) and need no setup.
+### Claude without a browser
+
+On an unattended box `/login` has no browser for its authorization page. Mint a [long-lived token](https://code.claude.com/docs/en/authentication) where one exists:
+
+```bash
+npx -y @anthropic-ai/claude-code@latest setup-token
+```
+
+pi reads it from the environment, so put it wherever that box keeps secrets: a `chmod 600` file the shell profile sources, a systemd `EnvironmentFile=`, the CI secret store.
+
+```bash
+export ANTHROPIC_OAUTH_TOKEN=sk-ant-oat01-...
+```
+
+Good for a year, with no refresh token behind it. Revocation, a password change or expiry all land as Anthropic's own `401 OAuth access token is invalid`, and the fix is a new token.
+
+## macOS app
+
+We run pi through [herdr](https://herdr.dev), so the terminal is part of the setup rather than scenery around it.
+
+| Folder | What it does |
+|---|---|
+| [`herdr-app/`](./herdr-app/) | Builds `~/Applications/Herdr.app`: a Ghostty bundle rebranded as Herdr, opening straight into the herdr session, with its own Dock icon and name. |
+
+pi loads nothing from it. One `./herdr-app/build.sh` per machine, and again only when the launcher or the logo changes, not on Ghostty updates.
 
 ## Wares
 
@@ -75,8 +87,8 @@ Loaded on demand rather than injected, so they can be as long as they need to be
 | [`brave-search/`](./skills/brave-search/SKILL.md) | Web search and page-to-markdown extraction through the Brave Search API. Needs `BRAVE_API_KEY`. |
 | [`exa-search/`](./skills/exa-search/SKILL.md) | Web search and content extraction via Exa's keyless MCP endpoint. No key or browser needed. |
 | [`gog/`](./skills/gog/SKILL.md) | Safe [`gog`](https://github.com/openclaw/gogcli) Google Workspace automation: auth state, JSON output, scoped reads and writes. |
-| [`outline-cli/`](./skills/outline-cli/SKILL.md) | Search and manage [Outline](https://www.getoutline.com) wiki documents and collections via the [`ol`](https://github.com/Doist/outline-cli) CLI. Needs `ol` installed. |
-| [`agent-browser/`](./skills/agent-browser/SKILL.md) | Browser automation via the [`agent-browser`](https://github.com/vercel-labs/agent-browser) CLI. Needs `agent-browser` installed. |
+| [`outline-cli/`](./skills/outline-cli/SKILL.md) | Search and manage [Outline](https://www.getoutline.com) wiki documents and collections via the [`ol`](https://github.com/Doist/outline-cli) CLI. |
+| [`agent-browser/`](./skills/agent-browser/SKILL.md) | Browser automation via the [`agent-browser`](https://github.com/vercel-labs/agent-browser) CLI. |
 
 ### Vendored skills
 
@@ -85,11 +97,11 @@ Copies of upstream skills, so one install covers them. They drift, resync delibe
 | Skill | Upstream | Copied at |
 |---|---|---|
 | `brave-search/` | [badlogic/pi-skills](https://github.com/badlogic/pi-skills) (MIT) | `90bb51c`, minus the `npm install` setup step |
-| `gog/` | [openclaw/gogcli](https://github.com/openclaw/gogcli) `.agents/skills/gog/` (MIT) | `v0.34.1`, verbatim. Track the installed `gog --version`: the skill documents flags the CLI only gained in that release. |
-| `outline-cli/` | [Doist/outline-cli](https://github.com/Doist/outline-cli) (MIT), embedded in the CLI, written by `ol skill install pi` | `v1.10.2`, verbatim. Resync after `ol update` when the skill drifts: `ol skill install pi` regenerates it into `~/.pi/skills/`, diff and copy. |
-| `agent-browser/` | [vercel-labs/agent-browser](https://github.com/vercel-labs/agent-browser) `skills/agent-browser/` (Apache-2.0) | `v0.33.2`, verbatim, Claude Code frontmatter (`allowed-tools`, `hidden`) included. A version-stable discovery stub: usage content comes from `agent-browser skills get core` at runtime, so it only drifts when upstream edits the stub itself. After a CLI update, diff against `$(npm root -g)/agent-browser/skills/agent-browser/SKILL.md`. |
+| `gog/` | [openclaw/gogcli](https://github.com/openclaw/gogcli) `.agents/skills/gog/` (MIT) | `v0.34.1`, verbatim. Documents flags the CLI only gained in that release, so track `gog --version`. |
+| `outline-cli/` | [Doist/outline-cli](https://github.com/Doist/outline-cli) (MIT) | `v1.10.2`, verbatim. After `ol update`, `ol skill install pi` regenerates it into `~/.pi/skills/`: diff and copy. |
+| `agent-browser/` | [vercel-labs/agent-browser](https://github.com/vercel-labs/agent-browser) (Apache-2.0) | `v0.33.2`, verbatim, Claude Code frontmatter included. A stub, so it only drifts when upstream edits the stub. Diff against `$(npm root -g)/agent-browser/skills/agent-browser/SKILL.md`. |
 
-Runtime deps sit in this package's `dependencies` rather than next to what needs them, so pi's install covers them and Node resolves them from the package root: `jsdom`, `turndown`, `turndown-plugin-gfm` and `@mozilla/readability` for `brave-search`, `jsonc-parser` and `toml-eslint-parser` for `bin/wares-doctor`.
+Runtime deps sit in this package's `dependencies` so pi's install covers them: `jsdom`, `turndown`, `turndown-plugin-gfm`, `@mozilla/readability` for `brave-search`, `jsonc-parser` and `toml-eslint-parser` for `bin/wares-doctor`.
 
 ## Bundled extensions
 
@@ -100,27 +112,9 @@ Third-party pi extensions folded in as npm `dependencies` and exposed through th
 | [`token-rate-pi`](https://www.npmjs.com/package/token-rate-pi) | Footer status showing average output tokens/sec. |
 | [`@ogulcancelik/pi-codex-subagents`](https://github.com/ogulcancelik/pi-extensions/tree/main/packages/pi-codex-subagents) | Codex-shaped, session-scoped subagents: templates, waits, steering, live overlay, per-spawn model routing, the last one [ours](https://github.com/ogulcancelik/pi-extensions/pull/21) and upstream since `0.3.3`. |
 
-Caret ranges, so unpinned. `legacy-peer-deps=true` in this repo's `.npmrc` covers the `@earendil-works/*` and `typebox` peers, which pi provides at runtime. pi only re-runs `npm install` on a fresh install or when this repo's default branch gets a new commit, not on every `pi update`. Push a commit here, then `pi update --extensions` picks up newer bundled releases within the major.
+Caret ranges, so unpinned. pi only re-runs `npm install` on a fresh install or when this repo's default branch gets a new commit: push a commit here, then `pi update --extensions` picks up newer releases within the major. `.npmrc` sets `legacy-peer-deps=true` for the `@earendil-works/*` and `typebox` peers pi provides at runtime.
 
-### Subagent model routing
-
-The subagents extension offers its per-spawn `model` and `thinking` arguments only when `~/.pi/agent/pi-codex-subagents/config.json` allows models, and it can read pi's own list instead of a second one:
-
-```json
-{ "modelsFromEnabledModels": true }
-```
-
-So `/models` stays the single approval list, resolved and availability-checked by pi itself. Exact extra routes can sit next to it as `"models": ["provider/model-id"]`. [`config/`](./config/README.md) ships this file, `bin/wares-doctor` writes it.
-
-## Terminal
-
-We run pi through [herdr](https://herdr.dev), so the terminal is part of the setup rather than scenery around it.
-
-| Folder | What it does |
-|---|---|
-| [`herdr-app/`](./herdr-app/) | Builds `~/Applications/Herdr.app`: a Ghostty bundle rebranded as Herdr, opening straight into the herdr session, with its own Dock icon and name. |
-
-pi loads nothing from it. One `./herdr-app/build.sh` per machine, and again only when the launcher or the logo changes, not on Ghostty updates.
+The subagents extension offers its per-spawn `model` and `thinking` arguments only when `~/.pi/agent/pi-codex-subagents/config.json` sets `"modelsFromEnabledModels": true`, which points it at pi's own list. So `/models` stays the single approval list. [`config/`](./config/README.md) ships that file, `bin/wares-doctor` writes it.
 
 ## Layout
 
@@ -138,15 +132,9 @@ pi-wares/
 └── node_modules/             ← bundled external extensions (gitignored)
 ```
 
-Each ware is a folder with `index.ts` as its entry. Everything else in the folder is invisible to discovery and lives with the code.
-
-**A new ware** is `mkdir extensions/<name>`, an `index.ts`, and a row in the table above. The manifest's `"extensions"` entry picks it up, no manifest edit.
-
-**A new bundled extension** goes in `dependencies`, then its entry file under `pi.extensions` as `node_modules/<pkg>/...`, plus a row in the table above. That path is the whole reason this package declares an explicit manifest instead of relying on convention discovery.
-
-## Checks
-
-`npm test` runs every self-check (`oauth-tool-alias`, `policies`, `usage-pace`, `wares-doctor`); CI runs it after `npm ci`. A new self-check is a `<subject>.test.ts` next to what it covers plus an entry in the `test` script.
+- **A new ware** is `mkdir extensions/<name>`, an `index.ts`, and a row in the Wares table. The manifest's `"extensions"` entry picks it up. Everything else in the folder is invisible to discovery.
+- **A new bundled extension** goes in `dependencies`, then its entry file under `pi.extensions` as `node_modules/<pkg>/...`, plus a row in that table. Those paths are why this package declares an explicit manifest.
+- **A new self-check** is a `<subject>.test.ts` next to what it covers, plus an entry in the `test` script. `npm test` runs them all, CI after `npm ci`.
 
 ## License
 
