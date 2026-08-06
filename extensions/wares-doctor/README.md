@@ -8,7 +8,21 @@
 /wares-doctor:force   # write those, and overwrite the keys that differ
 ```
 
-`:apply` only ever adds. A key you set differently comes back as `kept`, and every run, report or apply, closes with a line in warning color naming each kept key (`pi settings defaultThinkingLevel`) so you can see what `:force` would take. JSON edits go through `jsonc-parser` and TOML edits through `toml-eslint-parser`, so comments, alignment and key order in the file survive. A TOML key with no table to live in is reported as `manual` rather than guessed at.
+`:apply` only ever adds. A key you set differently comes back as `kept`, and every run, report or apply, closes with what `:force` would take instead.
+
+Under the file lines, each group of findings prints a headline and one indented line per item, so nothing is a bare count:
+
+```text
+2 to add. /wares-doctor:apply writes them.
+  pi settings treeFilterMode = "no-tools"
+  pi settings enabledModels + ["openai-codex/gpt-5.6-sol"]
+1 kept as yours. /wares-doctor:force takes the reference instead.
+  pi settings defaultThinkingLevel "low" -> "high"
+```
+
+`=` writes a key, `+` appends array members, `->` shows what a value would become, so a difference always names both sides. Warning color means the line waits on you: work to run, or a key only you can write. `kept as yours` is plain text, you already chose that value.
+
+JSON edits go through `jsonc-parser` and TOML edits through `toml-eslint-parser`, so comments, alignment and key order in the file survive. A TOML key with no table to live in is reported as `manual` rather than guessed at.
 
 `:force` adds the same keys and then replaces every `kept` one with the reference value, counted as `replaced` in the report. It is key by key, not file by file: keys the reference never mentions stay, extra array members stay (an extra enabled model is an addition, not a disagreement), and a diverged `[[keys.command]]` entry is rewritten in place rather than duplicated. Only the key and value are replaced, so a trailing comment you wrote next to the old value survives and may end up describing the new one. A key written in a form the parser cannot pin to a single node, an inline table for instance, is reported as `manual` instead of being overwritten blind.
 

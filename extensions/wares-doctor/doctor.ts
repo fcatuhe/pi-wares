@@ -54,6 +54,8 @@ interface Finding {
 	state: "ok" | "missing" | "incomplete" | "diverged";
 	identity?: string;
 	expected?: unknown;
+	found?: unknown;
+	absent?: unknown[];
 	blocked?: string;
 }
 
@@ -94,32 +96,77 @@ export function report(mode: string): Report {
 	const apply = mode !== "";
 	const force = mode === FORCE;
 	const inspections = targets().map((target) => inspect(target, force));
-	const pending = inspections.filter((it) => needsWrite(it, force));
-	if (apply) for (const inspection of pending) write(inspection);
-
-	const notes: Note[] = [];
-	if (!apply) {
-		const total = pending.reduce((sum, it) => sum + (it.missing ? 1 : writable(it, false)), 0);
-		if (total > 0) notes.push({ tone: "text", text: `${total} to add. Run /${commandName(APPLY)} to write them.` });
-	}
-	const kept = force ? [] : inspections.flatMap(keptNames);
-	if (kept.length > 0) {
-		notes.push({
-			tone: "warning",
-			text: `${kept.length} kept as yours: ${kept.join(", ")}. /${commandName(FORCE)} takes the reference instead.`,
-		});
-	}
-	return { command: commandName(mode), rows: describe(inspections, apply, force), notes };
+	if (apply) for (const inspection of inspections.filter((it) => needsWrite(it, force))) write(inspection);
+	return {
+		command: commandName(mode),
+		rows: describe(inspections, apply, force),
+		notes: notes(inspections, apply, force),
+	};
 }
 
-function keptNames(inspection: Inspection): string[] {
-	return inspection.findings.filter(diverging).map((finding) => `${inspection.target.label} ${keptName(finding)}`);
+function notes(inspections: Inspection[], apply: boolean, force: boolean): Note[] {
+	const toAdd = apply ? [] : pending(inspections);
+	const manual = items(inspections, (finding) => finding.blocked !== undefined);
+	const kept = force ? [] : items(inspections, diverging);
+	return [
+		...note("warning", toAdd, `to add. /${commandName(APPLY)} writes ${toAdd.length === 1 ? "it" : "them"}.`),
+		...note("warning", manual, "manual. No command writes these, edit the file."),
+		...note("text", kept, `kept as yours. /${commandName(FORCE)} takes the reference instead.`),
+	];
 }
 
-function keptName(finding: Finding): string {
+function note(tone: Note["tone"], items: string[], headline: string): Note[] {
+	if (items.length === 0) return [];
+	return [
+		{ tone, text: `${items.length} ${headline}` },
+		...items.map((item) => ({ tone: "text" as const, text: `  ${item}` })),
+	];
+}
+
+function pending(inspections: Inspection[]): string[] {
+	return inspections.flatMap((inspection) =>
+		inspection.missing
+			? [inspection.target.label]
+			: names(inspection, (finding) => !finding.blocked && writes(finding, false)),
+	);
+}
+
+function items(inspections: Inspection[], keep: (finding: Finding) => boolean): string[] {
+	return inspections.flatMap((inspection) => names(inspection, keep));
+}
+
+function names(inspection: Inspection, keep: (finding: Finding) => boolean): string[] {
+	return inspection.findings.filter(keep).map((finding) => `${inspection.target.label} ${name(finding)}`);
+}
+
+function name(finding: Finding): string {
+	return [key(finding), change(finding), finding.blocked ? `(${finding.blocked})` : ""].filter(Boolean).join(" ");
+}
+
+function key(finding: Finding): string {
 	const path = finding.path.join(".");
 	if (finding.kind !== "entry" || !finding.identity) return path;
 	return `${path}[${(finding.expected as Record<string, unknown>)[finding.identity]}]`;
+}
+
+function change(finding: Finding): string {
+	if (finding.kind === "members") return `+ [${(finding.absent ?? []).map(show).join(", ")}]`;
+	if (finding.kind === "entry") return finding.state === "diverged" ? fields(finding) : "";
+	if (finding.state === "diverged") return `${show(finding.found)} -> ${show(finding.expected)}`;
+	return `= ${show(finding.expected)}`;
+}
+
+function fields(finding: Finding): string {
+	const expected = finding.expected as Record<string, unknown>;
+	const found = (finding.found ?? {}) as Record<string, unknown>;
+	return Object.entries(expected)
+		.filter(([field, value]) => value !== found[field])
+		.map(([field, value]) => `${field} ${show(found[field])} -> ${show(value)}`)
+		.join(", ");
+}
+
+function show(value: unknown): string {
+	return value === undefined ? "unset" : JSON.stringify(value);
 }
 
 // INFO: fc 06aug26 read per call, not at load: PI_CODING_AGENT_DIR and XDG_CONFIG_HOME are what the self-check points at a temp dir

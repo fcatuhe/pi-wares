@@ -133,12 +133,19 @@ function bareMachine(): string {
 
 const home = bareMachine();
 const bare = report("");
+// Work waiting on the user is the warning; the items under it are plain text.
+assert.deepEqual(bare.notes.map((note) => note.tone), ["warning", "text", "text", "text", "text"], "the notes changed tone");
 assert.deepEqual(
-  bare.notes.map((note) => note.tone),
-  ["text"],
-  "a bare machine has nothing to keep, so it gets one note",
+  bare.notes.map((note) => note.text),
+  [
+    "4 to add. /wares-doctor:apply writes them.",
+    "  pi settings",
+    "  model shortcuts",
+    "  codex subagents",
+    "  herdr",
+  ],
+  "a bare machine did not list every target it would create",
 );
-assert.match(bare.notes[0].text, /^4 to add\. Run \/wares-doctor:apply /, "a bare machine did not report every target");
 // One line per file, nothing per key.
 assert.equal(bare.rows.length, 4, "the report is no longer one line per file");
 assert.match(bare.rows[0], /^pi settings +create /, "the report lost its one-line shape");
@@ -153,22 +160,25 @@ for (const file of ["agent/settings.json", "agent/extensions/pi-model-shortcuts.
   assert.equal(readFileSync(join(home, file), "utf-8"), readFileSync(join(root, source), "utf-8"), `${file} is not the reference`);
 }
 
-// A machine that diverged: the report names the key it kept, in warning tone, and offers force.
+// A machine that diverged: the report names the key and both values, and offers force.
 const settings = join(home, "agent/settings.json");
 writeFileSync(settings, readFileSync(settings, "utf-8").replace(`"high"`, `"low"`));
 const diverging = report("");
-const kept = diverging.notes.at(-1)!;
-assert.match(
-  kept.text,
-  new RegExp(`1 kept as yours: pi settings defaultThinkingLevel\\. /wares-doctor:${FORCE} `),
-  "the report does not say which value it kept, or never mentions force",
+const kept = diverging.notes;
+assert.deepEqual(
+  kept.map((note) => note.text),
+  [
+    `1 kept as yours. /wares-doctor:${FORCE} takes the reference instead.`,
+    `  pi settings defaultThinkingLevel "low" -> "high"`,
+  ],
+  "the report does not say which value it kept, what would replace it, or never mentions force",
 );
-assert.equal(kept.tone, "warning", "keeping the user's own value is a warning, not an error");
+assert.deepEqual(kept.map((note) => note.tone), ["text", "text"], "a value the user chose needs no attention, so no warning");
 assert.match(diverging.rows[0], /pi settings +kept 1, ok /, "a diverged key is no longer reported as kept");
 
 // apply keeps that value and still says so: the note is not a report-only footer.
 const keptOnApply = report(APPLY);
-assert.deepEqual(keptOnApply.notes, [kept], "apply dropped the kept note");
+assert.deepEqual(keptOnApply.notes, kept, "apply dropped the kept note");
 assert.match(readFileSync(settings, "utf-8"), /"defaultThinkingLevel": "low"/, "apply overwrote a value the user set");
 
 // force says what it replaced, has nothing left to keep, and a second force is quiet.
@@ -177,6 +187,38 @@ assert.match(replaced.rows[0], /pi settings +replaced 1, ok .*\(restart pi\)/, "
 assert.deepEqual(replaced.notes, [], "force still offers to take what it just took");
 assert.match(readFileSync(settings, "utf-8"), /"defaultThinkingLevel": "high"/, "force did not write the reference value");
 assert.equal(report(FORCE).rows.length, 4, "a forced machine still has work to do");
+
+// A machine one key and one model short: the list names each key with the value that would land.
+const shortHome = bareMachine();
+report(APPLY);
+const shortSettings = join(shortHome, "agent/settings.json");
+const shortened = JSON.parse(readFileSync(shortSettings, "utf-8"));
+delete shortened.defaultThinkingLevel;
+shortened.enabledModels = shortened.enabledModels.slice(0, 1);
+writeFileSync(shortSettings, JSON.stringify(shortened, null, 2));
+const wanted = JSON.parse(readFileSync(join(root, "config/pi/settings.json"), "utf-8"));
+assert.deepEqual(
+  report("").notes.map((note) => note.text),
+  [
+    "2 to add. /wares-doctor:apply writes them.",
+    `  pi settings defaultThinkingLevel = ${JSON.stringify(wanted.defaultThinkingLevel)}`,
+    `  pi settings enabledModels + [${wanted.enabledModels.slice(1).map((model: string) => JSON.stringify(model)).join(", ")}]`,
+  ],
+  "the list does not name the key, the value it would write, or the members it would append",
+);
+
+// A value the doctor cannot reach: parsed, but not written as a plain key it can overwrite.
+const inlineHome = bareMachine();
+report(APPLY);
+writeFileSync(join(inlineHome, "config/herdr/config.toml"), `keys = { prefix = "ctrl+a" }\n`);
+const manual = report(FORCE).notes;
+assert.equal(manual[0].tone, "warning", "a key only the user can write is not a warning");
+assert.equal(manual[0].text, "1 manual. No command writes these, edit the file.");
+assert.match(
+  manual[1].text,
+  /^ {2}herdr keys\.prefix "ctrl\+a" -> "ctrl\+space" \(no keys\.prefix /,
+  "the manual item does not say which value is stuck, or why",
+);
 
 // One command per mode, so the palette shows all three rather than hiding two behind an argument.
 assert.deepEqual(
