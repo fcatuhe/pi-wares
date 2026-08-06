@@ -20,7 +20,9 @@ Under the file lines, each group of findings prints a headline and one indented 
   pi settings defaultThinkingLevel "low" -> "high"
 ```
 
-`=` writes a key, `+` appends array members, `->` shows what a value would become, so a difference always names both sides. Color is the gap, not the mood: warning for a gap a command closes (`to add`, `kept as yours`), error for one no command closes (`manual`, edit the file yourself). Item lines stay plain, they are the detail of the headline above them.
+`=` writes a key, `+` appends array members, `->` shows what a value would become, so a difference always names both sides. Color is the gap, not the mood: warning for a gap a command closes (`to add`, `kept as yours`, and the state of any file that is not all `ok`), error for one no command closes (`manual`, edit the file yourself). A file that matches the reference keeps its `ok 8` in plain text, so scanning the report means scanning for color. Item lines stay plain too, they are the detail of the headline above them.
+
+A row is data, not a formatted line: `Row` in [`doctor.ts`](./doctor.ts) carries the padded label, state, path and hint, and [`index.ts`](./index.ts) colors the state cell alone.
 
 JSON edits go through `jsonc-parser` and TOML edits through `toml-eslint-parser`, so comments, alignment and key order in the file survive. A TOML key with no table to live in is reported as `manual` rather than guessed at.
 

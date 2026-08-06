@@ -64,9 +64,17 @@ export interface Note {
 	text: string;
 }
 
+export interface Row {
+	label: string;
+	state: string;
+	path: string;
+	hint: string;
+	tone?: Note["tone"];
+}
+
 export interface Report {
 	command: string;
-	rows: string[];
+	rows: Row[];
 	notes: Note[];
 }
 
@@ -214,14 +222,23 @@ function inspect(target: Target, force: boolean): Inspection {
 	};
 }
 
-function describe(inspections: Inspection[], apply: boolean, force: boolean): string[] {
+function describe(inspections: Inspection[], apply: boolean, force: boolean): Row[] {
 	const states = inspections.map((it) => state(it, apply, force));
 	const labelWidth = width(inspections.map((it) => it.target.label));
 	const stateWidth = width(states);
-	return inspections.map((it, index) => {
-		const hint = apply && needsWrite(it, force) ? `  (${it.target.hint})` : "";
-		return `${it.target.label.padEnd(labelWidth)}  ${states[index].padEnd(stateWidth)}  ${tildify(it.target.path)}${hint}`;
-	});
+	return inspections.map((it, index) => ({
+		label: it.target.label.padEnd(labelWidth),
+		state: states[index].padEnd(stateWidth),
+		path: tildify(it.target.path),
+		hint: apply && needsWrite(it, force) ? `  (${it.target.hint})` : "",
+		tone: tone(it, force),
+	}));
+}
+
+function tone(inspection: Inspection, force: boolean): Note["tone"] | undefined {
+	if (inspection.findings.some((finding) => finding.blocked)) return "error";
+	if (inspection.missing || writable(inspection, force) > 0) return "warning";
+	return !force && keeping(inspection) > 0 ? "warning" : undefined;
 }
 
 function state(inspection: Inspection, apply: boolean, force: boolean): string {

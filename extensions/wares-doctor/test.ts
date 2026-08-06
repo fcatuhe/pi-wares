@@ -146,14 +146,26 @@ assert.deepEqual(
   ],
   "a bare machine did not list every target it would create",
 );
-// One line per file, nothing per key.
-assert.equal(bare.rows.length, 4, "the report is no longer one line per file");
-assert.match(bare.rows[0], /^pi settings +create /, "the report lost its one-line shape");
+// One row per file, nothing per key, and a file with work to do is coloured, not just counted.
+assert.equal(bare.rows.length, 4, "the report is no longer one row per file");
+assert.equal(bare.rows[0].label.trim(), "pi settings");
+assert.equal(bare.rows[0].state.trim(), "create");
+assert.equal(bare.rows[0].tone, "warning", "a file that does not exist yet renders in default colour");
+assert.equal(bare.rows[0].hint, "", "a report that wrote nothing still tells you to restart");
 
 const applied = report(APPLY);
-assert.match(applied.rows[0], /pi settings +created .*settings\.json {2}\(restart pi\)/, "apply lost the one-line shape");
-assert.equal(applied.rows.length, 4, "apply printed more than one line per file");
-assert.deepEqual(report("").notes, [], "the applied config still reports work");
+assert.equal(applied.rows.length, 4, "apply printed more than one row per file");
+assert.equal(applied.rows[0].state.trim(), "created");
+assert.equal(applied.rows[0].tone, "warning", "a file just written needs a reload, so it is not plain text");
+assert.match(applied.rows[0].path, /settings\.json$/);
+assert.equal(applied.rows[0].hint, "  (restart pi)");
+const settled = report("");
+assert.deepEqual(settled.notes, [], "the applied config still reports work");
+assert.deepEqual(
+  settled.rows.map((row) => row.tone),
+  [undefined, undefined, undefined, undefined],
+  "a machine with nothing left to do still colours its rows",
+);
 const root = join(import.meta.dirname, "..", "..");
 for (const file of ["agent/settings.json", "agent/extensions/pi-model-shortcuts.json", "config/herdr/config.toml"]) {
   const source = file.startsWith("agent/") ? `config/pi/${file.slice("agent/".length)}` : "config/herdr/config.toml";
@@ -174,7 +186,8 @@ assert.deepEqual(
   "the report does not say which value it kept, what would replace it, or never mentions force",
 );
 assert.deepEqual(kept.map((note) => note.tone), ["warning", "text"], "drift from the reference is a warning, its detail is not");
-assert.match(diverging.rows[0], /pi settings +kept 1, ok /, "a diverged key is no longer reported as kept");
+assert.match(diverging.rows[0].state, /^kept 1, ok /, "a diverged key is no longer reported as kept");
+assert.equal(diverging.rows[0].tone, "warning", "a file that drifted from the reference renders like one that matches");
 
 // apply keeps that value and still says so: the note is not a report-only footer.
 const keptOnApply = report(APPLY);
@@ -183,7 +196,8 @@ assert.match(readFileSync(settings, "utf-8"), /"defaultThinkingLevel": "low"/, "
 
 // force says what it replaced, has nothing left to keep, and a second force is quiet.
 const replaced = report(FORCE);
-assert.match(replaced.rows[0], /pi settings +replaced 1, ok .*\(restart pi\)/, "force did not report what it replaced");
+assert.match(replaced.rows[0].state, /^replaced 1, ok /, "force did not report what it replaced");
+assert.equal(replaced.rows[0].hint, "  (restart pi)", "force wrote the file and said nothing about reloading");
 assert.deepEqual(replaced.notes, [], "force still offers to take what it just took");
 assert.match(readFileSync(settings, "utf-8"), /"defaultThinkingLevel": "high"/, "force did not write the reference value");
 assert.equal(report(FORCE).rows.length, 4, "a forced machine still has work to do");
@@ -211,8 +225,10 @@ assert.deepEqual(
 const inlineHome = bareMachine();
 report(APPLY);
 writeFileSync(join(inlineHome, "config/herdr/config.toml"), `keys = { prefix = "ctrl+a" }\n`);
-const manual = report(FORCE).notes;
+const forcedInline = report(FORCE);
+const manual = forcedInline.notes;
 assert.equal(manual[0].tone, "error", "a gap no command can close is only a warning");
+assert.equal(forcedInline.rows.at(-1)!.tone, "error", "the file holding a stuck key reads like any other file");
 assert.equal(manual[0].text, "1 manual. No command writes these, edit the file.");
 assert.match(
   manual[1].text,
@@ -248,12 +264,12 @@ const reported = command();
 reported.call("");
 assert.deepEqual(reported.run.notices, [], "a clean report was reported as a failure");
 assert.equal(reported.run.entries[0].command, "wares-doctor");
-assert.match(reported.run.entries[0].rows[0], /^pi settings +create /, "the entry did not carry the report");
+assert.equal(reported.run.entries[0].rows[0].state.trim(), "create", "the entry did not carry the report");
 
 const applying = command();
 applying.call(APPLY);
 assert.equal(applying.run.entries[0].command, "wares-doctor:apply");
-assert.match(applying.run.entries[0].rows[0], /created .*\(restart pi\)/, "apply left no trace in the report");
+assert.match(applying.run.entries[0].rows[0].state, /^created/, "apply left no trace in the report");
 
 // The mode is the command now, so anything typed after it is a mistake worth saying out loud.
 const unwanted = command();
