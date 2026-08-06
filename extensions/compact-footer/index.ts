@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { FooterComponent } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
@@ -29,6 +29,12 @@ function statusLine(statuses: ReadonlyMap<string, string>): string {
 		.join(" ");
 }
 
+function usingSubscription(ctx: ExtensionContext, provider: string): boolean {
+	const model = ctx.model;
+	if (!model || model.provider !== provider) return false;
+	return ctx.modelRegistry.isUsingOAuth(model) && ctx.modelRegistry.getProvider(provider)?.auth?.oauth?.isSubscription === true;
+}
+
 export default function (pi: ExtensionAPI) {
 	pi.on("session_start", (_event, ctx) => {
 		ctx.ui.setFooter((_tui, theme, footerData) => {
@@ -38,9 +44,9 @@ export default function (pi: ExtensionAPI) {
 				},
 				sessionManager: ctx.sessionManager,
 				modelRegistry: ctx.modelRegistry,
-				// INFO: fc 02aug26 FooterComponent.render() calls modelRuntime.isUsingOAuth() for the (sub) indicator
+				// INFO: fc 06aug26 FooterComponent.render() calls modelRuntime.isUsingSubscription(providerId) for the (sub) indicator, pi >= 0.84
 				modelRuntime: {
-					isUsingOAuth: () => (ctx.model ? ctx.modelRegistry.isUsingOAuth(ctx.model) : false),
+					isUsingSubscription: (provider: string) => usingSubscription(ctx, provider),
 				},
 				getContextUsage: () => ctx.getContextUsage(),
 			} as any, footerData);
