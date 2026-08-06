@@ -2,6 +2,7 @@
   "defaultProvider": "anthropic",
   "defaultModel": "claude-opus-5",
   "defaultThinkingLevel": "high",
+  "tuiMode": "fullscreen",
   "enabledModels": [
     "anthropic/claude-fable-5",
     "anthropic/claude-opus-5",
