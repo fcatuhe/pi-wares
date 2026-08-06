@@ -3,6 +3,7 @@
   "defaultModel": "claude-opus-5",
   "defaultThinkingLevel": "high",
   "tuiMode": "fullscreen",
+  "showCacheMissNotices": true,
   "enabledModels": [
     "anthropic/claude-fable-5",
     "anthropic/claude-opus-5",
