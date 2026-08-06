@@ -38,19 +38,15 @@ pi loads nothing from it. One `./herdr-app/build.sh` per machine, and again only
 
 ## Login on VPS
 
-On an unattended box `/login` has no browser for its authorization page. Mint a [long-lived token](https://code.claude.com/docs/en/authentication) where one exists:
+Anthropic's `/login` has a second method here, `Long-lived token (1 year, headless)`, from [`anthropic-token-login/`](./extensions/anthropic-token-login/). One paste instead of an authorization round trip, and it lasts a year. Mint the [token](https://code.claude.com/docs/en/authentication) on any machine that has Claude Code:
 
 ```bash
 npx -y @anthropic-ai/claude-code@latest setup-token
 ```
 
-pi reads it from the environment, so put it wherever that box keeps secrets: a `chmod 600` file the shell profile sources, a systemd `EnvironmentFile=`, the CI secret store.
+Then `/login`, Anthropic, that method, paste, and take or edit the offered rotation date, a year less a week. pi stores it as its own OAuth credential, so the usage bar and the wire aliasing behave as they do after a browser login, and the rotation date arrives as an error naming the mint command rather than an opaque 401.
 
-```bash
-export ANTHROPIC_OAUTH_TOKEN=sk-ant-oat01-...
-```
-
-Good for a year, with no refresh token behind it. Revocation, a password change or expiry all land as Anthropic's own `401 OAuth access token is invalid`, and the fix is a new token.
+One token can be pasted into as many boxes as you like, and the method works the same on a laptop.
 
 ## External CLIs
 
@@ -63,7 +59,7 @@ Some skills drive CLIs this package does not install:
 ## Keys
 
 - **`brave-search`** needs `BRAVE_API_KEY` in your shell profile. Free tier at [api-dashboard.search.brave.com](https://api-dashboard.search.brave.com/register): create a "Free AI" subscription (card required, not charged), then an API key.
-- **`oauth-tool-alias`** and **`usage-pace`** reuse pi's own credentials (`/login`, `~/.pi/agent/auth.json`) and need no setup.
+- **`oauth-tool-alias`**, **`usage-pace`** and **`anthropic-token-login`** reuse pi's own credentials (`/login`, `~/.pi/agent/auth.json`) and need no setup.
 
 ## Wares
 
@@ -80,6 +76,7 @@ Some skills drive CLIs this package does not install:
 | [`gpt-behavior/`](./extensions/gpt-behavior/) | Appends a behavior guide to the system prompt, GPT models only. |
 | [`policies/`](./extensions/policies/) | House rules in the system prompt: `always/` everywhere, `when/` per marker file. |
 | [`wares-doctor/`](./extensions/wares-doctor/) | `/wares-doctor` runs the machine setup check in-session, `apply` writes. |
+| [`anthropic-token-login/`](./extensions/anthropic-token-login/) | Adds a `sk-ant-oat01` token method to Anthropic's `/login`: one paste, good for a year. |
 
 ## Skills
 
