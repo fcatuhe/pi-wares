@@ -60,7 +60,7 @@ interface Finding {
 }
 
 export interface Note {
-	tone: "text" | "warning";
+	tone: "text" | "warning" | "error";
 	text: string;
 }
 
@@ -110,8 +110,8 @@ function notes(inspections: Inspection[], apply: boolean, force: boolean): Note[
 	const kept = force ? [] : items(inspections, diverging);
 	return [
 		...note("warning", toAdd, `to add. /${commandName(APPLY)} writes ${toAdd.length === 1 ? "it" : "them"}.`),
-		...note("warning", manual, "manual. No command writes these, edit the file."),
-		...note("text", kept, `kept as yours. /${commandName(FORCE)} takes the reference instead.`),
+		...note("error", manual, "manual. No command writes these, edit the file."),
+		...note("warning", kept, `kept as yours. /${commandName(FORCE)} takes the reference instead.`),
 	];
 }
 

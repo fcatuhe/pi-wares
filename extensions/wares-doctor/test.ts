@@ -173,7 +173,7 @@ assert.deepEqual(
   ],
   "the report does not say which value it kept, what would replace it, or never mentions force",
 );
-assert.deepEqual(kept.map((note) => note.tone), ["text", "text"], "a value the user chose needs no attention, so no warning");
+assert.deepEqual(kept.map((note) => note.tone), ["warning", "text"], "drift from the reference is a warning, its detail is not");
 assert.match(diverging.rows[0], /pi settings +kept 1, ok /, "a diverged key is no longer reported as kept");
 
 // apply keeps that value and still says so: the note is not a report-only footer.
@@ -212,7 +212,7 @@ const inlineHome = bareMachine();
 report(APPLY);
 writeFileSync(join(inlineHome, "config/herdr/config.toml"), `keys = { prefix = "ctrl+a" }\n`);
 const manual = report(FORCE).notes;
-assert.equal(manual[0].tone, "warning", "a key only the user can write is not a warning");
+assert.equal(manual[0].tone, "error", "a gap no command can close is only a warning");
 assert.equal(manual[0].text, "1 manual. No command writes these, edit the file.");
 assert.match(
   manual[1].text,
