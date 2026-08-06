@@ -1,20 +1,27 @@
 # pi-wares
 
-A small personal stash of extensions and skills for [pi-coding-agent](https://github.com/earendil-works/pi-mono), plus the pi and herdr config they assume.
+A personal toolkit of extensions and skills for [pi-coding-agent](https://github.com/earendil-works/pi-mono), plus the pi and herdr config they run on.
+
+## Pre-requisites
+
+```bash
+curl -fsSL https://pi.dev/install.sh | sh     # pi
+curl -fsSL https://herdr.dev/install.sh | sh  # herdr, the terminal multiplexer we run pi in
+```
+
+Update: `pi update -all`, `herdr update`.
 
 ## Install
 
 ```bash
-curl -fsSL https://pi.dev/install.sh | sh     # pi
-curl -fsSL https://herdr.dev/install.sh | sh  # herdr, the terminal we run pi in
 pi install git:github.com/fcatuhe/pi-wares
 ```
 
-One package, individual wares toggled in `pi config`. Both CLIs self-update: `pi update`, `herdr update`.
+One package, individual wares toggled in `pi config`.
 
-## Machine setup
+## Configuration
 
-[`config/`](./config/README.md) holds the pi and herdr configuration the wares assume. [`/wares-doctor`](./extensions/wares-doctor/) compares this machine against it:
+[`config/`](./config/README.md) holds the pi and herdr configuration. [`/wares-doctor`](./extensions/wares-doctor/) compares this machine against it:
 
 ```text
 /wares-doctor         # report what is missing
@@ -23,20 +30,13 @@ One package, individual wares toggled in `pi config`. Both CLIs self-update: `pi
 
 `apply` only ever adds: a key you set differently comes back as `kept`, and edits splice into the existing text so comments and formatting survive. No backups, git holds the reference.
 
-### External CLIs
+## macOS App
 
-Some skills drive CLIs this package does not install:
+[`herdr-app/`](./herdr-app/) builds `~/Applications/Herdr.app`: a Ghostty bundle rebranded as Herdr, opening straight into the herdr session, with its own Dock icon and name.
 
-- **`gog`**: the [`gog` CLI](https://github.com/openclaw/gogcli), install per its README. Needs your own Google Cloud OAuth "Desktop app" client: download its `credentials.json`, then `gog auth credentials set credentials.json` and `gog auth add you@example.com`.
-- **`outline-cli`**: `npm i -g @doist/outline-cli`, then `ol auth token <token>` with a personal token from Settings > API. `ol auth login` also works, but those tokens expire.
-- **`agent-browser`**: `npm i -g agent-browser && agent-browser install` (the second downloads its own Chrome). The skill is a stub pointing at `agent-browser skills get core`, so keep the CLI current.
+pi loads nothing from it. One `./herdr-app/build.sh` per machine, and again only when the launcher or the logo changes, not on Ghostty updates.
 
-### Keys
-
-- **`brave-search`** needs `BRAVE_API_KEY` in your shell profile. Free tier at [api-dashboard.search.brave.com](https://api-dashboard.search.brave.com/register): create a "Free AI" subscription (card required, not charged), then an API key.
-- **`oauth-tool-alias`** and **`usage-pace`** reuse pi's own credentials (`/login`, `~/.pi/agent/auth.json`) and need no setup.
-
-### Claude without a browser
+## Login on VPS
 
 On an unattended box `/login` has no browser for its authorization page. Mint a [long-lived token](https://code.claude.com/docs/en/authentication) where one exists:
 
@@ -52,15 +52,18 @@ export ANTHROPIC_OAUTH_TOKEN=sk-ant-oat01-...
 
 Good for a year, with no refresh token behind it. Revocation, a password change or expiry all land as Anthropic's own `401 OAuth access token is invalid`, and the fix is a new token.
 
-## macOS app
+## External CLIs
 
-We run pi through [herdr](https://herdr.dev), so the terminal is part of the setup rather than scenery around it.
+Some skills drive CLIs this package does not install:
 
-| Folder | What it does |
-|---|---|
-| [`herdr-app/`](./herdr-app/) | Builds `~/Applications/Herdr.app`: a Ghostty bundle rebranded as Herdr, opening straight into the herdr session, with its own Dock icon and name. |
+- **`gog`**: the [`gog` CLI](https://github.com/openclaw/gogcli), install per its README. Needs your own Google Cloud OAuth "Desktop app" client: download its `credentials.json`, then `gog auth credentials set credentials.json` and `gog auth add you@example.com`.
+- **`outline-cli`**: `npm i -g @doist/outline-cli`, then `ol auth token <token>` with a personal token from Settings > API. `ol auth login` also works, but those tokens expire.
+- **`agent-browser`**: `npm i -g agent-browser && agent-browser install` (the second downloads its own Chrome). The skill is a stub pointing at `agent-browser skills get core`, so keep the CLI current.
 
-pi loads nothing from it. One `./herdr-app/build.sh` per machine, and again only when the launcher or the logo changes, not on Ghostty updates.
+## Keys
+
+- **`brave-search`** needs `BRAVE_API_KEY` in your shell profile. Free tier at [api-dashboard.search.brave.com](https://api-dashboard.search.brave.com/register): create a "Free AI" subscription (card required, not charged), then an API key.
+- **`oauth-tool-alias`** and **`usage-pace`** reuse pi's own credentials (`/login`, `~/.pi/agent/auth.json`) and need no setup.
 
 ## Wares
 
@@ -91,7 +94,9 @@ Loaded on demand rather than injected, so they can be as long as they need to be
 | [`outline-cli/`](./skills/outline-cli/SKILL.md) | Search and manage [Outline](https://www.getoutline.com) wiki documents and collections via the [`ol`](https://github.com/Doist/outline-cli) CLI. |
 | [`agent-browser/`](./skills/agent-browser/SKILL.md) | Browser automation via the [`agent-browser`](https://github.com/vercel-labs/agent-browser) CLI. |
 
-### Vendored skills
+Runtime deps sit in this package's `dependencies` so pi's install covers them: `jsdom`, `turndown`, `turndown-plugin-gfm`, `@mozilla/readability` for `brave-search`, `jsonc-parser` and `toml-eslint-parser` for `wares-doctor`.
+
+## Vendored skills
 
 Copies of upstream skills, so one install covers them. They drift, resync deliberately.
 
@@ -101,8 +106,6 @@ Copies of upstream skills, so one install covers them. They drift, resync delibe
 | `gog/` | [openclaw/gogcli](https://github.com/openclaw/gogcli) `.agents/skills/gog/` (MIT) | `v0.34.1`, verbatim. Documents flags the CLI only gained in that release, so track `gog --version`. |
 | `outline-cli/` | [Doist/outline-cli](https://github.com/Doist/outline-cli) (MIT) | `v1.10.2`, verbatim. After `ol update`, `ol skill install pi` regenerates it into `~/.pi/skills/`: diff and copy. |
 | `agent-browser/` | [vercel-labs/agent-browser](https://github.com/vercel-labs/agent-browser) (Apache-2.0) | `v0.33.2`, verbatim, Claude Code frontmatter included. A stub, so it only drifts when upstream edits the stub. Diff against `$(npm root -g)/agent-browser/skills/agent-browser/SKILL.md`. |
-
-Runtime deps sit in this package's `dependencies` so pi's install covers them: `jsdom`, `turndown`, `turndown-plugin-gfm`, `@mozilla/readability` for `brave-search`, `jsonc-parser` and `toml-eslint-parser` for `wares-doctor`.
 
 ## Bundled extensions
 
@@ -131,10 +134,6 @@ pi-wares/
 ├── herdr-app/                ← macOS app that launches herdr, not a ware
 └── node_modules/             ← bundled external extensions (gitignored)
 ```
-
-- **A new ware** is `mkdir extensions/<name>`, an `index.ts`, and a row in the Wares table. The manifest's `"extensions"` entry picks it up. Everything else in the folder is invisible to discovery.
-- **A new bundled extension** goes in `dependencies`, then its entry file under `pi.extensions` as `node_modules/<pkg>/...`, plus a row in that table. Those paths are why this package declares an explicit manifest.
-- **A new self-check** is a `<subject>.test.ts` next to what it covers, plus an entry in the `test` script. `npm test` runs them all, CI after `npm ci`.
 
 ## License
 
