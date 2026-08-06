@@ -23,6 +23,8 @@ One package, individual wares toggled in `pi config`. Both CLIs self-update: `pi
 
 `--apply` only ever adds: a key you set differently comes back as `kept`, and edits splice into the existing text so comments and formatting survive. No backups, git holds the reference.
 
+Inside a session, [`/wares-doctor`](./extensions/wares-doctor/) runs the same script and prints the same report, `/wares-doctor apply` writes. The CLI stays the path for a machine where pi will not start.
+
 ### External CLIs
 
 Some skills drive CLIs this package does not install:
@@ -76,6 +78,7 @@ pi loads nothing from it. One `./herdr-app/build.sh` per machine, and again only
 | [`handoff/`](./extensions/handoff/) | `/handoff <goal>` starts a new linked session with an LLM-written brief. |
 | [`gpt-behavior/`](./extensions/gpt-behavior/) | Appends a behavior guide to the system prompt, GPT models only. |
 | [`policies/`](./extensions/policies/) | House rules in the system prompt: `always/` everywhere, `when/` per marker file. |
+| [`wares-doctor/`](./extensions/wares-doctor/) | `/wares-doctor` runs the machine setup check in-session, `apply` writes. |
 
 ## Skills
 
