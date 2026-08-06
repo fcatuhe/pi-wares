@@ -1,8 +1,8 @@
 import { getStaticTOMLValue, parseTOML } from "toml-eslint-parser";
 
-import { diffDefaults } from "./defaults-diff.js";
+import { diffDefaults, writes } from "./defaults-diff.js";
 
-export function reconcileToml(actualSource, referenceSource, identityByPath = {}) {
+export function reconcileToml(actualSource, referenceSource, identityByPath = {}, force = false) {
 	const reference = parseTOML(referenceSource);
 	const actual = parseTOML(actualSource);
 	const findings = diffDefaults(getStaticTOMLValue(reference), getStaticTOMLValue(actual), identityByPath);
@@ -10,11 +10,18 @@ export function reconcileToml(actualSource, referenceSource, identityByPath = {}
 	const actualIndex = indexDocument(actual);
 
 	const inserts = [];
+	const replacements = [];
 	const appends = [];
 	const createdTables = new Set();
 
 	for (const finding of findings) {
-		if (finding.state !== "missing" && finding.state !== "incomplete") continue;
+		if (!writes(finding, force)) continue;
+
+		if (finding.state === "diverged") {
+			const replacement = replace(finding, referenceSource, referenceIndex, actualIndex);
+			if (replacement) replacements.push(replacement);
+			continue;
+		}
 
 		if (finding.kind === "entry") {
 			const node = findEntryNode(referenceIndex, finding);
@@ -45,7 +52,21 @@ export function reconcileToml(actualSource, referenceSource, identityByPath = {}
 		appends.push(sliceNode(referenceSource, reference.comments, table));
 	}
 
-	return { findings, text: appendBlocks(applyInserts(actualSource, inserts), appends) };
+	return { findings, text: appendBlocks(applyEdits(actualSource, inserts, replacements), appends) };
+}
+
+function replace(finding, referenceSource, referenceIndex, actualIndex) {
+	const where = finding.path.join(".");
+	const [reference, actual] =
+		finding.kind === "entry"
+			? [findEntryNode(referenceIndex, finding), findEntryNode(actualIndex, finding)]
+			: [referenceIndex.values.get(where)?.node, actualIndex.values.get(where)?.node];
+	if (!reference) throw new Error(`the reference has no ${where} to copy`);
+	if (!actual) {
+		finding.blocked = `no ${where} written plainly enough to overwrite`;
+		return undefined;
+	}
+	return { at: actual.range[0], through: actual.range[1], text: referenceSource.slice(...reference.range) };
 }
 
 function lineInsert(source, host, line) {
@@ -59,12 +80,13 @@ function insertOffset(source, host) {
 	return host.type === "TOMLTopLevelTable" ? 0 : endOfLine(source, host.range[1]);
 }
 
-function applyInserts(source, inserts) {
+function applyEdits(source, inserts, replacements) {
 	const byOffset = new Map();
 	for (const { at, text } of inserts) byOffset.set(at, (byOffset.get(at) ?? "") + text);
-	return [...byOffset.entries()]
-		.sort(([a], [b]) => b - a)
-		.reduce((text, [at, insert]) => text.slice(0, at) + insert + text.slice(at), source);
+	const edits = [...[...byOffset.entries()].map(([at, text]) => ({ at, through: at, text })), ...replacements];
+	return edits
+		.sort((a, b) => b.at - a.at)
+		.reduce((text, edit) => text.slice(0, edit.at) + edit.text + text.slice(edit.through), source);
 }
 
 function appendBlocks(source, blocks) {

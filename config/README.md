@@ -1,6 +1,6 @@
 # config
 
-The pi and herdr configuration these wares assume, one file per target, laid out like the paths it lands in. [`/wares-doctor`](../extensions/wares-doctor/) compares a machine against these and, with `apply`, adds what is missing.
+The pi and herdr configuration these wares assume, one file per target, laid out like the paths it lands in. [`/wares-doctor`](../extensions/wares-doctor/) compares a machine against these and, with `apply`, adds what is missing, or with `force`, also overwrites what differs.
 
 | Reference | Target | Why it is here |
 |---|---|---|

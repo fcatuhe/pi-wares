@@ -10,6 +10,11 @@ function sameEntry(reference, found) {
 	return Object.entries(reference).every(([key, value]) => sameScalar(value, found[key]));
 }
 
+export function writes(finding, force) {
+	if (finding.state === "missing" || finding.state === "incomplete") return true;
+	return force && finding.state === "diverged";
+}
+
 export function diffDefaults(reference, actual, identityByPath = {}) {
 	const findings = [];
 	collect(reference, actual, [], identityByPath, findings);

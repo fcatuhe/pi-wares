@@ -3,11 +3,14 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 
+import { writes } from "./defaults-diff.js";
 import { reconcileJson } from "./json-defaults.js";
 import { reconcileToml } from "./toml-defaults.js";
 
 export const COMMAND = "wares-doctor";
 export const APPLY = "apply";
+export const FORCE = "force";
+export const MODES = [APPLY, FORCE];
 export const REPORT_ENTRY = "wares-doctor-report";
 
 interface Target {
@@ -35,28 +38,35 @@ const ROOT = join(import.meta.dirname, "..", "..");
 
 export function runDoctor(pi: ExtensionAPI, args: string, ctx: ExtensionCommandContext): void {
 	const mode = args.trim();
-	if (mode !== "" && mode !== APPLY) {
-		ctx.ui.notify(`${COMMAND}: unknown argument ${mode}, expected "${APPLY}"`, "warning");
+	if (mode !== "" && !MODES.includes(mode)) {
+		ctx.ui.notify(`${COMMAND}: unknown argument ${mode}, expected "${APPLY}" or "${FORCE}"`, "warning");
 		return;
 	}
 
 	try {
-		pi.appendEntry<string[]>(REPORT_ENTRY, report(mode === APPLY));
+		pi.appendEntry<string[]>(REPORT_ENTRY, report(mode));
 	} catch (err) {
 		ctx.ui.notify(`${COMMAND} failed: ${err instanceof Error ? err.message : String(err)}`, "error");
 	}
 }
 
-export function report(apply: boolean): string[] {
-	const inspections = targets().map(inspect);
-	const pending = inspections.filter(needsWrite);
+export function report(mode: string): string[] {
+	const apply = mode !== "";
+	const force = mode === FORCE;
+	const inspections = targets().map((target) => inspect(target, force));
+	const pending = inspections.filter((it) => needsWrite(it, force));
 	if (apply) for (const inspection of pending) write(inspection);
 
-	const lines = describe(inspections, apply);
-	if (apply || pending.length === 0) return lines;
+	const lines = describe(inspections, apply, force);
+	if (apply) return lines;
 
-	const total = pending.reduce((sum, it) => sum + (it.missing ? 1 : writable(it)), 0);
-	return [...lines, `${total} to add. Re-run as /${COMMAND} ${APPLY} to write them.`];
+	const total = pending.reduce((sum, it) => sum + (it.missing ? 1 : writable(it, false)), 0);
+	const kept = inspections.reduce((sum, it) => sum + keeping(it), 0);
+	return [
+		...lines,
+		...(total > 0 ? [`${total} to add. Re-run as /${COMMAND} ${APPLY} to write them.`] : []),
+		...(kept > 0 ? [`${kept} kept as yours. /${COMMAND} ${FORCE} takes the reference instead.`] : []),
+	];
 }
 
 // INFO: fc 06aug26 read per call, not at load: PI_CODING_AGENT_DIR and XDG_CONFIG_HOME are what the self-check points at a temp dir
@@ -92,31 +102,37 @@ function targets(): Target[] {
 	];
 }
 
-function inspect(target: Target): Inspection {
+function inspect(target: Target, force: boolean): Inspection {
 	if (!existsSync(target.path)) return { target, missing: true, findings: [] };
 
 	const reconcile = target.reference.endsWith(".toml") ? reconcileToml : reconcileJson;
 	const reference = readFileSync(join(ROOT, target.reference), "utf-8");
-	return { target, missing: false, ...reconcile(readFileSync(target.path, "utf-8"), reference, target.identity) };
+	return {
+		target,
+		missing: false,
+		...reconcile(readFileSync(target.path, "utf-8"), reference, target.identity, force),
+	};
 }
 
-function describe(inspections: Inspection[], apply: boolean): string[] {
-	const states = inspections.map((it) => state(it, apply));
+function describe(inspections: Inspection[], apply: boolean, force: boolean): string[] {
+	const states = inspections.map((it) => state(it, apply, force));
 	const labelWidth = width(inspections.map((it) => it.target.label));
 	const stateWidth = width(states);
 	return inspections.map((it, index) => {
-		const hint = apply && needsWrite(it) ? `  (${it.target.hint})` : "";
+		const hint = apply && needsWrite(it, force) ? `  (${it.target.hint})` : "";
 		return `${it.target.label.padEnd(labelWidth)}  ${states[index].padEnd(stateWidth)}  ${tildify(it.target.path)}${hint}`;
 	});
 }
 
-function state(inspection: Inspection, apply: boolean): string {
+function state(inspection: Inspection, apply: boolean, force: boolean): string {
 	if (inspection.missing) return apply ? "created" : "create";
 	const { findings } = inspection;
+	const diverged = keeping(inspection);
 	const counts: [string, number][] = [
-		[apply ? "added" : "add", writable(inspection)],
+		[apply ? "added" : "add", writable(inspection, false)],
+		[apply ? "replaced" : "replace", force ? diverged : 0],
 		["manual", findings.filter((finding) => finding.blocked).length],
-		["kept", findings.filter((finding) => finding.state === "diverged").length],
+		["kept", force ? 0 : diverged],
 		["ok", findings.filter((finding) => finding.state === "ok").length],
 	];
 	return counts
@@ -125,14 +141,16 @@ function state(inspection: Inspection, apply: boolean): string {
 		.join(", ");
 }
 
-function needsWrite(inspection: Inspection): boolean {
-	return inspection.missing || writable(inspection) > 0;
+function needsWrite(inspection: Inspection, force: boolean): boolean {
+	return inspection.missing || writable(inspection, force) > 0;
 }
 
-function writable(inspection: Inspection): number {
-	return inspection.findings.filter(
-		(finding) => !finding.blocked && (finding.state === "missing" || finding.state === "incomplete"),
-	).length;
+function writable(inspection: Inspection, force: boolean): number {
+	return inspection.findings.filter((finding) => !finding.blocked && writes(finding, force)).length;
+}
+
+function keeping(inspection: Inspection): number {
+	return inspection.findings.filter((finding) => !finding.blocked && finding.state === "diverged").length;
 }
 
 function width(strings: string[]): number {

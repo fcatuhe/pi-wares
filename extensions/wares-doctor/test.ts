@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseTOML } from "toml-eslint-parser";
 
-import { APPLY, report, runDoctor } from "./doctor.ts";
+import { APPLY, FORCE, report, runDoctor } from "./doctor.ts";
 import { reconcileJson } from "./json-defaults.js";
 import { reconcileToml } from "./toml-defaults.js";
 
@@ -84,6 +84,25 @@ assert.equal((edited.text.match(/\[\[keys\.command\]\]/g) ?? []).length, 1, "the
 const rootless = reconcileToml(`[keys]\nprefix = "ctrl+space"\n`, REFERENCE_TOML, IDENTITY);
 assert.match(rootless.text, /^onboarding = false\n\[keys\]/, "a root key was written into a table");
 
+// force: the reference wins on the keys it declares, and only those.
+const forced = reconcileToml(USER_TOML, REFERENCE_TOML, IDENTITY, true);
+assert.match(forced.text, /prefix = "ctrl\+space"/, "force left the diverged value alone");
+assert.doesNotMatch(forced.text, /ctrl\+a/, "the old value survived a force");
+assert.match(forced.text, /name = "nord"     # mine, hands off/, "force touched a key the reference never mentions");
+assert.match(forced.text, /\[ui\]\npane_scrollbars = false/, "force stopped adding what is missing");
+assert.doesNotThrow(() => parseTOML(forced.text), "the forced result is not valid TOML");
+assert.equal(reconcileToml(forced.text, REFERENCE_TOML, IDENTITY, true).text, forced.text, "forcing twice is not idempotent");
+
+// force replaces an edited table array entry in place rather than appending a second one.
+const forcedEntry = reconcileToml(`${USER_TOML}\n[[keys.command]]\nkey = "cmd+shift+i"\ncommand = 'mine'\n`, REFERENCE_TOML, IDENTITY, true);
+assert.match(forcedEntry.text, /command = 'herdr pane run pi'/, "the edited entry was not replaced");
+assert.doesNotMatch(forcedEntry.text, /'mine'/, "the edited entry survived a force");
+assert.equal((forcedEntry.text.match(/\[\[keys\.command\]\]/g) ?? []).length, 1, "force duplicated the entry");
+
+// A key the reference sets inside a table the user never opened is still manual, force or not.
+const unhoused = reconcileToml(`onboarding = false\n`, REFERENCE_TOML, IDENTITY, true);
+assert.doesNotThrow(() => parseTOML(unhoused.text), "forcing onto a bare file is not valid TOML");
+
 // JSON: the reference adds keys and array members, never replaces what is set.
 const userJson = `{\n  "defaultModel": "claude-opus-4-7",\n  "enabledModels": ["anthropic/claude-opus-4-7"]\n}\n`;
 const reference = `{"defaultModel":"claude-opus-5","defaultThinkingLevel":"high","enabledModels":["anthropic/claude-opus-5"]}`;
@@ -97,6 +116,13 @@ assert.equal(merged.defaultThinkingLevel, "high");
 assert.deepEqual(merged.enabledModels, ["anthropic/claude-opus-4-7", "anthropic/claude-opus-5"]);
 assert.equal(reconcileJson(json.text, reference).text, json.text, "applying twice is not idempotent");
 
+// JSON force: the reference value replaces the user's, extra array members are additions, not disagreements.
+const forcedJson = reconcileJson(userJson, reference, {}, true);
+const overwritten = JSON.parse(forcedJson.text);
+assert.equal(overwritten.defaultModel, "claude-opus-5", "force left the diverged value alone");
+assert.deepEqual(overwritten.enabledModels, ["anthropic/claude-opus-4-7", "anthropic/claude-opus-5"], "force dropped a model the user enabled");
+assert.equal(reconcileJson(forcedJson.text, reference, {}, true).text, forcedJson.text, "forcing twice is not idempotent");
+
 // End to end on a bare machine: every target gets created, then nothing is left.
 function bareMachine(): string {
   const home = mkdtempSync(join(tmpdir(), "wares-doctor-"));
@@ -106,21 +132,32 @@ function bareMachine(): string {
 }
 
 const home = bareMachine();
-const bare = report(false);
+const bare = report("");
 assert.match(bare.join("\n"), /4 to add/, "a bare machine did not report every target");
 // One line per file, then the closing count, nothing per key.
 assert.equal(bare.length, 5, "the report is no longer one line per file");
 assert.match(bare[0], /^pi settings +create /, "the report lost its one-line shape");
 
-const applied = report(true);
+const applied = report(APPLY);
 assert.match(applied[0], /pi settings +created .*settings\.json {2}\(restart pi\)/, "apply lost the one-line shape");
 assert.equal(applied.length, 4, "apply printed more than one line per file");
-assert.doesNotMatch(report(false).join("\n"), /add/, "the applied config still reports work");
+assert.doesNotMatch(report("").join("\n"), /add/, "the applied config still reports work");
 const root = join(import.meta.dirname, "..", "..");
 for (const file of ["agent/settings.json", "agent/extensions/pi-model-shortcuts.json", "config/herdr/config.toml"]) {
   const source = file.startsWith("agent/") ? `config/pi/${file.slice("agent/".length)}` : "config/herdr/config.toml";
   assert.equal(readFileSync(join(home, file), "utf-8"), readFileSync(join(root, source), "utf-8"), `${file} is not the reference`);
 }
+
+// A machine that diverged: the report offers force, force says what it replaced, and a second force is quiet.
+const settings = join(home, "agent/settings.json");
+writeFileSync(settings, readFileSync(settings, "utf-8").replace(`"high"`, `"low"`));
+const diverging = report("");
+assert.match(diverging.at(-1)!, new RegExp(`1 kept as yours\\. /wares-doctor ${FORCE}`), "the report never mentions force");
+assert.match(diverging[0], /pi settings +kept 1, ok /, "a diverged key is no longer reported as kept");
+const replaced = report(FORCE);
+assert.match(replaced[0], /pi settings +replaced 1, ok .*\(restart pi\)/, "force did not report what it replaced");
+assert.match(readFileSync(settings, "utf-8"), /"defaultThinkingLevel": "high"/, "force did not write the reference value");
+assert.equal(report(FORCE).length, 4, "a forced machine still has work to do");
 
 // The command itself: a report becomes one custom entry, and bad input touches nothing.
 interface Run {
