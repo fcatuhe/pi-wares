@@ -1,6 +1,6 @@
 # config
 
-The pi and herdr configuration these wares assume, one file per target, laid out like the paths it lands in. `../bin/wares-doctor` compares a machine against these and, with `--apply`, adds what is missing.
+The pi and herdr configuration these wares assume, one file per target, laid out like the paths it lands in. [`/wares-doctor`](../extensions/wares-doctor/) compares a machine against these and, with `apply`, adds what is missing.
 
 | Reference | Target | Why it is here |
 |---|---|---|
@@ -11,6 +11,6 @@ The pi and herdr configuration these wares assume, one file per target, laid out
 
 `~/.pi/agent` follows `PI_CODING_AGENT_DIR` and `~/.config` follows `XDG_CONFIG_HOME` when either is set.
 
-Editing a reference here changes what the doctor asks for on the next run. Adding a target means one entry in `bin/wares-doctor`'s `TARGETS`, and a `[[keys.command]]`-style table array needs its identity field declared there too, the field that decides whether an entry already exists.
+Editing a reference here changes what the doctor asks for on the next run. Adding a target means one entry in [`extensions/wares-doctor/doctor.ts`](../extensions/wares-doctor/doctor.ts)'s `targets()`, and a `[[keys.command]]`-style table array needs its identity field declared there too, the field that decides whether an entry already exists.
 
 The doctor only ever adds. A key already set to something else is reported and kept, so taste in these files lands on a machine that has no opinion yet and nowhere else.

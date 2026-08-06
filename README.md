@@ -14,16 +14,14 @@ One package, individual wares toggled in `pi config`. Both CLIs self-update: `pi
 
 ## Machine setup
 
-[`config/`](./config/README.md) holds the pi and herdr configuration the wares assume. `bin/wares-doctor` compares this machine against it:
+[`config/`](./config/README.md) holds the pi and herdr configuration the wares assume. [`/wares-doctor`](./extensions/wares-doctor/) compares this machine against it:
 
-```bash
-~/.pi/agent/git/github.com/fcatuhe/pi-wares/bin/wares-doctor          # report, non-zero if incomplete
-~/.pi/agent/git/github.com/fcatuhe/pi-wares/bin/wares-doctor --apply  # add what is missing
+```text
+/wares-doctor         # report what is missing
+/wares-doctor apply   # add it
 ```
 
-`--apply` only ever adds: a key you set differently comes back as `kept`, and edits splice into the existing text so comments and formatting survive. No backups, git holds the reference.
-
-Inside a session, [`/wares-doctor`](./extensions/wares-doctor/) runs the same script and prints the same report, `/wares-doctor apply` writes. The CLI stays the path for a machine where pi will not start.
+`apply` only ever adds: a key you set differently comes back as `kept`, and edits splice into the existing text so comments and formatting survive. No backups, git holds the reference.
 
 ### External CLIs
 
@@ -104,7 +102,7 @@ Copies of upstream skills, so one install covers them. They drift, resync delibe
 | `outline-cli/` | [Doist/outline-cli](https://github.com/Doist/outline-cli) (MIT) | `v1.10.2`, verbatim. After `ol update`, `ol skill install pi` regenerates it into `~/.pi/skills/`: diff and copy. |
 | `agent-browser/` | [vercel-labs/agent-browser](https://github.com/vercel-labs/agent-browser) (Apache-2.0) | `v0.33.2`, verbatim, Claude Code frontmatter included. A stub, so it only drifts when upstream edits the stub. Diff against `$(npm root -g)/agent-browser/skills/agent-browser/SKILL.md`. |
 
-Runtime deps sit in this package's `dependencies` so pi's install covers them: `jsdom`, `turndown`, `turndown-plugin-gfm`, `@mozilla/readability` for `brave-search`, `jsonc-parser` and `toml-eslint-parser` for `bin/wares-doctor`.
+Runtime deps sit in this package's `dependencies` so pi's install covers them: `jsdom`, `turndown`, `turndown-plugin-gfm`, `@mozilla/readability` for `brave-search`, `jsonc-parser` and `toml-eslint-parser` for `wares-doctor`.
 
 ## Bundled extensions
 
@@ -117,15 +115,14 @@ Third-party pi extensions folded in as npm `dependencies` and exposed through th
 
 Caret ranges, so unpinned. pi only re-runs `npm install` on a fresh install or when this repo's default branch gets a new commit: push a commit here, then `pi update --extensions` picks up newer releases within the major. `.npmrc` sets `legacy-peer-deps=true` for the `@earendil-works/*` and `typebox` peers pi provides at runtime.
 
-The subagents extension offers its per-spawn `model` and `thinking` arguments only when `~/.pi/agent/pi-codex-subagents/config.json` sets `"modelsFromEnabledModels": true`, which points it at pi's own list. So `/models` stays the single approval list. [`config/`](./config/README.md) ships that file, `bin/wares-doctor` writes it.
+The subagents extension offers its per-spawn `model` and `thinking` arguments only when `~/.pi/agent/pi-codex-subagents/config.json` sets `"modelsFromEnabledModels": true`, which points it at pi's own list. So `/models` stays the single approval list. [`config/`](./config/README.md) ships that file, `/wares-doctor` writes it.
 
 ## Layout
 
 ```
 pi-wares/
 ├── package.json              ← `pi` manifest + bundled npm dependencies
-├── bin/                      ← wares-doctor, the machine setup check
-├── config/                   ← the pi and herdr config it compares against
+├── config/                   ← the pi and herdr config wares-doctor compares against
 ├── extensions/               ← every local ware
 │   └── model-shortcuts/
 │       ├── index.ts          ← entry point (required filename)

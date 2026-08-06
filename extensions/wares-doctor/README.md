@@ -1,14 +1,14 @@
 # wares-doctor
 
-`/wares-doctor` runs [`bin/wares-doctor`](../../bin/wares-doctor) without leaving the session and prints its report into the transcript.
+`/wares-doctor` compares this machine against the reference configs in [`config/`](../../config/README.md) and prints one line per file into the transcript.
 
 ```text
-/wares-doctor         # report what this machine is missing
+/wares-doctor         # report what is missing
 /wares-doctor apply   # write the missing keys
 ```
 
-The script stays the source of truth, and the CLI stays the way to run it when pi will not start, which is the run that matters most. This is a front end: same reference configs in [`config/`](../../config/README.md), same one-line-per-file output, same "only ever adds" behavior.
+`apply` only ever adds. A key you set differently comes back as `kept`, JSON edits go through `jsonc-parser` and TOML edits through `toml-eslint-parser`, so comments, alignment and key order in the file survive. A TOML key with no table to live in is reported as `manual` rather than guessed at.
 
-The report is a custom entry, so it renders in the transcript and is never sent to the model. A pending report exits 1 by design, so stdout decides success rather than the exit code, and a genuinely broken run (empty stdout) surfaces stderr as an error notification instead of an empty card.
+The report is a custom entry, so it renders in the transcript, survives `/reload`, and is never sent to the model. A run that cannot read a reference or create a target directory notifies the error instead of drawing an empty card.
 
-Writing `settings.json` still needs a restart to take effect. The report's own hint column says which target needs what, so `/wares-doctor apply` followed by `/reload` covers extensions, and pi settings wait for the next launch.
+Targets live in `targets()` in [`doctor.ts`](./doctor.ts), one object per file, each with the hint the report prints once it has written: `restart pi`, `/reload in pi`, or `herdr server reload-config`. Paths follow `PI_CODING_AGENT_DIR` and `XDG_CONFIG_HOME` when either is set, which is also how the self-check points them at a temp directory.
