@@ -70,7 +70,6 @@ Some skills drive CLIs this package does not install:
 | [`compact-footer/`](./extensions/compact-footer/) | Folds pi's 3-line footer into 2 by merging statuses onto the path line. |
 | [`usage-pace/`](./extensions/usage-pace/) | Footer status: subscription usage bar, pace marker, reset countdown. |
 | [`oauth-tool-alias/`](./extensions/oauth-tool-alias/) | Renames extension tools to `mcp__*` on the wire for OAuth subscription transports, and back before they execute. |
-| [`clear-on-startup/`](./extensions/clear-on-startup/) | Clears screen and scrollback once per pi launch. |
 | [`rename-quit/`](./extensions/rename-quit/) | `/rename-quit` names the session from its transcript, then exits. |
 | [`herdr-tab-title/`](./extensions/herdr-tab-title/) | Syncs the herdr tab label and the pi session name, both directions. |
 | [`handoff/`](./extensions/handoff/) | `/handoff <goal>` starts a new linked session with an LLM-written brief. |
