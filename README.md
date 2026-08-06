@@ -71,6 +71,7 @@ Some skills drive CLIs this package does not install:
 | [`usage-pace/`](./extensions/usage-pace/) | Footer status: subscription usage bar, pace marker, reset countdown. |
 | [`oauth-tool-alias/`](./extensions/oauth-tool-alias/) | Renames extension tools to `mcp__*` on the wire for OAuth subscription transports, and back before they execute. |
 | [`rename-quit/`](./extensions/rename-quit/) | `/rename-quit` names the session from its transcript, then exits. |
+| [`bang-zsh/`](./extensions/bang-zsh/) | Runs `!` commands in an interactive zsh, so your functions and aliases resolve. |
 | [`herdr-tab-title/`](./extensions/herdr-tab-title/) | Syncs the herdr tab label and the pi session name, both directions. |
 | [`handoff/`](./extensions/handoff/) | `/handoff <goal>` starts a new linked session with an LLM-written brief. |
 | [`gpt-behavior/`](./extensions/gpt-behavior/) | Appends a behavior guide to the system prompt, GPT models only. |
