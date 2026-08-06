@@ -75,7 +75,7 @@ Some skills drive CLIs this package does not install:
 | [`herdr-tab-title/`](./extensions/herdr-tab-title/) | Syncs the herdr tab label and the pi session name, both directions. |
 | [`handoff/`](./extensions/handoff/) | `/handoff <goal>` starts a new linked session with an LLM-written brief. |
 | [`gpt-behavior/`](./extensions/gpt-behavior/) | Appends a behavior guide to the system prompt, GPT models only. |
-| [`policies/`](./extensions/policies/) | House rules in the system prompt: `always/` everywhere, `when/` per marker file. |
+| [`policies/`](./extensions/policies/) | House rules in the system prompt, one extension per policy so `pi config` toggles them one by one. |
 | [`wares-doctor/`](./extensions/wares-doctor/) | `/wares-doctor` runs the machine setup check in-session, `/wares-doctor:apply` writes what is missing, `/wares-doctor:force` also overwrites what differs. |
 | [`anthropic-token-login/`](./extensions/anthropic-token-login/) | Adds a `sk-ant-oat01` token method to Anthropic's `/login`: one paste, good for a year. |
 
@@ -85,7 +85,7 @@ Loaded on demand rather than injected, so they can be as long as they need to be
 
 | Skill | What it does |
 |---|---|
-| [`pr-description/`](./skills/pr-description/SKILL.md) | Section structure for a feature pull request body. Cited from `policies/when/git.md`. |
+| [`pr-description/`](./skills/pr-description/SKILL.md) | Section structure for a feature pull request body. Cited from `policies/policy-git/`. |
 | [`brave-search/`](./skills/brave-search/SKILL.md) | Web search and page-to-markdown extraction through the Brave Search API. Needs `BRAVE_API_KEY`. |
 | [`exa-search/`](./skills/exa-search/SKILL.md) | Web search and content extraction via Exa's keyless MCP endpoint. No key or browser needed. |
 | [`gog/`](./skills/gog/SKILL.md) | Safe [`gog`](https://github.com/openclaw/gogcli) Google Workspace automation: auth state, JSON output, scoped reads and writes. |

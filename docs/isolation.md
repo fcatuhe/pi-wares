@@ -35,7 +35,7 @@ Absolute host paths outside the mount resolve against the guest root, so `read ~
 2. Fork pi's `examples/extensions/gondolin` into `extensions/gondolin/`. As shipped it mounts the cwd and configures no network policy and no secrets, and with `allowedHosts` omitted egress is unrestricted, so it delivers filesystem isolation and nothing else.
 3. Wire the hooks below into `VM.create()`, and merge their `env` into every exec.
 4. Mount the skills directory read-only, so the skills that call scripts keep working.
-5. Gate on a marker file in the repo root, the same `when/` pattern as [`policies/`](../extensions/policies/).
+5. Gate on a marker file in the repo root, the same marker pattern as [`policies/`](../extensions/policies/).
 6. Add a `/wares-doctor` target for the QEMU dependency.
 
 ### Secrets

@@ -2,23 +2,20 @@
 
 House rules appended to the system prompt, byte-identical every turn so they cache once per session.
 
-```
-always/   every session, every repo
-when/     only when a marker file exists in cwd or above it
-```
+One policy is one extension, `policy-<name>/index.ts` plus its `policy.md`, so `pi config` enables and disables them one by one: keep the code ones, drop the writing style one, in any scope pi config offers. `policy.ts` holds the shared loader and `policies/` itself has no `index.ts`, so only the `policy-*` directories load.
 
-| File | Loaded when |
+| Policy | Loaded when |
 |---|---|
-| `always/code-comment.md` | always |
-| `always/engineering.md` | always |
-| `always/writing-style.md` | always |
-| `when/git.md` | `.git` exists |
-| `when/frontend.md` | a `.html`, `.erb` or `.slim` file exists in the project (vendored dirs excluded) |
-| `when/rails.md` | `config/application.rb` exists |
+| `policy-code-comment/` | always |
+| `policy-engineering/` | always |
+| `policy-writing-style/` | always |
+| `policy-git/` | `.git` exists |
+| `policy-frontend/` | a `.html`, `.erb` or `.slim` file exists in the project (vendored dirs excluded) |
+| `policy-rails/` | `config/application.rb` exists |
 
-Adding a stack: drop the `.md` in `when/` and add its markers to `MARKERS` in `index.ts`. A file with no marker entry never loads.
+Adding a policy: create `policy-<name>/` with a `policy.md` and an `index.ts` of `export default policy(import.meta.dirname)`, plus a marker argument if it is stack-specific. The `extensions/policies/policy-*` entry in the root `package.json` picks it up.
 
-Markers are searched in cwd and every directory above it, never below. A workspace holding sibling repos sees only what its own root declares, so `cd` into the repo. One consequence of walking up: if `$HOME` is itself a repo, as with dotfiles, `git.md` loads everywhere.
+Markers are searched in cwd and every directory above it, never below. A workspace holding sibling repos sees only what its own root declares, so `cd` into the repo. One consequence of walking up: if `$HOME` is itself a repo, as with dotfiles, `policy-git` loads everywhere.
 
 ## Inject or make it a skill
 

@@ -25,6 +25,7 @@
   "pi": {
     "extensions": [
       "extensions",
+      "extensions/policies/policy-*",
       "node_modules/token-rate-pi/token-rate.ts",
       "node_modules/@ogulcancelik/pi-codex-subagents/index.ts"
     ],
