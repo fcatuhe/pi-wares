@@ -9,7 +9,7 @@ curl -fsSL https://pi.dev/install.sh | sh     # pi
 curl -fsSL https://herdr.dev/install.sh | sh  # herdr, the terminal multiplexer we run pi in
 ```
 
-Update: `pi update -all`, `herdr update`.
+Update: `pi update --all`, `herdr update`.
 
 ## Install
 
