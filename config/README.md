@@ -6,6 +6,7 @@ The pi and herdr configuration these wares assume, one file per target, laid out
 |---|---|---|
 | [`pi/settings.json`](./pi/settings.json) | `~/.pi/agent/settings.json` | House defaults. `enabledModels` also feeds `model-shortcuts` and subagent routing. |
 | [`pi/extensions/pi-model-shortcuts.json`](./pi/extensions/pi-model-shortcuts.json) | `~/.pi/agent/extensions/pi-model-shortcuts.json` | `/fable`, `/opus`, `/sonnet`, `/gpt`, in the same order as `enabledModels`. |
+| [`pi/extensions/herdr-preview.json`](./pi/extensions/herdr-preview.json) | `~/.pi/agent/extensions/herdr-preview.json` | `auto`, so markdown pi writes takes over the `herdr-preview` split by itself. The extension defaults it off without this file, which is the right default for a machine that never met the doctor and the wrong one for ours. `direction` and `ratio` stay out, the extension's own defaults are the house ones. |
 | [`pi/pi-codex-subagents/config.json`](./pi/pi-codex-subagents/config.json) | `~/.pi/agent/pi-codex-subagents/config.json` | Without `modelsFromEnabledModels`, the subagents extension silently drops its per-spawn `model` argument. The failure mode that made this directory exist. |
 | [`herdr/config.toml`](./herdr/config.toml) | `~/.config/herdr/config.toml` | The keybindings and the `cmd+shift+i` new-tab-running-pi command, plus `kitty_graphics` so pi can draw images. |
 

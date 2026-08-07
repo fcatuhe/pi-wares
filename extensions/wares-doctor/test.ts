@@ -134,27 +134,28 @@ function bareMachine(): string {
 const home = bareMachine();
 const bare = report("");
 // Work waiting on the user is the warning; the items under it are plain text.
-assert.deepEqual(bare.notes.map((note) => note.tone), ["warning", "text", "text", "text", "text"], "the notes changed tone");
+assert.deepEqual(bare.notes.map((note) => note.tone), ["warning", "text", "text", "text", "text", "text"], "the notes changed tone");
 assert.deepEqual(
   bare.notes.map((note) => note.text),
   [
-    "4 to add. /wares-doctor:apply writes them.",
+    "5 to add. /wares-doctor:apply writes them.",
     "  pi settings",
     "  model shortcuts",
+    "  markdown preview",
     "  codex subagents",
     "  herdr",
   ],
   "a bare machine did not list every target it would create",
 );
 // One row per file, nothing per key, and a file with work to do is coloured, not just counted.
-assert.equal(bare.rows.length, 4, "the report is no longer one row per file");
+assert.equal(bare.rows.length, 5, "the report is no longer one row per file");
 assert.equal(bare.rows[0].label.trim(), "pi settings");
 assert.equal(bare.rows[0].state.trim(), "create");
 assert.equal(bare.rows[0].tone, "warning", "a file that does not exist yet renders in default colour");
 assert.equal(bare.rows[0].hint, "", "a report that wrote nothing still tells you to restart");
 
 const applied = report(APPLY);
-assert.equal(applied.rows.length, 4, "apply printed more than one row per file");
+assert.equal(applied.rows.length, 5, "apply printed more than one row per file");
 assert.equal(applied.rows[0].state.trim(), "created");
 assert.equal(applied.rows[0].tone, "warning", "a file just written needs a reload, so it is not plain text");
 assert.match(applied.rows[0].path, /settings\.json$/);
@@ -163,11 +164,16 @@ const settled = report("");
 assert.deepEqual(settled.notes, [], "the applied config still reports work");
 assert.deepEqual(
   settled.rows.map((row) => row.tone),
-  [undefined, undefined, undefined, undefined],
+  [undefined, undefined, undefined, undefined, undefined],
   "a machine with nothing left to do still colours its rows",
 );
 const root = join(import.meta.dirname, "..", "..");
-for (const file of ["agent/settings.json", "agent/extensions/pi-model-shortcuts.json", "config/herdr/config.toml"]) {
+for (const file of [
+  "agent/settings.json",
+  "agent/extensions/pi-model-shortcuts.json",
+  "agent/extensions/herdr-preview.json",
+  "config/herdr/config.toml",
+]) {
   const source = file.startsWith("agent/") ? `config/pi/${file.slice("agent/".length)}` : "config/herdr/config.toml";
   assert.equal(readFileSync(join(home, file), "utf-8"), readFileSync(join(root, source), "utf-8"), `${file} is not the reference`);
 }
@@ -200,7 +206,7 @@ assert.match(replaced.rows[0].state, /^replaced 1, ok /, "force did not report w
 assert.equal(replaced.rows[0].hint, "  (restart pi)", "force wrote the file and said nothing about reloading");
 assert.deepEqual(replaced.notes, [], "force still offers to take what it just took");
 assert.match(readFileSync(settings, "utf-8"), /"defaultThinkingLevel": "high"/, "force did not write the reference value");
-assert.equal(report(FORCE).rows.length, 4, "a forced machine still has work to do");
+assert.equal(report(FORCE).rows.length, 5, "a forced machine still has work to do");
 
 // A machine one key and one model short: the list names each key with the value that would land.
 const shortHome = bareMachine();
