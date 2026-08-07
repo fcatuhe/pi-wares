@@ -1,8 +1,7 @@
 import { readFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { FooterComponent } from "@earendil-works/pi-coding-agent";
+import { CONFIG_DIR_NAME, FooterComponent, getAgentDir } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
 // INFO: fc 02aug26 mirrors SettingsManager.getCompactionEnabled(): project settings over global, default true
@@ -10,7 +9,7 @@ import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 // reads stale until the next footer construction; cosmetic only, proper fix upstream (a settings event or
 // autoCompactEnabled on ExtensionContext)
 function autoCompactEnabled(cwd: string): boolean {
-	for (const file of [join(cwd, ".pi", "settings.json"), join(homedir(), ".pi", "agent", "settings.json")]) {
+	for (const file of [join(cwd, CONFIG_DIR_NAME, "settings.json"), join(getAgentDir(), "settings.json")]) {
 		try {
 			const enabled = JSON.parse(readFileSync(file, "utf8"))?.compaction?.enabled;
 			if (typeof enabled === "boolean") return enabled;

@@ -1,6 +1,6 @@
 /** Self-check: npx tsx extensions/usage-pace/test.ts */
 import assert from "node:assert/strict";
-import { barCells, elapsedPercent, formatReset, paceColor, parseClaude, parseCodex } from "./index.ts";
+import { barCells, elapsedPercent, formatReset, paceColor, parseClaude, parseCodex } from "./usage.ts";
 
 const HOUR = 3_600_000;
 const now = Date.now();
@@ -73,4 +73,4 @@ assert.deepEqual(barCells(100, 100, 1), ["mark"]);
 // Clamps: past reset and over-100 usage stay in range.
 assert.equal(elapsedPercent({ label: "5h", usedPercent: 0, resetsAt: now - HOUR, durationMs: 5 * HOUR }, now), 100);
 
-console.log("ok");
+console.log("usage-pace: ok");
