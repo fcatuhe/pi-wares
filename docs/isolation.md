@@ -53,7 +53,7 @@ const { httpHooks, env } = createHttpHooks({
 
 ### Gating
 
-Not global. The example boots the VM from `before_agent_start`, so loading it globally costs a micro-VM on the first prompt of every session, including the ones that never touch a file.
+Not global. The example boots the VM from `session_start`, so loading it globally costs a micro-VM at every session start, before the first prompt, including the sessions that never touch a file.
 
 Reserve it for what warrants it: untrusted repos, unattended runs, anything you would not watch. Your own repo with you at the keyboard does not need it, and paying VM boot plus a cold `node_modules` every session is how a safety mechanism gets uninstalled in a week.
 
