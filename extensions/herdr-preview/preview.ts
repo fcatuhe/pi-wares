@@ -54,12 +54,8 @@ export function viewerCommand(path: string): string {
 }
 
 export function parseConfig(raw: string | undefined): Config {
-	let parsed: Partial<Config>;
-	try {
-		parsed = JSON.parse(raw ?? "");
-	} catch {
-		return DEFAULTS;
-	}
+	if (!raw?.trim()) return DEFAULTS;
+	const parsed: Partial<Config> = JSON.parse(raw);
 	const ratio = Number(parsed?.ratio);
 	return {
 		auto: parsed?.auto === true,

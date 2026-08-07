@@ -72,10 +72,12 @@ assert.equal(
 	awkward,
 );
 
-// A missing or corrupt config file leaves the defaults, never an exception.
+// A missing or empty config file leaves the defaults.
 assert.deepEqual(parseConfig(undefined), DEFAULTS);
-assert.deepEqual(parseConfig("{ not json"), DEFAULTS);
+assert.deepEqual(parseConfig("  "), DEFAULTS);
 assert.deepEqual(parseConfig("{}"), DEFAULTS);
+// Corrupt JSON is a mistake worth reporting, so it reaches the caller instead of vanishing.
+assert.throws(() => parseConfig("{ not json"));
 assert.deepEqual(parseConfig('{"auto":true,"direction":"down","ratio":0.35}'), {
 	auto: true,
 	direction: "down",

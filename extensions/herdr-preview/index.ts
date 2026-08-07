@@ -12,6 +12,7 @@ import { Container, type SelectItem, SelectList, Text } from "@earendil-works/pi
 import {
 	candidates,
 	type Config,
+	DEFAULTS,
 	matching,
 	isMarkdown,
 	paneLabel,
@@ -59,10 +60,13 @@ export default function (pi: ExtensionAPI) {
 	}
 
 	function config(): Config {
+		const file = configFile();
+		if (!existsSync(file)) return DEFAULTS;
 		try {
-			return parseConfig(readFileSync(configFile(), "utf8"));
-		} catch {
-			return parseConfig(undefined);
+			return parseConfig(readFileSync(file, "utf8"));
+		} catch (err) {
+			console.error(`[herdr-preview] ignoring ${file}: ${err}`);
+			return DEFAULTS;
 		}
 	}
 
