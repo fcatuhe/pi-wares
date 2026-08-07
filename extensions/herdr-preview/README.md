@@ -32,8 +32,8 @@ brew install mdcat
 { "auto": true, "direction": "right", "ratio": 0.4 }
 ```
 
-`auto` opens every markdown file pi writes, and is what `/md auto` toggles. `direction` is `right` or `down`, `ratio` is between 0 and 1 exclusive, unset leaving the split at herdr's own. Anything missing, corrupt or out of range falls back rather than failing.
+`auto` opens every markdown file pi writes, and is what `/md auto` toggles. `direction` is `right` or `down`, `ratio` is between 0 and 1 exclusive, unset leaving the split at herdr's own. A missing file or an out-of-range value falls back rather than failing. A corrupt file also falls back, but logs the file and the parse error first, since a silently ignored config reads as a broken extension.
 
 [`/wares-doctor`](../wares-doctor/) creates the file with `auto` on. Without it the code says off, the right default for a machine that never met the doctor. Toggle it back off and the doctor reports `kept 1` on every run, the price of a toggle under reference control.
 
-No project-local override, unlike `model-shortcuts`: a repo that set `auto` would silently outrank `/md auto`.
+No project-local override: a repo that set `auto` would silently outrank `/md auto`.

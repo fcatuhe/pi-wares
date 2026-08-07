@@ -12,18 +12,7 @@ Type `/glm:` and autocomplete lists the thinking levels that model actually supp
 
 ## Configure
 
-Shortcuts come from either file, project entries shallow-merging over global ones by name, same spirit as pi's `settings.json`:
-
-- `~/.pi/agent/extensions/pi-model-shortcuts.json` global
-- `<cwd>/.pi/extensions/pi-model-shortcuts.json` project-local
-
-```jsonc
-// global
-{ "glm": { "provider": "fireworks", "model": "accounts/fireworks/models/glm-5p1" } }
-
-// project: inherits provider and model, pins thinking only
-{ "glm": { "thinkingLevel": "low" } }
-```
+Shortcuts come from `~/.pi/agent/extensions/pi-model-shortcuts.json`. No project-local override: a repo that repointed `/opus` at a model of its choosing would be changing where your prompts go.
 
 Top-level keys are the shortcut names, each value `{ provider, model, thinkingLevel? }`:
 
@@ -44,6 +33,8 @@ The config file keeps the `pi-model-shortcuts.json` name it had before this ware
 ## Behavior
 
 - Loaded on every `session_start`, so `/reload` picks up edits.
+- A missing config is normal and silent. A corrupt one logs the file and the parse error, then registers nothing: half your slash commands disappearing deserves a reason on the console.
+- Parsing lives in [`shortcuts.ts`](./shortcuts.ts) with no pi imports, so [`test.ts`](./test.ts) exercises it without a session or a disk.
 - Combos come from `getSupportedThinkingLevels`, so `/glm:xhigh` is not offered when glm has no `xhigh`. A model the registry cannot resolve at `session_start` falls back to the full list, and its commands report the lookup failure when run.
 - A thinking level the model does not support clamps to the nearest one (`pi.setThinkingLevel`), and the notification reports the level that actually took effect: `/off` on a model that always thinks says `Thinking: minimal (off unsupported)`.
 - Lookups go through `ctx.modelRegistry`, so anything registered by pi or another extension is reachable.

@@ -6,63 +6,19 @@ import { getSupportedThinkingLevels } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
+import { LEVELS, parseShortcuts, type Shortcut } from "./shortcuts.ts";
+
 const CONFIG_FILENAME = "pi-model-shortcuts.json";
-const LEVELS: ThinkingLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 
-interface Shortcut {
-	provider: string;
-	model: string;
-	thinkingLevel?: ThinkingLevel;
-}
-
-function isLevel(value: string): value is ThinkingLevel {
-	return (LEVELS as string[]).includes(value);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null;
-}
-
-function parseShortcut(raw: unknown): Partial<Shortcut> {
-	if (!isRecord(raw)) return {};
-	const out: Partial<Shortcut> = {};
-	if (typeof raw.provider === "string" && raw.provider.trim()) out.provider = raw.provider.trim();
-	if (typeof raw.model === "string" && raw.model.trim()) out.model = raw.model.trim();
-	if (typeof raw.thinkingLevel === "string" && isLevel(raw.thinkingLevel)) {
-		out.thinkingLevel = raw.thinkingLevel;
-	}
-	return out;
-}
-
-function readConfigFile(path: string): Record<string, Partial<Shortcut>> {
-	if (!existsSync(path)) return {};
-	let parsed: unknown;
+function loadShortcuts(): Record<string, Shortcut> {
+	const file = join(getAgentDir(), "extensions", CONFIG_FILENAME);
+	if (!existsSync(file)) return {};
 	try {
-		parsed = JSON.parse(readFileSync(path, "utf-8"));
+		return parseShortcuts(readFileSync(file, "utf8"));
 	} catch (err) {
-		console.error(`[model-shortcuts] failed to read ${path}: ${err}`);
+		console.error(`[model-shortcuts] ignoring ${file}: ${err}`);
 		return {};
 	}
-	if (!isRecord(parsed)) return {};
-	const out: Record<string, Partial<Shortcut>> = {};
-	for (const [name, raw] of Object.entries(parsed)) {
-		const trimmed = name.trim();
-		if (!trimmed || isLevel(trimmed)) continue;
-		out[trimmed] = parseShortcut(raw);
-	}
-	return out;
-}
-
-function loadShortcuts(cwd: string): Record<string, Shortcut> {
-	const global = readConfigFile(join(getAgentDir(), "extensions", CONFIG_FILENAME));
-	const project = readConfigFile(join(cwd, ".pi", "extensions", CONFIG_FILENAME));
-
-	const out: Record<string, Shortcut> = {};
-	for (const name of new Set([...Object.keys(global), ...Object.keys(project)])) {
-		const { provider, model, thinkingLevel } = { ...global[name], ...project[name] };
-		if (provider && model) out[name] = { provider, model, thinkingLevel };
-	}
-	return out;
 }
 
 function thinkingNotice(requested: ThinkingLevel, effective: ThinkingLevel): string {
@@ -104,7 +60,7 @@ export default function modelShortcutsExtension(pi: ExtensionAPI): void {
 	}
 
 	pi.on("session_start", async (_event, ctx) => {
-		for (const [name, shortcut] of Object.entries(loadShortcuts(ctx.cwd))) {
+		for (const [name, shortcut] of Object.entries(loadShortcuts())) {
 			const base = `(${shortcut.provider}) ${shortcut.model}`;
 			pi.registerCommand(name, {
 				description: shortcut.thinkingLevel ? `${base} • thinking ${shortcut.thinkingLevel}` : base,
