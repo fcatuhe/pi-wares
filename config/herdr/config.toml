@@ -9,6 +9,10 @@ next_workspace = "cmd+shift+down"
 new_tab = "cmd+shift+t"
 close_tab = "cmd+shift+w"
 rename_tab = "cmd+shift+r"
+focus_pane_left = "cmd+alt+left"
+focus_pane_down = "cmd+alt+down"
+focus_pane_up = "cmd+alt+up"
+focus_pane_right = "cmd+alt+right"
 
 # New tab running pi, focused, in one keystroke.
 [[keys.command]]
