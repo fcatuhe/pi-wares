@@ -14,6 +14,8 @@ jobs:
         with:
           node-version: lts/*
           cache: npm
+      # bang-zsh's self-check runs its escaping through a real zsh, which the runner image lacks
+      - run: sudo apt-get install -y --no-install-recommends zsh
       # catches broken lockfiles and yanked packages in dependabot PRs
       - run: npm ci
       # the wares' self-checks; tsx erases types, so the @earendil-works peers are not needed
