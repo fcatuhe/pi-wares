@@ -198,7 +198,7 @@ function targets(): Target[] {
 			label: "markdown preview",
 			reference: "config/pi/extensions/herdr-preview.json",
 			path: join(agentDir, "extensions", "herdr-preview.json"),
-			hint: "next /md picks it up",
+			hint: "next /preview:md picks it up",
 		},
 		{
 			label: "codex subagents",

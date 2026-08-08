@@ -222,7 +222,7 @@ export default function (pi: ExtensionAPI) {
 		if (label === viewerLabel) await herdr(["pane", "close", pane]);
 	});
 
-	pi.registerCommand("md", {
+	pi.registerCommand("preview:md", {
 		description: "Preview a markdown file in a herdr split",
 		getArgumentCompletions: (prefix: string) => {
 			const paths = matching(candidates(recent, repo), prefix).map((path) => ({
