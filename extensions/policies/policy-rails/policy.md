@@ -153,6 +153,14 @@ class MailAccount::CollectJob < ApplicationJob
 end
 ```
 
+## Scripts
+
+Everything around the app is Ruby: setup, CI, one-offs, data fixes. No bash, no Python, no Node. Exception: the shipped `bin/dev` and `bin/docker-entrypoint`, which run before Ruby is usable.
+
+- Logic lives in a class under `lib/`. The entry point only parses `ARGV` and calls it.
+- Needs Rails loaded: `lib/tasks/*.rake`, run as `bin/rails sitemap:check`. Does not: `bin/`, `#!/usr/bin/env ruby`, booting gems only.
+- Expose a simple script both ways, `bin/smart_quotes find` and `rake smart_quotes:find`, so CI can call the fast one.
+
 ## Views
 
 - Partials for reuse, prefixed `_`, locals passed explicitly. No instance variables in partials.
@@ -229,6 +237,7 @@ end
 ✗ puts / p for debugging                     -> ✓ Rails.logger.debug
 ✗ ENV["X"] direct                            -> ✓ credentials or config
 ✗ raw SQL strings                            -> ✓ Active Record query interface
+✗ bash / python / node scripts               -> ✓ Ruby in bin/ or a rake task
 ✗ has_and_belongs_to_many                    -> ✓ has_many :through
 ✗ resources + custom actions                 -> ✓ resources + nested resource
 ✗ inline JS / <script> tags                  -> ✓ Stimulus controllers
