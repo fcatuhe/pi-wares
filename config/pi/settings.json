@@ -5,6 +5,9 @@
   "tuiMode": "fullscreen",
   "showCacheMissNotices": true,
   "treeFilterMode": "no-tools",
+  "warnings": {
+    "anthropicExtraUsage": false
+  },
   "enabledModels": [
     "anthropic/claude-fable-5",
     "anthropic/claude-opus-5",
