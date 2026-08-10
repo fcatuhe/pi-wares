@@ -1,8 +1,8 @@
 # Code Comment Policy
 
-Default: **no comments.** A comment explaining *what* code does is a smell. Fix the code, not the prose. Comment density marks the weakest code: the method with all the comments is the refactor target.
+Default: **no comments.** A comment explaining *what* code does is a smell. Fix the code, not the prose. The method with all the comments is the refactor target.
 
-Ask what the comment actually explains, then kill that cause:
+Ask what the comment explains, then kill that cause:
 
 | Explains | Do instead |
 |---|---|
@@ -10,6 +10,7 @@ Ask what the comment actually explains, then kill that cause:
 | what a block does | extract a function named after the comment |
 | a condition | predicate: `if (gracePeriodExpired())` |
 | a non-obvious pattern | wrong pattern, find the right primitive |
+| a section of a file | split the file |
 
 ```
 ✗  // wait 30s for undo before destroying
@@ -18,30 +19,58 @@ Ask what the comment actually explains, then kill that cause:
    destroyLater(UNDO_GRACE_PERIOD)
 ```
 
-## Sanctioned comments
+## Tagged notes
 
-Tagged notes only, `TAG: initials DDmmmYY description`, so they're greppable. Initials are the session owner's, agents included:
+The only untagged prose allowed is in tests and infra, below. Everything else is `TAG: initials DDmmmYY description`, so it greps. Initials are the session owner's, agents included.
 
 - `TODO:` not done yet
 - `FIXME:` known broken
 - `OPTIMIZE:` known slow
-- `INFO:` facts code cannot express: external constraints, vendor bugs, spec/regulatory refs, why an ugly thing is deliberate, a deliberate shortcut's ceiling and upgrade path
+- `INFO:` facts code cannot express: external constraints, vendor bugs, spec refs, why an ugly thing is deliberate, a shortcut's ceiling and upgrade path
 
-`# INFO: fc 09mar26 vendor API returns 200 on failure, we parse the body`
+```
+# INFO: fc 09mar26 vendor API returns 200 on failure, we parse the body
+# TODO: fc 25feb26 remove once litestream ships the layout fix (fractaledmind/litestream-ruby#72)
+```
 
-If the fact is expressible as a name, name it instead.
+- The INFO test: would a competent reader delete this code as pointless? No, then no comment.
+- A `TODO:` blocked on someone else names the blocker (URL, version) and what makes it removable. Without an exit condition it is a note to nobody.
+- Multi-line: tag the first line, continuations are plain.
+- A note that gains a reason appends a date, it is not rewritten: `# INFO: fc 02nov24 required by Action Policy | 17dec24 also by Ahoy`.
+- Space after the comment marker: `// TODO:`, not `//TODO:`.
 
-## Exempt (comment freely, be explicit)
+## Tests
 
-- **Tests.** Specifications, so untagged prose is fine. Comment the scenario and *why*: setup that looks arbitrary but isn't, the boundary probed, the bug pinned down. Don't restate assertions; what's under test goes in the test name.
-- **Config and infra** (Terraform, Docker, CI, nginx, systemd, k8s): one line per block on *why it deserves to be there*. Write for the 3-a.m. pager version of yourself. Repetition is fine here.
+A comment in a test is a test case that was not written. The framework already holds prose: the test name.
+
+| Comment says | Do instead |
+|---|---|
+| what this sets up | named helper: `single_availability(9, 17)` |
+| what is expected | the test name, or a second test |
+| why an assertion could fail | assertion message, it prints when it matters |
+
+Two comments survive, both untagged:
+
+- Above the test: why it exists, when a reader would otherwise happily delete it. The regression's tombstone.
+- Inside: the derivation of a non-obvious expected value, `# visible 0→60 + 300→360 = 120s`.
+
+A disabled test is `skip` with a `TODO:`, never a commented-out block. Commented out, the suite reports nothing and nobody notices.
+
+## Infra
+
+Config and infra (Terraform, Docker, CI, nginx, systemd, k8s, cron): one untagged line per block on why it deserves to be there. Write for the pager at 3 a.m. Repetition is fine.
+
+Generated scaffolding (`database.yml`, `deploy.yml`, generator stubs) is inert. Leave it, never add to it, delete it when you rewrite the block.
+
+## Also comment
+
 - **Public API docs** where the project's doc tooling expects them.
 - **Security, crypto, money, concurrency**: an `INFO:` naming the invariant beats the incident.
 
 ## Never
 
-- Commented-out code. Delete it, git remembers.
-- Section banners, header changelogs, author tags.
-- Restating the next line, or narrating your edit. That's the commit message.
-- Leaving a comment stale after changing code beneath it. Update or delete.
-- Mass-stripping comments from files you're in for another reason. Remove one when you refactor away what it compensated for, or when it's wrong.
+- Commented-out code, yours. Delete it, git remembers.
+- Section banners, in any language. Header changelogs, author tags.
+- Restating the next line, or narrating your edit. That is the commit message.
+- Leaving a comment stale after changing the code beneath it. Update or delete.
+- Mass-stripping comments from a file you are in for another reason. Remove one when you refactor away what it compensated for, or when it is wrong.
