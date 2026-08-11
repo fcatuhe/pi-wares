@@ -13,7 +13,7 @@ import {
 assert.equal(namespaceFrom({ path: "/x/pi-codex-subagents/index.ts" }), "codex_subagents");
 assert.equal(namespaceFrom({ path: "/x/pi-exa-mcp/extensions/index.ts" }), "exa_mcp");
 assert.equal(namespaceFrom({ path: "/x/pi-wares/extensions/usage-pace/index.ts" }), "usage_pace");
-assert.equal(namespaceFrom({ baseDir: "/x/token-rate-pi" }), "token_rate_pi");
+assert.equal(namespaceFrom({ baseDir: "/x/brave-search-pi" }), "brave_search_pi");
 // path wins over baseDir (baseDir can be a monorepo root).
 assert.equal(namespaceFrom({ path: "/repo/packages/pi-foo/index.ts", baseDir: "/repo" }), "foo");
 // Builtins have no source dir, and a namespace naming pi would undo the prompt neutralization.
@@ -240,3 +240,4 @@ const unrelated = [
 for (const text of unrelated) {
 	assert.equal(rewritePromptText(text), text);
 }
+

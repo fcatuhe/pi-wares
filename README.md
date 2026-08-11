@@ -70,6 +70,7 @@ Some skills drive CLIs this package does not install:
 | [`model-shortcuts/`](./extensions/model-shortcuts/) | Slash shortcuts for model + thinking level: `/opus`, `/opus:high`, `/high`. |
 | [`compact-footer/`](./extensions/compact-footer/) | Folds pi's 3-line footer into 2 by merging statuses onto the path line. |
 | [`usage-pace/`](./extensions/usage-pace/) | Footer status: subscription usage bar, pace marker, reset countdown. |
+| [`token-rate/`](./extensions/token-rate/) | Footer status: output tokens per second of streaming, over the last 5 messages. |
 | [`oauth-tool-alias/`](./extensions/oauth-tool-alias/) | Renames extension tools to `mcp__*` on the wire for OAuth subscription transports, and back before they execute. |
 | [`rename-quit/`](./extensions/rename-quit/) | `/rename-quit` names the session from its transcript, then exits. |
 | [`bang-zsh/`](./extensions/bang-zsh/) | Runs `!` commands in an interactive zsh, so your functions and aliases resolve. |
@@ -113,7 +114,6 @@ Third-party pi extensions folded in as npm `dependencies` and exposed through th
 
 | Package | What it does |
 |---|---|
-| [`token-rate-pi`](https://www.npmjs.com/package/token-rate-pi) | Footer status showing average output tokens/sec. |
 | [`@ogulcancelik/pi-codex-subagents`](https://github.com/ogulcancelik/pi-extensions/tree/main/packages/pi-codex-subagents) | Codex-shaped, session-scoped subagents: templates, waits, steering, live overlay, per-spawn model routing, the last one [ours](https://github.com/ogulcancelik/pi-extensions/pull/21) and upstream since `0.3.3`. |
 
 Caret ranges, so unpinned. pi only re-runs `npm install` on a fresh install or when this repo's default branch gets a new commit: push a commit here, then `pi update --extensions` picks up newer releases within the major. `.npmrc` sets `legacy-peer-deps=true` for the `@earendil-works/*` and `typebox` peers pi provides at runtime.
