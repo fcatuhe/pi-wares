@@ -20,7 +20,7 @@ Output tokens per second of **streaming**, averaged over the last 5 assistant me
 ## Behavior
 
 - Published with `ctx.ui.setStatus("token-rate", ...)`, so the built-in footer, [`compact-footer`](../compact-footer/) and any other footer render it without extra wiring.
-- Dim, single line, no label. The unit is the label.
+- Theme `accent`, single line, no label. The unit is the label.
 
 ## Check
 

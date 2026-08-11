@@ -12,7 +12,7 @@ export default function (pi: ExtensionAPI) {
 	function paint(ctx: ExtensionContext): void {
 		if (!ctx.hasUI) return;
 		const text = format(samples);
-		ctx.ui.setStatus(KEY, text === undefined ? undefined : ctx.ui.theme.fg("dim", text));
+		ctx.ui.setStatus(KEY, text === undefined ? undefined : ctx.ui.theme.fg("accent", text));
 	}
 
 	function reset(ctx: ExtensionContext): void {
