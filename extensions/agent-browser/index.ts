@@ -32,11 +32,13 @@ import {
 	type Config,
 	cookieKeys,
 	cookieNames,
+	type Display,
 	guardViolation,
 	type Identity,
 	identity,
 	initScripts,
 	launchArgs,
+	parseDisplay,
 	LOGIN_INDEX,
 	mentionsBinary,
 	mergeConfig,
@@ -47,15 +49,22 @@ import {
 	savedLogins,
 	sessionFallback,
 	sessionsOn,
+	screenInfoArg,
 	stateSummary,
 	storedOrigins,
 	strayTargets,
 	userAgent,
+	userAgentArg,
+	windowSizeArg,
 	workSession,
+	wrapperScript,
 } from "./browser.ts";
 import { stealthScript } from "./stealth.ts";
 
 const BINARY = "agent-browser";
+// Read before the wrapper replaces it: configure() runs again on a change of directory, and a wrapper wrapping the last
+// wrapper would exec a scratch path that pruning is free to delete
+const ENV_CHROME = process.env.AGENT_BROWSER_EXECUTABLE_PATH;
 const PREFIX = "pi";
 const LOGIN_TIMEOUT_MS = 15 * 60_000;
 // INFO: fc 11aug26 a DevTools HTTP read at this interval is free and has no effect on the page. An agent-browser command
@@ -305,17 +314,25 @@ export default function (pi: ExtensionAPI) {
 		remember(cwd);
 
 		const theirs = userConfigs(cwd);
-		const chrome = executable(theirs);
-		if (chrome) process.env.AGENT_BROWSER_EXECUTABLE_PATH = chrome;
+		const chrome = chromePath(theirs);
 		me = identity(platform(), await osVersion(), await browserVersion(chrome));
+		const launcher = (chrome ? writeWrapper(chrome, await display()) : undefined) ?? chrome;
+		const wrapper = launcher !== chrome;
+		if (launcher) process.env.AGENT_BROWSER_EXECUTABLE_PATH = launcher;
+
 		const stealth = join(scratch, "stealth.js");
 		writeFileSync(stealth, stealthScript(me));
 		const config = join(scratch, "config.json");
-		writeFileSync(config, JSON.stringify(mergeConfig(theirs, { headers: JSON.stringify(clientHints(me)) }), null, 1));
+		// INFO: fc 11aug26 a wrapped launch needs no header override: Chrome sends its own sec-ch-ua, and they are the real ones.
+		// The override is kept for the CDP path only because that one sends no sec-ch-ua header at all, which is louder than a
+		// wrong value: measured against a local echo server, a request from the CDP path carries no client hint header whatsoever.
+		const ours = wrapper ? {} : { headers: JSON.stringify(clientHints(me)) };
+		writeFileSync(config, JSON.stringify(mergeConfig(theirs, ours), null, 1));
 
 		process.env.AGENT_BROWSER_SESSION = work;
 		process.env.AGENT_BROWSER_CONFIG = config;
-		process.env.AGENT_BROWSER_USER_AGENT = userAgent(me);
+		if (wrapper) delete process.env.AGENT_BROWSER_USER_AGENT;
+		else process.env.AGENT_BROWSER_USER_AGENT = userAgent(me);
 		process.env.AGENT_BROWSER_ARGS = launchArgs(theirs);
 		process.env.AGENT_BROWSER_INIT_SCRIPTS = initScripts(theirs, stealth);
 		process.env.AGENT_BROWSER_HIDE_SCROLLBARS = "false";
@@ -424,9 +441,30 @@ export default function (pi: ExtensionAPI) {
 		}
 	}
 
-	function executable(theirs: Config[]): string | undefined {
-		if (process.env.AGENT_BROWSER_EXECUTABLE_PATH || theirs.some((config) => config.executablePath)) return undefined;
-		return chromeBinary(platform());
+	// The binary the wrapper execs, so a path the user chose is honoured instead of being replaced by the one we find
+	function chromePath(theirs: Config[]): string | undefined {
+		const configured = theirs.map((config) => config.executablePath).find((p): p is string => typeof p === "string");
+		return ENV_CHROME || configured || chromeBinary(platform());
+	}
+
+	// A POSIX script, so Windows keeps the CDP override and the page-side client hints that go with it
+	function writeWrapper(chrome: string, screen: Display | undefined): string | undefined {
+		if (platform() === "win32") return undefined;
+		const flags = [userAgentArg(userAgent(me))];
+		if (screen) flags.push(screenInfoArg(screen), windowSizeArg(screen));
+		const path = join(scratch, "chrome-wrapper.sh");
+		writeFileSync(path, wrapperScript(chrome, flags), { mode: 0o755 });
+		return path;
+	}
+
+	// INFO: fc 11aug26 AppKit through JXA, because the headless screen has to match the display macOS presents: Chrome's own
+	// default is 800x600, which is smaller than the window agent-browser opens and impossible on real hardware
+	async function display(): Promise<Display | undefined> {
+		if (platform() !== "darwin") return undefined;
+		const script =
+			'ObjC.import("AppKit"); var s = $.NSScreen.mainScreen; var f = s.frame, v = s.visibleFrame; JSON.stringify({frame:[f.size.width,f.size.height], visible:[v.size.width,v.size.height], scale:s.backingScaleFactor})';
+		const result = await pi.exec("osascript", ["-l", "JavaScript", "-e", script], { timeout: CLI_TIMEOUT_MS });
+		return result.code === 0 ? parseDisplay(result.stdout) : undefined;
 	}
 
 	async function browserVersion(chrome: string | undefined): Promise<string> {

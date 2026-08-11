@@ -21,8 +21,10 @@ import {
 	loginOf,
 	mergeConfig,
 	pageSignatures,
+	parseDisplay,
 	parseVersion,
 	ranked,
+	screenInfoArg,
 	savedLogins,
 	sessionFallback,
 	sessionsOn,
@@ -30,7 +32,10 @@ import {
 	storedOrigins,
 	strayTargets,
 	userAgent,
+	userAgentArg,
+	windowSizeArg,
 	workSession,
+	wrapperScript,
 } from "./browser.ts";
 import { stealthScript } from "./stealth.ts";
 
@@ -100,6 +105,39 @@ assert.equal(launchArgs([{ args: "--no-sandbox" }]), `--no-sandbox,${AUTOMATION_
 assert.equal(launchArgs([{ args: 42 }]), AUTOMATION_ARG);
 assert.equal(initScripts([{ initScripts: ["/a.js"] }], "/s.js"), "/a.js,/s.js");
 assert.equal(initScripts([{}], "/s.js"), "/s.js");
+// A wrapper leaves nothing of ours to inject, and an empty path would trail a comma the CLI reads as a script named "".
+assert.equal(initScripts([{ initScripts: ["/a.js"] }], ""), "/a.js");
+assert.equal(initScripts([{}], ""), "");
+
+// window.screen is in CSS pixels and --screen-info is in physical ones, so a 2x display has to be handed twice the size it
+// reports, or Chrome halves it and the screen comes out smaller than the window sitting on it.
+const retina = parseDisplay('{"frame":[1470,956],"visible":[1470,923],"scale":2}');
+assert.deepEqual(retina, {
+	width: 1470,
+	height: 956,
+	availWidth: 1470,
+	availHeight: 923,
+	scale: 2,
+	colorDepth: 30,
+});
+assert.equal(screenInfoArg(retina!), "--screen-info={2940x1912 colorDepth=30 devicePixelRatio=2}");
+assert.equal(windowSizeArg(retina!), "--window-size=1470,923");
+assert.equal(parseDisplay('{"frame":[1280,800],"visible":[1280,800],"scale":1}')?.colorDepth, 24);
+assert.equal(parseDisplay('{"frame":[1470.0,955.5],"visible":[1470,923],"scale":2}')?.height, 956);
+// visibleFrame is the only field that may be missing, and a window sized to the whole screen is still inside it.
+assert.equal(parseDisplay('{"frame":[1470,956],"scale":2}')?.availHeight, 956);
+for (const bad of ["", "not json", "[]", "{}", '{"frame":[0,0],"scale":2}', '{"frame":[1470],"scale":2}']) {
+	assert.equal(parseDisplay(bad), undefined, bad);
+}
+
+// The wrapper is what carries the flags agent-browser will not: it drops --user-agent, and splits --args on the commas
+// --window-size and --screen-info need.
+assert.equal(
+	wrapperScript("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", [userAgentArg("Mozilla/5.0 x")]),
+	"#!/bin/sh\nexec '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' \"$@\" \\\n\t'--user-agent=Mozilla/5.0 x'\n",
+);
+// A path with a quote in it must not end the quoting and run as a command.
+assert.match(wrapperScript("/tmp/it's here/chrome", []), /exec '\/tmp\/it'\\''s here\/chrome' "\$@"\n/);
 
 // The login session holds the user's cookies: an agent reaching for it, for every other session at once,
 // or for the user's own Chrome, is the one mistake that costs a real login.

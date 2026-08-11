@@ -15,6 +15,82 @@ export type Identity = {
 
 export const AUTOMATION_ARG = "--disable-blink-features=AutomationControlled";
 
+export type Display = {
+	width: number;
+	height: number;
+	availWidth: number;
+	availHeight: number;
+	scale: number;
+	colorDepth: number;
+};
+
+// INFO: fc 11aug26 NSBitsPerPixelFromDepth answers 24 on the same panel Chrome reports 30 for, so the depth is taken from the
+// backing scale instead: every Retina Mac ships a 10-bit wide-gamut display, and a non-Retina one is 8-bit sRGB
+const WIDE_GAMUT_COLOR_DEPTH = 30;
+const SRGB_COLOR_DEPTH = 24;
+
+// NSScreen.frame is what window.screen must report and visibleFrame is the desktop minus the menu bar, which is the largest a
+// window can honestly be. system_profiler is the wrong source: it prints the panel's native 2560x1664 , not the scaled size
+// macOS presents to applications.
+export function parseDisplay(json: string): Display | undefined {
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(json);
+	} catch {
+		return undefined;
+	}
+	if (!parsed || typeof parsed !== "object") return undefined;
+	const { frame, visible, scale } = parsed as { frame?: unknown; visible?: unknown; scale?: unknown };
+	const size = pixelPair(frame);
+	if (!size) return undefined;
+	const avail = pixelPair(visible) ?? size;
+	const ratio = Math.round(Number(scale)) || 1;
+	return {
+		width: size[0],
+		height: size[1],
+		availWidth: avail[0],
+		availHeight: avail[1],
+		scale: ratio,
+		colorDepth: ratio > 1 ? WIDE_GAMUT_COLOR_DEPTH : SRGB_COLOR_DEPTH,
+	};
+}
+
+function pixelPair(value: unknown): [number, number] | undefined {
+	if (!Array.isArray(value) || value.length < 2) return undefined;
+	const [width, height] = value.map((n) => Math.round(Number(n)));
+	return width > 0 && height > 0 ? [width, height] : undefined;
+}
+
+// INFO: fc 11aug26 --screen-info takes physical pixels and Chrome divides by devicePixelRatio to get window.screen, so a
+// Retina display needs the presented size doubled. Only a size, an origin, colorDepth, devicePixelRatio and rotation parse:
+// an unknown key (workArea, workAreaInsets, dpi) makes Chrome exit before it opens a page, with nothing on stderr. There is no
+// work-area key, so screen.availWidth/availHeight always equal the screen size, 33px taller than the real desktop.
+export function screenInfoArg({ width, height, scale, colorDepth }: Display): string {
+	return `--screen-info={${width * scale}x${height * scale} colorDepth=${colorDepth} devicePixelRatio=${scale}}`;
+}
+
+export function windowSizeArg({ availWidth, availHeight }: Display): string {
+	return `--window-size=${availWidth},${availHeight}`;
+}
+
+export function userAgentArg(ua: string): string {
+	return `--user-agent=${ua}`;
+}
+
+// INFO: fc 11aug26 the UA has to reach the browser process. agent-browser overrides it per context over CDP, which service
+// workers never see (they keep the real HeadlessChrome string) and which empties navigator.userAgentData everywhere. The
+// launch flag fixes both and needs no page-side patching at all. It cannot go through --args: agent-browser drops
+// --user-agent, and splits --args on every comma, which mangles --window-size and --screen-info. So Chrome is launched
+// through a wrapper that appends the flags itself.
+export function wrapperScript(chrome: string, flags: string[]): string {
+	const appended = flags.map((flag) => ` \\\n\t${shellQuote(flag)}`).join("");
+	return `#!/bin/sh\nexec ${shellQuote(chrome)} "$@"${appended}\n`;
+}
+
+function shellQuote(value: string): string {
+	return `'${value.replaceAll("'", `'\\''`)}'`;
+}
+
 // INFO: fc 11aug26 GREASE token, servers must ignore it, so any plausible value passes
 const GREASE = { brand: "Not=A?Brand", version: "99" };
 // INFO: fc 11aug26 only reached when ~/.agent-browser/browsers holds nothing, which means agent-browser install never ran
@@ -258,7 +334,7 @@ export function launchArgs(user: Config[]): string {
 
 export function initScripts(user: Config[], ours: string): string {
 	const theirs = user.flatMap((config) => (Array.isArray(config.initScripts) ? config.initScripts : []));
-	return [...theirs, ours].filter((path): path is string => typeof path === "string").join(",");
+	return [...theirs, ours].filter((path): path is string => typeof path === "string" && path !== "").join(",");
 }
 
 export function mentionsBinary(command: string): boolean {
