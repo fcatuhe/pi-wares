@@ -1,5 +1,3 @@
-// INFO: fc 02aug26 auth discovery and the two usage endpoints adapted from @ogulcancelik/pi-minimal-footer (MIT)
-
 import { execSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";

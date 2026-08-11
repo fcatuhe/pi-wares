@@ -54,7 +54,3 @@ npx tsx extensions/usage-pace/test.ts
 ```
 
 Covers the two payload parsers, pace math (including the two weekly examples above), bar cells, clamping and the countdown formatter.
-
-## Credit
-
-Auth discovery and the two usage endpoints are adapted from [`@ogulcancelik/pi-minimal-footer`](https://github.com/ogulcancelik/pi-extensions/tree/main/packages/pi-minimal-footer) (MIT).
