@@ -10,12 +10,14 @@ A session that never browses pays nothing. Setup costs three execs and four writ
 
 | Session | Who drives it | Auth |
 |---|---|---|
-| `pi-<cwd hash>` | you, in a real Chrome window, via `browser_login` | `--restore`, the only writer of the saved state |
+| `pi-<cwd hash>` | you, in a real Chrome window, via `browser_login` | starts from the saved state, the only writer of it |
 | `pi-<cwd hash>-<pid>` | the agent, every command | starts from the saved state, never writes it |
 
 The work session name is derived from the working directory (`agent-browser session id --scope cwd`), so it is stable across turns and works outside a git repo, plus the pi pid, so two pi instances in the same directory never share a browser. Nothing is claimed, locked or negotiated: agents never touch the login session, so it is free the moment you need it.
 
-The agent's session cannot write the saved login even by accident, because it holds no restore key. Cookies a site refreshes during a run live and die with that session. That is what lets four agents share one login without corrupting it.
+The agent's session cannot write the saved login even by accident: only `browser_login` writes that file, and the agent's own state is loaded, never saved. Cookies a site refreshes during a run live and die with that session. That is what lets four agents share one login without corrupting it.
+
+Neither session carries an agent-browser `--restore` key. The saved login is handed to the login window with `--state`, so there is one cookie store, in one place, with one writer. A restore key would keep a second copy under `~/.agent-browser/sessions/` that nothing here manages, and would have every command on the session reload and rewrite it.
 
 ## Logging in
 
@@ -23,7 +25,9 @@ The agent hits a wall and calls the `browser_login` tool with that URL. A real C
 
 Headed, because the headless viewport in the dashboard takes neither a paste nor a password manager, which is the whole reason a human is doing this.
 
-The close is detected on the DevTools HTTP endpoint of that browser: every `agent-browser` command relaunches a browser it cannot reach, so the port is the only honest liveness signal, and it is also why the state is snapshotted every second while the window lives. What survives your closing the window is that last snapshot, which is why the interval is a second and not five: the session cookie is the last thing a login sets, and a state saved before it is an anonymous state that looks like a success.
+The close is detected on the DevTools HTTP endpoint of that browser, on the page targets rather than on the browser: on macOS Chrome outlives its last window, so `/json/version` answers long after you closed it, while `/json/list` going empty is the close, on every platform. The window is then closed for real, so nothing of the login is left on your screen.
+
+That probe is plain HTTP once a second and touches nothing. An `agent-browser` command is not free: against a headed browser it materialises a page target and drops it ~150ms later, one window flashing open and shut with your focus in it. So the state is saved when the page set changes, which is what a login is, plus once when the window goes: the session cookie is the last thing a login sets, and a state saved before it is an anonymous state that looks like a success. The snapshots only matter where closing the window kills Chrome outright and the final save cannot happen.
 
 So the capture is compared against what was already saved, by cookie name and domain. Gained a name, it is committed and the new names are in the answer. Gained nothing, it is still committed, since a renewed login writes the same names, and the answer says no name was gained so the agent knows to check the wall. Came back with fewer cookies than the saved state, the file is left alone: that is a failed restore, and the saved state holds every other site you ever logged into. Cookies and local storage land in `~/.pi/agent/extensions/agent-browser/<login session>.json`, mode 600, written by rename, and are loaded into the running work session.
 

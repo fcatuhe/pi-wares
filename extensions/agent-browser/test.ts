@@ -19,6 +19,7 @@ import {
 	initScripts,
 	launchArgs,
 	mergeConfig,
+	pageSignatures,
 	parseVersion,
 	sessionFallback,
 	stateSummary,
@@ -115,6 +116,35 @@ assert.equal(cdpPort("ws://127.0.0.1:63923/devtools/browser/61141a9d-5345-4f3f-b
 assert.equal(cdpPort("wss://localhost:9222/devtools/browser/abc"), 9222);
 assert.equal(cdpPort(""), undefined);
 assert.equal(cdpPort("✗ no browser running"), undefined);
+
+// macOS keeps Chrome running with no window left, so the DevTools port answers long after the user closed the login window:
+// only the page targets say whether a window is still there, and every command against a windowless browser flashes one open.
+assert.deepEqual(
+	pageSignatures([
+		{ type: "page", url: "https://app.example.com/login", title: "Log in" },
+		{ type: "page", url: "chrome://newtab/", title: "New Tab" },
+		{ type: "iframe", url: "chrome-untrusted://new-tab-page/one-google-bar" },
+		{ type: "background_page", url: "chrome-extension://nkeimhog/x.html" },
+		{ type: "service_worker", url: "chrome-extension://fignfifo/sw.js" },
+	]),
+	["https://app.example.com/login\tLog in"],
+);
+assert.deepEqual(pageSignatures([{ type: "page", url: "chrome-untrusted://new-tab-page/" }]), []);
+assert.deepEqual(pageSignatures([{ type: "page", url: "devtools://devtools/bundled/x.html" }]), []);
+assert.deepEqual(pageSignatures([{ type: "page", url: "about:blank" }]), ["about:blank\t"]);
+assert.deepEqual(pageSignatures([]), []);
+assert.deepEqual(pageSignatures([{ type: "page" }, null, 1, "page"]), []);
+assert.deepEqual(pageSignatures(undefined), []);
+// A save happens when this list changes, so two tabs reported in another order must not read as a navigation, while an
+// SPA that swaps the title without touching the URL must.
+assert.deepEqual(
+	pageSignatures([{ type: "page", url: "https://b.com/", title: "B" }, { type: "page", url: "https://a.com/", title: "A" }]),
+	pageSignatures([{ type: "page", url: "https://a.com/", title: "A" }, { type: "page", url: "https://b.com/", title: "B" }]),
+);
+assert.notDeepEqual(
+	pageSignatures([{ type: "page", url: "https://a.com/", title: "Log in" }]),
+	pageSignatures([{ type: "page", url: "https://a.com/", title: "Dashboard" }]),
+);
 
 // What the saved login carries, reported back to the agent: cookie count, and the domains without the leading dot.
 assert.deepEqual(stateSummary({ cookies: [{ domain: ".linkedin.com" }, { domain: ".www.linkedin.com" }] }), {

@@ -39,6 +39,7 @@ import {
 	launchArgs,
 	mentionsBinary,
 	mergeConfig,
+	pageSignatures,
 	parseVersion,
 	readConfig,
 	sessionFallback,
@@ -51,8 +52,9 @@ import { stealthScript } from "./stealth.ts";
 const BINARY = "agent-browser";
 const PREFIX = "pi";
 const LOGIN_TIMEOUT_MS = 15 * 60_000;
-// INFO: fc 11aug26 whatever happens between the last snapshot and the window closing is lost, and the session cookie lands
-// last: at 5s a user who closed the window right after logging in got an anonymous state back. A save costs ~45ms.
+// INFO: fc 11aug26 a DevTools HTTP read at this interval is free and has no effect on the page. An agent-browser command
+// does: it materialises a page target and drops it ~150ms later, which on a headed browser is a window flashing open and
+// shut in the user's face, so the state is saved on navigation rather than on every tick
 const LOGIN_POLL_MS = 1_000;
 const NAMED_COOKIES = 4;
 const PROBE_TIMEOUT_MS = 1_500;
@@ -157,8 +159,11 @@ export default function (pi: ExtensionAPI) {
 		rmSync(snapshot, { force: true });
 		const before = cookieKeys(readConfig(baseline));
 		const waited = await waitForLogin(ctx, port, snapshot, target);
+		const captured = waited === "cancelled" ? undefined : await capture(port, snapshot);
+		// INFO: fc 11aug26 on macOS the browser outlives its last window, and a login session nobody watches pops a window back
+		// up on the next command that touches it: closing the session is what takes it off the user's screen
+		await cli(["--session", login, "close"]);
 		if (waited === "cancelled") return "Login cancelled, saved state unchanged";
-		const captured = await capture(port, snapshot);
 		if (!captured) return "Nothing saved: the window closed before any cookie could be read";
 		const state = readConfig(captured);
 		const after = cookieKeys(state);
@@ -188,16 +193,19 @@ export default function (pi: ExtensionAPI) {
 	}
 
 	// INFO: fc 11aug26 the first launch after the daemon went away fails with "Failed to connect", and closing the session is
-	// what clears the endpoint it tried: one retry is the difference between the agent giving up and the user getting a window
+	// what clears the endpoint it tried: one retry is the difference between the agent giving up and the user getting a window.
+	// The saved login is carried in with --state, not a --restore key: a restore key gives the session a second cookie store
+	// under ~/.agent-browser/sessions that nothing here manages, and has every command reload and rewrite it
 	async function openWindow(target: string) {
-		const args = ["--session", login, "--restore", login, "--headed", "open", target];
+		const carried = existsSync(baseline) ? ["--state", baseline] : [];
+		const args = ["--session", login, ...carried, "--headed", "open", target];
 		const first = await cli(args, OPEN_TIMEOUT_MS);
 		if (first.code === 0) return first;
 		await cli(["--session", login, "close"]);
 		return cli(args, OPEN_TIMEOUT_MS);
 	}
 
-	// INFO: fc 11aug26 the window closing is the signal, and the dialog is the fallback for a window we cannot probe
+	// INFO: fc 11aug26 the last window closing is the signal, and the dialog is the fallback for a window we cannot probe
 	async function waitForLogin(ctx: ExtensionContext, port: number | undefined, snapshot: string, url: string) {
 		const watched = new AbortController();
 		const asked = new AbortController();
@@ -219,14 +227,21 @@ export default function (pi: ExtensionAPI) {
 		return Promise.race([watching, asking]);
 	}
 
+	// INFO: fc 11aug26 the snapshots are the login: a save once the window is gone comes back without the session cookies, which
+	// Chrome drops with the last window, and on Linux the browser dies with it. So each navigation gets one, and the richest wins
 	async function watchWindow(port: number | undefined, snapshot: string, signal: AbortSignal) {
 		const probe = join(scratch, "probe.json");
 		const deadline = Date.now() + LOGIN_TIMEOUT_MS;
+		let snapshotted = "";
 		while (Date.now() < deadline) {
 			await sleep(LOGIN_POLL_MS, signal);
 			if (signal.aborted) return "abandoned" as const;
 			if (!port) continue;
-			if (!(await cdpAlive(port))) return "closed" as const;
+			const open = await openPages(port);
+			if (!open?.length) return "closed" as const;
+			const here = open.join("\n");
+			if (here === snapshotted) continue;
+			snapshotted = here;
 			await cli(["--session", login, "state", "save", probe]);
 			if (richest([probe, snapshot]) === probe) copyFileSync(probe, snapshot);
 		}
@@ -234,12 +249,20 @@ export default function (pi: ExtensionAPI) {
 	}
 
 	// INFO: fc 11aug26 a command against a closed browser silently relaunches an empty one, so a save can come back anonymous
-	// even from a live-looking port: the periodic snapshot is what survives the user closing the window
+	// even from a live-looking port: the snapshots are what survive the user closing the window
 	async function capture(port: number | undefined, snapshot: string): Promise<string | undefined> {
 		const fresh = join(scratch, "final.json");
 		rmSync(fresh, { force: true });
-		if (port && (await cdpAlive(port))) await cli(["--session", login, "state", "save", fresh]);
+		if (port && (await worthSaving(port, snapshot))) await cli(["--session", login, "state", "save", fresh]);
 		return richest([fresh, snapshot]);
+	}
+
+	// INFO: fc 11aug26 a save with no page left materialises one, which is a window flashing open on a browser the user has just
+	// closed, and Chrome dropped the session cookies with that window anyway: only worth it when no snapshot survived
+	async function worthSaving(port: number, snapshot: string): Promise<boolean> {
+		const open = await openPages(port);
+		if (open === undefined) return false;
+		return open.length > 0 || !richest([snapshot]);
 	}
 
 	// The first path wins a tie, so callers list the freshest capture first: same cookie names, newer values.
@@ -377,11 +400,20 @@ function userConfigs(cwd: string): Config[] {
 	return paths.map(readConfig).filter((config): config is Config => config !== undefined);
 }
 
-async function cdpAlive(port: number): Promise<boolean> {
+// The pages the user has open, and undefined when the browser itself is gone: an empty list either way means the login is over.
+async function openPages(port: number): Promise<string[] | undefined> {
+	const listed = await devtools(port, "list");
+	return listed === undefined ? undefined : pageSignatures(listed);
+}
+
+async function devtools(port: number, endpoint: string): Promise<unknown> {
 	try {
-		return (await fetch(`http://127.0.0.1:${port}/json/version`, { signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) })).ok;
+		const response = await fetch(`http://127.0.0.1:${port}/json/${endpoint}`, {
+			signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+		});
+		return response.ok ? await response.json() : undefined;
 	} catch {
-		return false;
+		return undefined;
 	}
 }
 

@@ -130,6 +130,25 @@ export function cdpPort(cdpUrl: string): number | undefined {
 	return port > 0 ? port : undefined;
 }
 
+// INFO: fc 11aug26 macOS keeps Chrome running with no window left, so /json/version still answers minutes after the user
+// closed the login window. The page targets are the windows, and an empty list is the close signal on every platform.
+// Chrome's own surfaces do not count: a launch leaves a New Tab page next to the login page, and a login is never one of them
+const INTERNAL_SURFACE = /^(chrome|chrome-untrusted|devtools):/;
+
+// INFO: fc 11aug26 url and title are all /json/list carries, and a login that never changes either is a login that cannot be
+// snapshotted: a save costs a window flashing open on a headed browser, so it happens when this changes and not on a timer
+export function pageSignatures(targets: unknown): string[] {
+	if (!Array.isArray(targets)) return [];
+	const pages: string[] = [];
+	for (const target of targets) {
+		if (!target || typeof target !== "object") continue;
+		const { type, url, title } = target as { type?: unknown; url?: unknown; title?: unknown };
+		if (type !== "page" || typeof url !== "string" || INTERNAL_SURFACE.test(url)) continue;
+		pages.push(`${url}\t${typeof title === "string" ? title : ""}`);
+	}
+	return pages.sort();
+}
+
 export function stateSummary(state: Config | undefined): { cookies: number; domains: string[] } {
 	const cookies = Array.isArray(state?.cookies) ? (state.cookies as { domain?: unknown }[]) : [];
 	const domains = new Set<string>();
