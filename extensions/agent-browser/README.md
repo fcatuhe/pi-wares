@@ -19,11 +19,13 @@ The agent's session cannot write the saved login even by accident, because it ho
 
 ## Logging in
 
-The agent hits a wall and calls the `browser_login` tool with that URL. A real Chrome window opens on your screen, headed, in the login session. You log in, paste from your password manager, take the 2FA code, then close the window. The tool returns to the agent by itself, naming the cookie count and the domains it saved.
+The agent hits a wall and calls the `browser_login` tool with that URL. A real Chrome window opens on your screen, headed, in the login session. You log in, paste from your password manager, take the 2FA code, then close the window. The tool returns to the agent by itself, naming the cookie count, the domains, and which cookies the saved state did not have before.
 
 Headed, because the headless viewport in the dashboard takes neither a paste nor a password manager, which is the whole reason a human is doing this.
 
-The close is detected on the DevTools HTTP endpoint of that browser: every `agent-browser` command relaunches a browser it cannot reach, so the port is the only honest liveness signal, and it is also why the state is snapshotted every 5 seconds while the window lives. What survives your closing the window is that last snapshot. Cookies and local storage land in `~/.pi/agent/extensions/agent-browser/<login session>.json`, mode 600, and are loaded into the running work session.
+The close is detected on the DevTools HTTP endpoint of that browser: every `agent-browser` command relaunches a browser it cannot reach, so the port is the only honest liveness signal, and it is also why the state is snapshotted every second while the window lives. What survives your closing the window is that last snapshot, which is why the interval is a second and not five: the session cookie is the last thing a login sets, and a state saved before it is an anonymous state that looks like a success.
+
+So the capture is compared against what was already saved, by cookie name and domain. Gained a name, it is committed and the new names are in the answer. Gained nothing, it is still committed, since a renewed login writes the same names, and the answer says no name was gained so the agent knows to check the wall. Came back with fewer cookies than the saved state, the file is left alone: that is a failed restore, and the saved state holds every other site you ever logged into. Cookies and local storage land in `~/.pi/agent/extensions/agent-browser/<login session>.json`, mode 600, written by rename, and are loaded into the running work session.
 
 A confirmation dialog runs alongside the window and is the fallback for the case where the port cannot be read. Confirm it when you would rather leave the window open, cancel it and the saved state is untouched. Either way the wait stops after 15 minutes.
 

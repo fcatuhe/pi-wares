@@ -6,6 +6,7 @@ import {
 	existsSync,
 	mkdirSync,
 	readdirSync,
+	renameSync,
 	rmSync,
 	statSync,
 	writeFileSync,
@@ -23,11 +24,14 @@ import { Type } from "typebox";
 
 import {
 	age,
+	captureVerdict,
 	cdpPort,
 	chromeBinary,
 	chromeVersion,
 	clientHints,
 	type Config,
+	cookieKeys,
+	cookieNames,
 	guardViolation,
 	type Identity,
 	identity,
@@ -47,7 +51,10 @@ import { stealthScript } from "./stealth.ts";
 const BINARY = "agent-browser";
 const PREFIX = "pi";
 const LOGIN_TIMEOUT_MS = 15 * 60_000;
-const LOGIN_POLL_MS = 5_000;
+// INFO: fc 11aug26 whatever happens between the last snapshot and the window closing is lost, and the session cookie lands
+// last: at 5s a user who closed the window right after logging in got an anonymous state back. A save costs ~45ms.
+const LOGIN_POLL_MS = 1_000;
+const NAMED_COOKIES = 4;
 const PROBE_TIMEOUT_MS = 1_500;
 // INFO: fc 11aug26 not under tmpdir: the macOS cleaner deletes unused files there, and a launch with a missing --config aborts
 const STATE_ROOT = join(getAgentDir(), "extensions", BINARY);
@@ -143,25 +150,51 @@ export default function (pi: ExtensionAPI) {
 	async function authenticate(url: string, ctx: ExtensionContext): Promise<string> {
 		if ((await live()).has(login)) await cli(["--session", login, "close"]);
 		const target = url || "about:blank";
-		const opened = await cli(["--session", login, "--restore", login, "--headed", "open", target], OPEN_TIMEOUT_MS);
+		const opened = await openWindow(target);
 		if (opened.code !== 0) return `${BINARY} open failed: ${output(opened)}`;
 		const port = cdpPort((await cli(["--session", login, "get", "cdp-url"])).stdout);
 		const snapshot = join(scratch, "login.json");
 		rmSync(snapshot, { force: true });
+		const before = cookieKeys(readConfig(baseline));
 		const waited = await waitForLogin(ctx, port, snapshot, target);
 		if (waited === "cancelled") return "Login cancelled, saved state unchanged";
-		if (!(await adopt(port, snapshot))) return "Nothing saved: the window closed before any cookie could be read";
-		const { cookies, domains } = stateSummary(readConfig(baseline));
+		const captured = await capture(port, snapshot);
+		if (!captured) return "Nothing saved: the window closed before any cookie could be read";
+		const state = readConfig(captured);
+		const after = cookieKeys(state);
+		const { cookies, domains } = stateSummary(state);
+		const verdict = captureVerdict(before, after);
 		const carried = `${cookies} cookies for ${domains.join(", ") || "no domain"}`;
+		if (verdict === "shrunk") {
+			return (
+				`Saved login kept: the window came back with ${carried}, fewer than the state already holds, so the login ` +
+				"did not land. Log in until the page is past the wall, then close the window."
+			);
+		}
+		commit(captured);
+		const detail =
+			verdict === "gained"
+				? `${carried}, new: ${added(before, after)}`
+				: `${carried}, but no cookie the state did not already have, so the login may not have landed`;
 		if (!(await live()).has(work)) {
 			primed = false;
-			return `Login saved, ${carried}. Your next ${BINARY} command starts from it, so navigate again.`;
+			return `Login saved, ${detail}. Your next ${BINARY} command starts from it, so navigate again.`;
 		}
 		const loaded = await cli(["--session", work, "state", "load", baseline]);
 		primed = true;
 		return loaded.code === 0
-			? `Login saved and applied to your session, ${carried}. Navigate again.`
-			: `Login saved, ${carried}, but not applied: ${output(loaded)}. Retry with ${BINARY} state load "$PI_BROWSER_STATE"`;
+			? `Login saved and applied to your session, ${detail}. Navigate again, and call this again if the wall is still there.`
+			: `Login saved, ${detail}, but not applied: ${output(loaded)}. Retry with ${BINARY} state load "$PI_BROWSER_STATE"`;
+	}
+
+	// INFO: fc 11aug26 the first launch after the daemon went away fails with "Failed to connect", and closing the session is
+	// what clears the endpoint it tried: one retry is the difference between the agent giving up and the user getting a window
+	async function openWindow(target: string) {
+		const args = ["--session", login, "--restore", login, "--headed", "open", target];
+		const first = await cli(args, OPEN_TIMEOUT_MS);
+		if (first.code === 0) return first;
+		await cli(["--session", login, "close"]);
+		return cli(args, OPEN_TIMEOUT_MS);
 	}
 
 	// INFO: fc 11aug26 the window closing is the signal, and the dialog is the fallback for a window we cannot probe
@@ -174,7 +207,7 @@ export default function (pi: ExtensionAPI) {
 		});
 		if (!ctx.hasUI) return watching;
 		const message = port
-			? `Chrome is open at ${url}. Log in there, then close the window, or confirm here.`
+			? `Chrome is open at ${url}. Log in there, then close the window. Confirm here only if it stays open.`
 			: `Chrome is open at ${url}. Log in there, then confirm here to save the cookies.`;
 		const asking = ctx.ui
 			.confirm("Browser login", message, { signal: asked.signal })
@@ -187,28 +220,44 @@ export default function (pi: ExtensionAPI) {
 	}
 
 	async function watchWindow(port: number | undefined, snapshot: string, signal: AbortSignal) {
+		const probe = join(scratch, "probe.json");
 		const deadline = Date.now() + LOGIN_TIMEOUT_MS;
 		while (Date.now() < deadline) {
 			await sleep(LOGIN_POLL_MS, signal);
 			if (signal.aborted) return "abandoned" as const;
 			if (!port) continue;
 			if (!(await cdpAlive(port))) return "closed" as const;
-			await cli(["--session", login, "state", "save", snapshot]);
+			await cli(["--session", login, "state", "save", probe]);
+			if (richest([probe, snapshot]) === probe) copyFileSync(probe, snapshot);
 		}
 		return "expired" as const;
 	}
 
-	// INFO: fc 11aug26 a command against a closed browser silently relaunches an empty one, so a state save is only
-	// trustworthy while the window is alive: the periodic snapshot is what survives the user closing it
-	async function adopt(port: number | undefined, snapshot: string): Promise<boolean> {
-		if (port && (await cdpAlive(port)) && (await cli(["--session", login, "state", "save", baseline])).code === 0) {
-			chmodSync(baseline, 0o600);
-			return true;
+	// INFO: fc 11aug26 a command against a closed browser silently relaunches an empty one, so a save can come back anonymous
+	// even from a live-looking port: the periodic snapshot is what survives the user closing the window
+	async function capture(port: number | undefined, snapshot: string): Promise<string | undefined> {
+		const fresh = join(scratch, "final.json");
+		rmSync(fresh, { force: true });
+		if (port && (await cdpAlive(port))) await cli(["--session", login, "state", "save", fresh]);
+		return richest([fresh, snapshot]);
+	}
+
+	// The first path wins a tie, so callers list the freshest capture first: same cookie names, newer values.
+	function richest(paths: string[]): string | undefined {
+		let best: string | undefined;
+		let most = 0;
+		for (const path of paths) {
+			const { cookies } = stateSummary(readConfig(path));
+			if (cookies > most) [best, most] = [path, cookies];
 		}
-		if (!existsSync(snapshot)) return false;
-		copyFileSync(snapshot, baseline);
-		chmodSync(baseline, 0o600);
-		return true;
+		return best;
+	}
+
+	function commit(captured: string) {
+		const staging = `${baseline}.new`;
+		copyFileSync(captured, staging);
+		chmodSync(staging, 0o600);
+		renameSync(staging, baseline);
 	}
 
 	// INFO: fc 11aug26 nothing but the skill until a browser is actually wanted: setup costs three execs and four writes,
@@ -345,6 +394,12 @@ function sleep(millis: number, signal: AbortSignal): Promise<void> {
 		const timer = setTimeout(done, millis);
 		signal.addEventListener("abort", done, { once: true });
 	});
+}
+
+function added(before: Set<string>, after: Set<string>): string {
+	const names = cookieNames(new Set([...after].filter((key) => !before.has(key))));
+	const rest = names.length - NAMED_COOKIES;
+	return rest > 0 ? `${names.slice(0, NAMED_COOKIES).join(", ")} +${rest} more` : names.join(", ");
 }
 
 function output({ stderr, stdout }: { stderr: string; stdout: string }): string {

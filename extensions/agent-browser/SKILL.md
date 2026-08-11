@@ -41,14 +41,19 @@ Never pass the state file to `--state`, `AGENT_BROWSER_STATE` or a config file y
 Call `browser_login` with the URL that asked. It opens a real Chrome window on the user's screen, in the login session you never touch, and returns once they have logged in and closed the window. The cookies are in your session by then.
 
 1. `browser_login { url: "https://app.example.com/login" }`, and let it block. It waits up to 15 minutes.
-2. Read what it returns: it names the cookie count and the domains, and says whether your session picked them up.
+2. Read what it returns: the cookie count, the domains, the cookie names the saved state gained, and whether your session picked them up.
 3. Navigate again, verify you are past the wall (`agent-browser get url`, or a snapshot), then continue the original task.
 
 ```bash
 agent-browser reload      # or: agent-browser state load "$PI_BROWSER_STATE" when the tool says it could not apply them
 ```
 
-An expired session mid-task is the same call. A wall you hit twice in a row is a signal to stop and say so, not to call again: report the URL and what you were reaching for.
+An expired session mid-task is the same call.
+
+Still walled after a login: the answer tells you which it was.
+
+- It named no gained cookie, or said the state was kept: the window closed before the login landed. Call `browser_login` once more, and say in your own message that the window has to stay open until the page is past the wall.
+- It named gained cookies and the wall is still there: stop. Report the URL and what you were reaching for. Two logins on one wall is where you stop guessing.
 
 The user can also start the flow themselves with `/browser-login <url>`. Same window, same saved state.
 

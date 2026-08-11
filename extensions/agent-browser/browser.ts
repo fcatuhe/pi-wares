@@ -139,6 +139,29 @@ export function stateSummary(state: Config | undefined): { cookies: number; doma
 	return { cookies: cookies.length, domains: [...domains].sort() };
 }
 
+export function cookieKeys(state: Config | undefined): Set<string> {
+	const cookies = Array.isArray(state?.cookies) ? (state.cookies as { domain?: unknown; name?: unknown }[]) : [];
+	const keys = new Set<string>();
+	for (const { domain, name } of cookies) {
+		if (typeof domain === "string" && typeof name === "string") keys.add(`${domain}\t${name}`);
+	}
+	return keys;
+}
+
+export function cookieNames(keys: Set<string>): string[] {
+	return [...new Set([...keys].map((key) => key.split("\t")[1]))].sort();
+}
+
+// INFO: fc 11aug26 the session cookie is the last thing a login sets, so what the capture gained over the saved state is the
+// only honest signal that it landed. A capture that only loses cookies is a failed restore and must not replace the file:
+// the saved state accumulates every site the user logged into, and one bad overwrite drops all of them.
+export function captureVerdict(before: Set<string>, after: Set<string>): "gained" | "same" | "shrunk" {
+	for (const key of after) {
+		if (!before.has(key)) return "gained";
+	}
+	return after.size < before.size ? "shrunk" : "same";
+}
+
 export function readConfig(path: string): Config | undefined {
 	try {
 		const parsed = JSON.parse(readFileSync(path, "utf8"));

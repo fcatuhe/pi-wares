@@ -7,10 +7,13 @@ import { join } from "node:path";
 import {
 	age,
 	AUTOMATION_ARG,
+	captureVerdict,
 	cdpPort,
 	chromeBinary,
 	chromeVersion,
 	clientHints,
+	cookieKeys,
+	cookieNames,
 	guardViolation,
 	identity,
 	initScripts,
@@ -123,6 +126,27 @@ assert.deepEqual(stateSummary({ cookies: [{ domain: "a.com" }, { domain: "a.com"
 	domains: ["a.com"],
 });
 assert.deepEqual(stateSummary(undefined), { cookies: 0, domains: [] });
+
+// A login is only saved when the capture gained a cookie the state lacked: a window closed too early comes back with the
+// anonymous cookies the wall itself sets, and reporting that as a saved login is what sent an agent back into the wall.
+const anonymous = cookieKeys({ cookies: [{ domain: ".x.com", name: "visitor" }] });
+const signedIn = cookieKeys({ cookies: [{ domain: ".x.com", name: "visitor" }, { domain: ".x.com", name: "session" }] });
+assert.equal(captureVerdict(anonymous, signedIn), "gained");
+assert.equal(captureVerdict(anonymous, anonymous), "same");
+assert.equal(captureVerdict(signedIn, anonymous), "shrunk");
+// Re-logging into the same site renews the values under the same names, so "same" cannot mean "refuse to save".
+const renewed = cookieKeys({
+	cookies: [{ domain: ".x.com", name: "visitor", value: "2" }, { domain: ".x.com", name: "session", value: "fresh" }],
+});
+assert.equal(captureVerdict(signedIn, renewed), "same");
+assert.equal(captureVerdict(new Set(), new Set()), "same");
+assert.deepEqual(cookieNames(signedIn), ["session", "visitor"]);
+// The same name on two hosts is one cookie to report, and two keys to compare.
+const twoHosts = cookieKeys({ cookies: [{ domain: "a.com", name: "s" }, { domain: "b.com", name: "s" }] });
+assert.equal(twoHosts.size, 2);
+assert.deepEqual(cookieNames(twoHosts), ["s"]);
+assert.equal(cookieKeys({ cookies: [{ domain: "a.com" }, { name: "s" }, 1] }).size, 0);
+assert.equal(cookieKeys(undefined).size, 0);
 
 assert.equal(age(90_000), "1m");
 assert.equal(age(3 * 3600_000), "3h");
