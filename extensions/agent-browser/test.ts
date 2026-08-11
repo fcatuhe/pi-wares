@@ -23,6 +23,7 @@ import {
 	parseVersion,
 	sessionFallback,
 	stateSummary,
+	strayTargets,
 	userAgent,
 	workSession,
 } from "./browser.ts";
@@ -145,6 +146,23 @@ assert.notDeepEqual(
 	pageSignatures([{ type: "page", url: "https://a.com/", title: "Log in" }]),
 	pageSignatures([{ type: "page", url: "https://a.com/", title: "Dashboard" }]),
 );
+
+// The tab Chrome opens for itself is closed so the login window has one tab, and the login page can never be mistaken for it.
+assert.deepEqual(
+	strayTargets([
+		{ type: "page", url: "https://app.example.com/login", id: "A1" },
+		{ type: "page", url: "chrome://newtab/", id: "B2" },
+		{ type: "page", url: "devtools://devtools/bundled/x.html", id: "C3" },
+		{ type: "iframe", url: "chrome-untrusted://new-tab-page/one-google-bar", id: "D4" },
+		{ type: "page", url: "chrome://newtab/" },
+		{ type: "page", id: "E5" },
+		null,
+	]),
+	["B2", "C3"],
+);
+assert.deepEqual(strayTargets([{ type: "page", url: "about:blank", id: "A1" }]), []);
+assert.deepEqual(strayTargets([]), []);
+assert.deepEqual(strayTargets(undefined), []);
 
 // What the saved login carries, reported back to the agent: cookie count, and the domains without the leading dot.
 assert.deepEqual(stateSummary({ cookies: [{ domain: ".linkedin.com" }, { domain: ".www.linkedin.com" }] }), {

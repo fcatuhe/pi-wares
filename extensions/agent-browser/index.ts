@@ -44,6 +44,7 @@ import {
 	readConfig,
 	sessionFallback,
 	stateSummary,
+	strayTargets,
 	userAgent,
 	workSession,
 } from "./browser.ts";
@@ -155,6 +156,7 @@ export default function (pi: ExtensionAPI) {
 		const opened = await openWindow(target);
 		if (opened.code !== 0) return `${BINARY} open failed: ${output(opened)}`;
 		const port = cdpPort((await cli(["--session", login, "get", "cdp-url"])).stdout);
+		if (port) await closeStrayTabs(port);
 		const snapshot = join(scratch, "login.json");
 		rmSync(snapshot, { force: true });
 		const before = cookieKeys(readConfig(baseline));
@@ -404,6 +406,19 @@ function userConfigs(cwd: string): Config[] {
 async function openPages(port: number): Promise<string[] | undefined> {
 	const listed = await devtools(port, "list");
 	return listed === undefined ? undefined : pageSignatures(listed);
+}
+
+// Leaves the login tab alone: only Chrome's own surfaces match, and the watcher already ignores them, so the window the user
+// sees ends up with the one tab that closing ends the login.
+async function closeStrayTabs(port: number): Promise<void> {
+	for (const id of strayTargets(await devtools(port, "list"))) {
+		// INFO: fc 11aug26 /json/close answers "Target is closing" in plain text, which devtools() would read as a failure
+		try {
+			await fetch(`http://127.0.0.1:${port}/json/close/${id}`, { signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) });
+		} catch {
+			return;
+		}
+	}
 }
 
 async function devtools(port: number, endpoint: string): Promise<unknown> {

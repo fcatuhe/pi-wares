@@ -149,6 +149,20 @@ export function pageSignatures(targets: unknown): string[] {
 	return pages.sort();
 }
 
+// INFO: fc 11aug26 a headed launch gets no URL on the command line, so Chrome opens its New Tab page and agent-browser puts
+// the login on a second target: the empty tab is the one the user lands on, in front of the page that wants the password
+export function strayTargets(targets: unknown): string[] {
+	if (!Array.isArray(targets)) return [];
+	const stray: string[] = [];
+	for (const target of targets) {
+		if (!target || typeof target !== "object") continue;
+		const { type, url, id } = target as { type?: unknown; url?: unknown; id?: unknown };
+		if (type !== "page" || typeof url !== "string" || typeof id !== "string") continue;
+		if (INTERNAL_SURFACE.test(url)) stray.push(id);
+	}
+	return stray;
+}
+
 export function stateSummary(state: Config | undefined): { cookies: number; domains: string[] } {
 	const cookies = Array.isArray(state?.cookies) ? (state.cookies as { domain?: unknown }[]) : [];
 	const domains = new Set<string>();
