@@ -55,7 +55,7 @@ Some skills drive CLIs this package does not install:
 
 - **`gog`**: the [`gog` CLI](https://github.com/openclaw/gogcli), install per its README. Needs your own Google Cloud OAuth "Desktop app" client: download its `credentials.json`, then `gog auth credentials set credentials.json` and `gog auth add you@example.com`.
 - **`outline-cli`**: `npm i -g @doist/outline-cli`, then `ol auth token <token>` with a personal token from Settings > API. `ol auth login` also works, but those tokens expire.
-- **`agent-browser`**: `npm i -g agent-browser && agent-browser install` (the second downloads its own Chrome). The skill is a stub pointing at `agent-browser skills get core`, so keep the CLI current.
+- **`agent-browser`**: `npm i -g agent-browser && agent-browser install` (the second downloads its own Chrome). Driven by the [`agent-browser`](./extensions/agent-browser/) ware, which defers to `agent-browser skills get core` for usage, so keep the CLI current.
 - **`mdcat`**: `brew install mdcat`, the renderer [`herdr-preview`](./extensions/herdr-preview/) runs in its split.
 
 ## Keys
@@ -81,6 +81,7 @@ Some skills drive CLIs this package does not install:
 | [`policies/`](./extensions/policies/) | House rules in the system prompt, one extension per policy so `pi config` toggles them one by one. |
 | [`wares-doctor/`](./extensions/wares-doctor/) | `/wares-doctor` runs the machine setup check in-session, `/wares-doctor:apply` writes what is missing, `/wares-doctor:force` also overwrites what differs. |
 | [`anthropic-token-login/`](./extensions/anthropic-token-login/) | Adds a `sk-ant-oat01` token method to Anthropic's `/login`: one paste, good for a year. |
+| [`agent-browser/`](./extensions/agent-browser/) | Browser sessions per pi process, one saved login per directory typed by you in `/browser-login`, headless without the tells. |
 
 ## Skills
 
@@ -93,7 +94,8 @@ Loaded on demand rather than injected, so they can be as long as they need to be
 | [`exa-search/`](./skills/exa-search/SKILL.md) | Web search and content extraction via Exa's keyless MCP endpoint. No key or browser needed. |
 | [`gog/`](./skills/gog/SKILL.md) | Safe [`gog`](https://github.com/openclaw/gogcli) Google Workspace automation: auth state, JSON output, scoped reads and writes. |
 | [`outline-cli/`](./skills/outline-cli/SKILL.md) | Search and manage [Outline](https://www.getoutline.com) wiki documents and collections via the [`ol`](https://github.com/Doist/outline-cli) CLI. |
-| [`agent-browser/`](./skills/agent-browser/SKILL.md) | Browser automation via the [`agent-browser`](https://github.com/vercel-labs/agent-browser) CLI. |
+
+The [`agent-browser`](./extensions/agent-browser/) ware ships one more, from inside the extension, so it appears only when that ware is on and the CLI is installed.
 
 Runtime deps sit in this package's `dependencies` so pi's install covers them: `jsdom`, `turndown`, `turndown-plugin-gfm`, `@mozilla/readability` for `brave-search`, `jsonc-parser` and `toml-eslint-parser` for `wares-doctor`.
 
@@ -106,7 +108,6 @@ Copies of upstream skills, so one install covers them. They drift, resync delibe
 | `brave-search/` | [badlogic/pi-skills](https://github.com/badlogic/pi-skills) (MIT) | `90bb51c`, minus the `npm install` setup step |
 | `gog/` | [openclaw/gogcli](https://github.com/openclaw/gogcli) `.agents/skills/gog/` (MIT) | `v0.34.1`, verbatim. Documents flags the CLI only gained in that release, so track `gog --version`. |
 | `outline-cli/` | [Doist/outline-cli](https://github.com/Doist/outline-cli) (MIT) | `v1.10.2`, verbatim. After `ol update`, `ol skill install pi` regenerates it into `~/.pi/skills/`: diff and copy. |
-| `agent-browser/` | [vercel-labs/agent-browser](https://github.com/vercel-labs/agent-browser) (Apache-2.0) | `v0.33.2`, verbatim, Claude Code frontmatter included. A stub, so it only drifts when upstream edits the stub. Diff against `$(npm root -g)/agent-browser/skills/agent-browser/SKILL.md`. |
 
 ## Bundled extensions
 
