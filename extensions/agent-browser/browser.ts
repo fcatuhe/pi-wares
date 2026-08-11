@@ -123,6 +123,22 @@ export function mergeConfig(user: Config[], ours: Config): Config {
 	return merged;
 }
 
+// INFO: fc 11aug26 ws://127.0.0.1:<port>/devtools/browser/<id>, and the DevTools HTTP endpoint on that port is the only
+// way to tell a closed window from a live one: every agent-browser command relaunches the browser it cannot reach
+export function cdpPort(cdpUrl: string): number | undefined {
+	const port = Number(cdpUrl.trim().match(/^wss?:\/\/[^/]+:(\d+)\//)?.[1]);
+	return port > 0 ? port : undefined;
+}
+
+export function stateSummary(state: Config | undefined): { cookies: number; domains: string[] } {
+	const cookies = Array.isArray(state?.cookies) ? (state.cookies as { domain?: unknown }[]) : [];
+	const domains = new Set<string>();
+	for (const { domain } of cookies) {
+		if (typeof domain === "string") domains.add(domain.replace(/^\.+/, ""));
+	}
+	return { cookies: cookies.length, domains: [...domains].sort() };
+}
+
 export function readConfig(path: string): Config | undefined {
 	try {
 		const parsed = JSON.parse(readFileSync(path, "utf8"));
@@ -149,13 +165,13 @@ export function mentionsBinary(command: string): boolean {
 export function guardViolation(command: string, login: string): string | undefined {
 	if (!login || !mentionsBinary(command)) return undefined;
 	if (targetsLogin(command, login)) {
-		return `${login} is the login session the human drives. Work in $AGENT_BROWSER_SESSION, and ask for /browser-login when a page wants credentials.`;
+		return `${login} is the login session the human drives. Work in $AGENT_BROWSER_SESSION, and call browser_login when a page wants credentials.`;
 	}
 	if (/\bclose\b/.test(command) && /--all\b/.test(command)) {
 		return "close --all kills the login session and every other agent's browser. Close your own session instead.";
 	}
 	if (/--auto-connect\b/.test(command)) {
-		return "--auto-connect drives the human's own Chrome. Use /browser-login for credentials.";
+		return "--auto-connect drives the human's own Chrome. Use browser_login for credentials.";
 	}
 	return undefined;
 }

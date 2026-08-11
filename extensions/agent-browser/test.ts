@@ -7,6 +7,7 @@ import { join } from "node:path";
 import {
 	age,
 	AUTOMATION_ARG,
+	cdpPort,
 	chromeBinary,
 	chromeVersion,
 	clientHints,
@@ -17,6 +18,7 @@ import {
 	mergeConfig,
 	parseVersion,
 	sessionFallback,
+	stateSummary,
 	userAgent,
 	workSession,
 } from "./browser.ts";
@@ -104,6 +106,23 @@ assert.equal(guardViolation("echo agent-browserish --session pi-abc", LOGIN), un
 assert.equal(guardViolation("agent-browser close", LOGIN), undefined);
 // Before the first session_start there is no login session to protect, and no name to match against.
 assert.equal(guardViolation("agent-browser close --all", ""), undefined);
+
+// The DevTools port is how a window the user closed is told apart from a live one, and a miss must not read as port 0.
+assert.equal(cdpPort("ws://127.0.0.1:63923/devtools/browser/61141a9d-5345-4f3f-b2c2-ad199633509c\n"), 63923);
+assert.equal(cdpPort("wss://localhost:9222/devtools/browser/abc"), 9222);
+assert.equal(cdpPort(""), undefined);
+assert.equal(cdpPort("✗ no browser running"), undefined);
+
+// What the saved login carries, reported back to the agent: cookie count, and the domains without the leading dot.
+assert.deepEqual(stateSummary({ cookies: [{ domain: ".linkedin.com" }, { domain: ".www.linkedin.com" }] }), {
+	cookies: 2,
+	domains: ["linkedin.com", "www.linkedin.com"],
+});
+assert.deepEqual(stateSummary({ cookies: [{ domain: "a.com" }, { domain: "a.com" }, {}] }), {
+	cookies: 3,
+	domains: ["a.com"],
+});
+assert.deepEqual(stateSummary(undefined), { cookies: 0, domains: [] });
 
 assert.equal(age(90_000), "1m");
 assert.equal(age(3 * 3600_000), "3h");

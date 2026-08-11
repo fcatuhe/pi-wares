@@ -81,7 +81,7 @@ Some skills drive CLIs this package does not install:
 | [`policies/`](./extensions/policies/) | House rules in the system prompt, one extension per policy so `pi config` toggles them one by one. |
 | [`wares-doctor/`](./extensions/wares-doctor/) | `/wares-doctor` runs the machine setup check in-session, `/wares-doctor:apply` writes what is missing, `/wares-doctor:force` also overwrites what differs. |
 | [`anthropic-token-login/`](./extensions/anthropic-token-login/) | Adds a `sk-ant-oat01` token method to Anthropic's `/login`: one paste, good for a year. |
-| [`agent-browser/`](./extensions/agent-browser/) | Browser sessions per pi process, one saved login per directory typed by you in `/browser-login`, headless without the tells. |
+| [`agent-browser/`](./extensions/agent-browser/) | Browser sessions per pi process, one saved login per directory typed by you in a headed window the agent opens, headless without the tells. |
 
 ## Skills
 

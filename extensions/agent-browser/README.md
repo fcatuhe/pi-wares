@@ -4,13 +4,13 @@ House rules for the [`agent-browser`](https://github.com/vercel-labs/agent-brows
 
 Loads when the binary is on `PATH`, and contributes [`skill/SKILL.md`](./skill/SKILL.md) through `resources_discover`, so the skill appears exactly when the ware is enabled. Nothing is injected into the system prompt: the defaults are environment, and the skill is read on demand.
 
-A session that never browses pays nothing. Setup costs three execs and four writes, and it is deferred until a `bash` tool call or a `!` command mentions `agent-browser`, or you run one of the two commands. It is single-flight, so two agent commands arriving together still configure once, and a `/resume` into another directory re-derives the sessions on next use.
+A session that never browses pays nothing. Setup costs three execs and four writes, and it is deferred until a `bash` tool call or a `!` command mentions `agent-browser`, or the agent calls `browser_login`, or you run one of the two commands. It is single-flight, so two agent commands arriving together still configure once, and a `/resume` into another directory re-derives the sessions on next use.
 
 ## Two sessions
 
 | Session | Who drives it | Auth |
 |---|---|---|
-| `pi-<cwd hash>` | you, through the dashboard, via `/browser-login` | `--restore`, the only writer of the saved state |
+| `pi-<cwd hash>` | you, in a real Chrome window, via `browser_login` | `--restore`, the only writer of the saved state |
 | `pi-<cwd hash>-<pid>` | the agent, every command | starts from the saved state, never writes it |
 
 The work session name is derived from the working directory (`agent-browser session id --scope cwd`), so it is stable across turns and works outside a git repo, plus the pi pid, so two pi instances in the same directory never share a browser. Nothing is claimed, locked or negotiated: agents never touch the login session, so it is free the moment you need it.
@@ -19,9 +19,15 @@ The agent's session cannot write the saved login even by accident, because it ho
 
 ## Logging in
 
-`/browser-login [url]` opens the URL in the login session, starts the dashboard on 4848, and waits on a confirmation dialog while you authenticate in the viewport. Confirm, and it saves cookies and local storage to `~/.pi/agent/extensions/agent-browser/<login session>.json`, mode 600, then loads them into the running work session and leaves the agent a message saying so. Cancel, and the saved state is untouched.
+The agent hits a wall and calls the `browser_login` tool with that URL. A real Chrome window opens on your screen, headed, in the login session. You log in, paste from your password manager, take the 2FA code, then close the window. The tool returns to the agent by itself, naming the cookie count and the domains it saved.
 
-SSO, 2FA and a mid-task expiry are the same command. The agent's side of the loop is in the skill: stop at the wall, ask for `/browser-login`, reload, carry on. It never types a credential, and none reaches the model context or the shell history.
+Headed, because the headless viewport in the dashboard takes neither a paste nor a password manager, which is the whole reason a human is doing this.
+
+The close is detected on the DevTools HTTP endpoint of that browser: every `agent-browser` command relaunches a browser it cannot reach, so the port is the only honest liveness signal, and it is also why the state is snapshotted every 5 seconds while the window lives. What survives your closing the window is that last snapshot. Cookies and local storage land in `~/.pi/agent/extensions/agent-browser/<login session>.json`, mode 600, and are loaded into the running work session.
+
+A confirmation dialog runs alongside the window and is the fallback for the case where the port cannot be read. Confirm it when you would rather leave the window open, cancel it and the saved state is untouched. Either way the wait stops after 15 minutes.
+
+`/browser-login [url]` is the same flow, started by you. SSO, 2FA and a mid-task expiry are all of them this one path. No credential reaches the model context or the shell history.
 
 `/browser-status` prints both sessions, which are live, the age of the saved login, the Chrome version and the artifacts directory.
 
@@ -51,7 +57,7 @@ The last name is ours, not the CLI's, and that is deliberate. In 0.33.2 a state 
 
 ## Guard
 
-A `bash` command aimed at the login session, or carrying `close --all` or `--auto-connect`, is blocked with a reason. Those three are the ways an agent destroys your login or another agent's browser, and prose does not hold on the twentieth turn.
+A `bash` command aimed at the login session, or carrying `close --all` or `--auto-connect`, is blocked with a reason pointing at `browser_login`. Those three are the ways an agent destroys your login or another agent's browser, and prose does not hold on the twentieth turn.
 
 ## Artifacts
 

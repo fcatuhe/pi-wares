@@ -1,4 +1,15 @@
-import { accessSync, chmodSync, constants, existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import {
+	accessSync,
+	chmodSync,
+	constants,
+	copyFileSync,
+	existsSync,
+	mkdirSync,
+	readdirSync,
+	rmSync,
+	statSync,
+	writeFileSync,
+} from "node:fs";
 import { platform, release } from "node:os";
 import { join } from "node:path";
 import {
@@ -8,9 +19,11 @@ import {
 	getAgentDir,
 	isToolCallEventType,
 } from "@earendil-works/pi-coding-agent";
+import { Type } from "typebox";
 
 import {
 	age,
+	cdpPort,
 	chromeBinary,
 	chromeVersion,
 	clientHints,
@@ -25,6 +38,7 @@ import {
 	parseVersion,
 	readConfig,
 	sessionFallback,
+	stateSummary,
 	userAgent,
 	workSession,
 } from "./browser.ts";
@@ -32,7 +46,9 @@ import { stealthScript } from "./stealth.ts";
 
 const BINARY = "agent-browser";
 const PREFIX = "pi";
-const DASHBOARD_URL = "http://localhost:4848";
+const LOGIN_TIMEOUT_MS = 15 * 60_000;
+const LOGIN_POLL_MS = 5_000;
+const PROBE_TIMEOUT_MS = 1_500;
 // INFO: fc 11aug26 not under tmpdir: the macOS cleaner deletes unused files there, and a launch with a missing --config aborts
 const STATE_ROOT = join(getAgentDir(), "extensions", BINARY);
 const SCRATCH_TTL_MS = 24 * 60 * 60 * 1000;
@@ -83,56 +99,114 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.registerCommand("browser-login", {
-		description: "Open a page in the login session for you to authenticate, then save cookies for the agents",
+		description: "Open a page in a Chrome window for you to authenticate, then save cookies for the agents",
 		handler: async (args, ctx) => {
 			await ensure(ctx.cwd);
-			await authenticate(args.trim(), ctx);
+			const report = await authenticate(args.trim(), ctx);
+			ctx.ui.notify(report, "info");
+			pi.sendMessage({ customType: BINARY, content: report, display: true }, { deliverAs: "nextTurn" });
+		},
+	});
+
+	pi.registerTool({
+		name: "browser_login",
+		label: "Browser login",
+		description:
+			"Hand a login wall to the user. Opens a real Chrome window at the URL, waits until they have authenticated and " +
+			"closed the window, then loads the cookies into your own browser session. Call it when an agent-browser page " +
+			"wants credentials or a session expires, then navigate again. You never type the credentials yourself.",
+		promptSnippet: "Open a Chrome window for the user to log in, and wait for them",
+		promptGuidelines: [
+			"Call browser_login with the URL that asked for credentials instead of trying to log in yourself, then retry the navigation.",
+		],
+		parameters: Type.Object({
+			url: Type.String({ description: "URL to open for the login, usually the wall you hit" }),
+		}),
+		async execute(_toolCallId, params, _signal, onUpdate, ctx) {
+			await ensure(ctx.cwd);
+			onUpdate?.({ content: [{ type: "text", text: `Chrome is open at ${params.url}, waiting for you to log in` }] });
+			return { content: [{ type: "text", text: await authenticate(params.url.trim(), ctx) }], details: {} };
 		},
 	});
 
 	pi.registerCommand("browser-status", {
-		description: "Show the agent-browser sessions, saved login state and dashboard for this directory",
+		description: "Show the agent-browser sessions, saved login state and Chrome version for this directory",
 		handler: async (_args, ctx) => {
 			await ensure(ctx.cwd);
 			await status(ctx);
 		},
 	});
 
-	async function authenticate(url: string, ctx: ExtensionCommandContext) {
-		const opened = await cli(["--session", login, "--restore", login, "open", url || "about:blank"], OPEN_TIMEOUT_MS);
-		if (opened.code !== 0) {
-			ctx.ui.notify(`${BINARY} open failed: ${opened.stderr.trim() || opened.stdout.trim()}`, "error");
-			return;
+	// INFO: fc 11aug26 headed, because the dashboard viewport cannot take a paste, and a password manager needs a real window
+	async function authenticate(url: string, ctx: ExtensionContext): Promise<string> {
+		if ((await live()).has(login)) await cli(["--session", login, "close"]);
+		const target = url || "about:blank";
+		const opened = await cli(["--session", login, "--restore", login, "--headed", "open", target], OPEN_TIMEOUT_MS);
+		if (opened.code !== 0) return `${BINARY} open failed: ${output(opened)}`;
+		const port = cdpPort((await cli(["--session", login, "get", "cdp-url"])).stdout);
+		const snapshot = join(scratch, "login.json");
+		rmSync(snapshot, { force: true });
+		const waited = await waitForLogin(ctx, port, snapshot, target);
+		if (waited === "cancelled") return "Login cancelled, saved state unchanged";
+		if (!(await adopt(port, snapshot))) return "Nothing saved: the window closed before any cookie could be read";
+		const { cookies, domains } = stateSummary(readConfig(baseline));
+		const carried = `${cookies} cookies for ${domains.join(", ") || "no domain"}`;
+		if (!(await live()).has(work)) {
+			primed = false;
+			return `Login saved, ${carried}. Your next ${BINARY} command starts from it, so navigate again.`;
 		}
-		const dashboard = await cli(["dashboard", "start"]);
-		if (dashboard.code !== 0) ctx.ui.notify(`dashboard start failed: ${dashboard.stderr.trim()}`, "warning");
-		const done = await ctx.ui.confirm(
-			"Browser login",
-			`Log in at ${DASHBOARD_URL}, session ${login}, then confirm to save the cookies.`,
-		);
-		if (!done) {
-			ctx.ui.notify("Login cancelled, saved state unchanged", "warning");
-			return;
-		}
-		const saved = await cli(["--session", login, "state", "save", baseline]);
-		if (saved.code !== 0) {
-			ctx.ui.notify(`state save failed: ${saved.stderr.trim() || saved.stdout.trim()}`, "error");
-			return;
-		}
-		chmodSync(baseline, 0o600);
-		const loaded = (await live()).has(work) ? await cli(["--session", work, "state", "load", baseline]) : undefined;
+		const loaded = await cli(["--session", work, "state", "load", baseline]);
 		primed = true;
-		ctx.ui.notify(`Login state saved for ${login}, ${cookieCount(baseline)} cookies`, "info");
-		pi.sendMessage(
-			{
-				customType: BINARY,
-				content: loaded?.code === 0
-					? "The user logged in. Your browser session now holds those cookies: reload or navigate again, then carry on."
-					: `The user logged in. Pick the cookies up with: ${BINARY} state load "$PI_BROWSER_STATE"`,
-				display: true,
-			},
-			{ deliverAs: "nextTurn" },
-		);
+		return loaded.code === 0
+			? `Login saved and applied to your session, ${carried}. Navigate again.`
+			: `Login saved, ${carried}, but not applied: ${output(loaded)}. Retry with ${BINARY} state load "$PI_BROWSER_STATE"`;
+	}
+
+	// INFO: fc 11aug26 the window closing is the signal, and the dialog is the fallback for a window we cannot probe
+	async function waitForLogin(ctx: ExtensionContext, port: number | undefined, snapshot: string, url: string) {
+		const watched = new AbortController();
+		const asked = new AbortController();
+		const watching = watchWindow(port, snapshot, watched.signal).then((outcome) => {
+			asked.abort();
+			return outcome;
+		});
+		if (!ctx.hasUI) return watching;
+		const message = port
+			? `Chrome is open at ${url}. Log in there, then close the window, or confirm here.`
+			: `Chrome is open at ${url}. Log in there, then confirm here to save the cookies.`;
+		const asking = ctx.ui
+			.confirm("Browser login", message, { signal: asked.signal })
+			.then((ok) => {
+				watched.abort();
+				return ok ? "confirmed" : "cancelled";
+			})
+			.catch(() => "cancelled" as const);
+		return Promise.race([watching, asking]);
+	}
+
+	async function watchWindow(port: number | undefined, snapshot: string, signal: AbortSignal) {
+		const deadline = Date.now() + LOGIN_TIMEOUT_MS;
+		while (Date.now() < deadline) {
+			await sleep(LOGIN_POLL_MS, signal);
+			if (signal.aborted) return "abandoned" as const;
+			if (!port) continue;
+			if (!(await cdpAlive(port))) return "closed" as const;
+			await cli(["--session", login, "state", "save", snapshot]);
+		}
+		return "expired" as const;
+	}
+
+	// INFO: fc 11aug26 a command against a closed browser silently relaunches an empty one, so a state save is only
+	// trustworthy while the window is alive: the periodic snapshot is what survives the user closing it
+	async function adopt(port: number | undefined, snapshot: string): Promise<boolean> {
+		if (port && (await cdpAlive(port)) && (await cli(["--session", login, "state", "save", baseline])).code === 0) {
+			chmodSync(baseline, 0o600);
+			return true;
+		}
+		if (!existsSync(snapshot)) return false;
+		copyFileSync(snapshot, baseline);
+		chmodSync(baseline, 0o600);
+		return true;
 	}
 
 	// INFO: fc 11aug26 nothing but the skill until a browser is actually wanted: setup costs three execs and four writes,
@@ -252,9 +326,27 @@ function userConfigs(cwd: string): Config[] {
 	return paths.map(readConfig).filter((config): config is Config => config !== undefined);
 }
 
-function cookieCount(path: string): number {
-	const state = readConfig(path);
-	return Array.isArray(state?.cookies) ? state.cookies.length : 0;
+async function cdpAlive(port: number): Promise<boolean> {
+	try {
+		return (await fetch(`http://127.0.0.1:${port}/json/version`, { signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) })).ok;
+	} catch {
+		return false;
+	}
+}
+
+function sleep(millis: number, signal: AbortSignal): Promise<void> {
+	return new Promise((resolve) => {
+		const done = () => {
+			clearTimeout(timer);
+			resolve();
+		};
+		const timer = setTimeout(done, millis);
+		signal.addEventListener("abort", done, { once: true });
+	});
+}
+
+function output({ stderr, stdout }: { stderr: string; stdout: string }): string {
+	return stderr.trim() || stdout.trim() || "no output";
 }
 
 function liveSessions(stdout: string): string[] {
