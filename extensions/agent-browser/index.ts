@@ -32,6 +32,7 @@ import {
 	type Config,
 	cookieKeys,
 	cookieNames,
+	DEFAULT_SCREEN,
 	type Display,
 	guardViolation,
 	type Identity,
@@ -39,6 +40,7 @@ import {
 	initScripts,
 	launchArgs,
 	parseDisplay,
+	parseScreen,
 	LOGIN_INDEX,
 	mentionsBinary,
 	mergeConfig,
@@ -71,6 +73,9 @@ const LOGIN_TIMEOUT_MS = 15 * 60_000;
 // does: it materialises a page target and drops it ~150ms later, which on a headed browser is a window flashing open and
 // shut in the user's face, so the state is saved on navigation rather than on every tick
 const LOGIN_POLL_MS = 1_000;
+// INFO: fc 11aug26 the timeout divided by the poll is 900 possible saves, which is what turned one materialised window into a
+// quarter-hour of them. A login is a handful of navigations, so past this the watcher only watches for the close
+const LOGIN_SAVES = 30;
 // Every file authenticate() writes that holds cookies or tokens, next to the config and screenshots that do not
 const SNAPSHOT = "login.json";
 const PROBE = "probe.json";
@@ -145,8 +150,11 @@ export default function (pi: ExtensionAPI) {
 		}),
 		async execute(_toolCallId, params, _signal, onUpdate, ctx) {
 			await ensure(ctx.cwd);
-			onUpdate?.({ content: [{ type: "text", text: `Chrome is open at ${params.url}, waiting for you to log in` }] });
-			return { content: [{ type: "text", text: await authenticate(params.url.trim(), ctx) }], details: {} };
+			// The watcher cannot see an about:blank page, so a login with no URL would read as closed the moment it opened
+			const url = params.url.trim();
+			if (!url) return { content: [{ type: "text", text: "browser_login needs the URL that asked for credentials" }], details: {} };
+			onUpdate?.({ content: [{ type: "text", text: `Chrome is open at ${url}, waiting for you to log in` }] });
+			return { content: [{ type: "text", text: await authenticate(url, ctx) }], details: {} };
 		},
 	});
 
@@ -161,15 +169,14 @@ export default function (pi: ExtensionAPI) {
 	// INFO: fc 11aug26 headed, because the dashboard viewport cannot take a paste, and a password manager needs a real window
 	async function authenticate(url: string, ctx: ExtensionContext): Promise<string> {
 		if ((await live()).has(login)) await cli(["--session", login, "close"]);
-		const target = url || "about:blank";
-		const opened = await openWindow(target);
+		const opened = await openWindow(url);
 		if (opened.code !== 0) return `${BINARY} open failed: ${output(opened)}`;
 		const port = cdpPort((await cli(["--session", login, "get", "cdp-url"])).stdout);
 		if (port) await closeStrayTabs(port);
 		const snapshot = join(scratch, SNAPSHOT);
 		rmSync(snapshot, { force: true });
 		const before = cookieKeys(readConfig(baseline));
-		const waited = await waitForLogin(ctx, port, snapshot, target);
+		const waited = await waitForLogin(ctx, port, snapshot, url);
 		const captured = waited === "cancelled" ? undefined : await capture(port, snapshot);
 		// INFO: fc 11aug26 on macOS the browser outlives its last window, and a login session nobody watches pops a window back
 		// up on the next command that touches it: closing the session is what takes it off the user's screen
@@ -244,19 +251,41 @@ export default function (pi: ExtensionAPI) {
 		const probe = join(scratch, PROBE);
 		const deadline = Date.now() + LOGIN_TIMEOUT_MS;
 		let snapshotted = "";
+		let budget = LOGIN_SAVES;
+		let seen = false;
 		while (Date.now() < deadline) {
 			await sleep(LOGIN_POLL_MS, signal);
 			if (signal.aborted) return "abandoned" as const;
 			if (!port) continue;
 			const open = await openPages(port);
-			if (!open?.length) return "closed" as const;
+			if (open === undefined) return "closed" as const;
+			// A page that has not landed yet counts for nothing, and now that a blank is not a page, an empty list on the first
+			// ticks is a login still opening rather than one already over
+			if (!open.length) {
+				if (seen) return "closed" as const;
+				continue;
+			}
+			seen = true;
 			const here = open.join("\n");
 			if (here === snapshotted) continue;
 			snapshotted = here;
+			if (budget < 1) continue;
+			budget -= 1;
 			await cli(["--session", login, "state", "save", probe]);
+			// Before the copy: a probe out of a browser nobody logged into must never replace a snapshot that holds the login
+			if (await relaunched(port)) return "closed" as const;
 			if (richest([probe, snapshot]) === probe) copyFileSync(probe, snapshot);
 		}
 		return "expired" as const;
+	}
+
+	// INFO: fc 11aug26 the liveness read and the save are two round trips, so the window can go between them and the save is what
+	// relaunches the browser it can no longer reach. The replacement answers on a new port, which is the only signal that the page
+	// the save just materialised is not the one the user was looking at. Same-browser materialisation keeps the port and is caught
+	// instead by about:blank not counting as a page
+	async function relaunched(port: number): Promise<boolean> {
+		const now = cdpPort((await cli(["--session", login, "get", "cdp-url"])).stdout);
+		return now !== undefined && now !== port;
 	}
 
 	// INFO: fc 11aug26 a command against a closed browser silently relaunches an empty one, so a save can come back anonymous
@@ -316,7 +345,7 @@ export default function (pi: ExtensionAPI) {
 		const theirs = userConfigs(cwd);
 		const chrome = chromePath(theirs);
 		me = identity(platform(), await osVersion(), await browserVersion(chrome));
-		const launcher = (chrome ? writeWrapper(chrome, await display()) : undefined) ?? chrome;
+		const launcher = (chrome ? writeWrapper(chrome, await screen()) : undefined) ?? chrome;
 		const wrapper = launcher !== chrome;
 		if (launcher) process.env.AGENT_BROWSER_EXECUTABLE_PATH = launcher;
 
@@ -448,18 +477,25 @@ export default function (pi: ExtensionAPI) {
 	}
 
 	// A POSIX script, so Windows keeps the CDP override and the page-side client hints that go with it
-	function writeWrapper(chrome: string, screen: Display | undefined): string | undefined {
+	function writeWrapper(chrome: string, display: Display): string | undefined {
 		if (platform() === "win32") return undefined;
-		const flags = [userAgentArg(userAgent(me))];
-		if (screen) flags.push(screenInfoArg(screen), windowSizeArg(screen));
+		const flags = [userAgentArg(userAgent(me)), screenInfoArg(display), windowSizeArg(display)];
 		const path = join(scratch, "chrome-wrapper.sh");
 		writeFileSync(path, wrapperScript(chrome, flags), { mode: 0o755 });
 		return path;
 	}
 
-	// INFO: fc 11aug26 AppKit through JXA, because the headless screen has to match the display macOS presents: Chrome's own
-	// default is 800x600, which is smaller than the window agent-browser opens and impossible on real hardware
-	async function display(): Promise<Display | undefined> {
+	// Never undefined, because the fallback is Chrome's own 800x600: smaller than the window agent-browser opens, which is
+	// impossible on real hardware and the loudest tell of the set
+	async function screen(): Promise<Display> {
+		const setting = process.env.PI_BROWSER_SCREEN?.trim();
+		if (setting === "real") return (await attachedDisplay()) ?? DEFAULT_SCREEN;
+		return (setting ? parseScreen(setting) : undefined) ?? DEFAULT_SCREEN;
+	}
+
+	// INFO: fc 11aug26 AppKit through JXA: system_profiler prints the panel's native resolution, not the scaled size macOS
+	// presents to applications, which is the one window.screen has to report
+	async function attachedDisplay(): Promise<Display | undefined> {
 		if (platform() !== "darwin") return undefined;
 		const script =
 			'ObjC.import("AppKit"); var s = $.NSScreen.mainScreen; var f = s.frame, v = s.visibleFrame; JSON.stringify({frame:[f.size.width,f.size.height], visible:[v.size.width,v.size.height], scale:s.backingScaleFactor})';

@@ -29,6 +29,40 @@ export type Display = {
 const WIDE_GAMUT_COLOR_DEPTH = 30;
 const SRGB_COLOR_DEPTH = 24;
 
+// A screenshot costs its pixels, and a Retina screen doubles them on both axes: reporting this Mac's real 2x display puts four
+// times the image on a model's context for the same page. The same browser on an external 1080p monitor is dpr 1, which is
+// both honest for an M3 Mac and the most common desktop resolution there is, so it blends better than any Retina size.
+// PI_BROWSER_SCREEN=real opts back into the panel that is actually attached.
+export const DEFAULT_SCREEN: Display = {
+	width: 1920,
+	height: 1080,
+	availWidth: 1920,
+	availHeight: 1080,
+	scale: 1,
+	colorDepth: SRGB_COLOR_DEPTH,
+};
+
+// Bigger than this and screenshots cost more than the extra page is worth; a window is never larger than the desktop either
+const MAX_WINDOW_WIDTH = 1600;
+const MAX_WINDOW_HEIGHT = 900;
+
+// WxH, optionally @scale and :colorDepth, e.g. 1920x1080, 2560x1440@1:24, 1470x956@2:30
+export function parseScreen(setting: string): Display | undefined {
+	const match = setting.trim().match(/^(\d+)x(\d+)(?:@(\d+))?(?::(\d+))?$/);
+	if (!match) return undefined;
+	const [width, height] = [Number(match[1]), Number(match[2])];
+	if (width <= 0 || height <= 0) return undefined;
+	const scale = Number(match[3] ?? 1) || 1;
+	return {
+		width,
+		height,
+		availWidth: width,
+		availHeight: height,
+		scale,
+		colorDepth: Number(match[4] ?? 0) || (scale > 1 ? WIDE_GAMUT_COLOR_DEPTH : SRGB_COLOR_DEPTH),
+	};
+}
+
 // NSScreen.frame is what window.screen must report and visibleFrame is the desktop minus the menu bar, which is the largest a
 // window can honestly be. system_profiler is the wrong source: it prints the panel's native 2560x1664 , not the scaled size
 // macOS presents to applications.
@@ -70,7 +104,7 @@ export function screenInfoArg({ width, height, scale, colorDepth }: Display): st
 }
 
 export function windowSizeArg({ availWidth, availHeight }: Display): string {
-	return `--window-size=${availWidth},${availHeight}`;
+	return `--window-size=${Math.min(availWidth, MAX_WINDOW_WIDTH)},${Math.min(availHeight, MAX_WINDOW_HEIGHT)}`;
 }
 
 export function userAgentArg(ua: string): string {
@@ -211,6 +245,11 @@ export function cdpPort(cdpUrl: string): number | undefined {
 // Chrome's own surfaces do not count: a launch leaves a New Tab page next to the login page, and a login is never one of them
 const INTERNAL_SURFACE = /^(chrome|chrome-untrusted|devtools):/;
 
+// INFO: fc 11aug26 a state save against a windowless browser materialises about:blank. Counted as the user's window, that page
+// makes the close undetectable: the watcher saves again, which materialises another one, for the whole login timeout. Only
+// pageSignatures skips it, because strayTargets uses INTERNAL_SURFACE to pick what to close and a blank tab is not its business
+const BLANK_SURFACE = /^about:blank([#?]|$)/;
+
 // INFO: fc 11aug26 url and title are all /json/list carries, and a login that never changes either is a login that cannot be
 // snapshotted: a save costs a window flashing open on a headed browser, so it happens when this changes and not on a timer
 export function pageSignatures(targets: unknown): string[] {
@@ -219,7 +258,8 @@ export function pageSignatures(targets: unknown): string[] {
 	for (const target of targets) {
 		if (!target || typeof target !== "object") continue;
 		const { type, url, title } = target as { type?: unknown; url?: unknown; title?: unknown };
-		if (type !== "page" || typeof url !== "string" || INTERNAL_SURFACE.test(url)) continue;
+		if (type !== "page" || typeof url !== "string") continue;
+		if (INTERNAL_SURFACE.test(url) || BLANK_SURFACE.test(url)) continue;
 		pages.push(`${url}\t${typeof title === "string" ? title : ""}`);
 	}
 	return pages.sort();

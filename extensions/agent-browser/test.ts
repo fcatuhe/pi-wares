@@ -21,7 +21,9 @@ import {
 	loginOf,
 	mergeConfig,
 	pageSignatures,
+	DEFAULT_SCREEN,
 	parseDisplay,
+	parseScreen,
 	parseVersion,
 	ranked,
 	screenInfoArg,
@@ -121,13 +123,34 @@ assert.deepEqual(retina, {
 	colorDepth: 30,
 });
 assert.equal(screenInfoArg(retina!), "--screen-info={2940x1912 colorDepth=30 devicePixelRatio=2}");
-assert.equal(windowSizeArg(retina!), "--window-size=1470,923");
+// The window is capped, not stretched to the desktop: a 2x screen would otherwise cost four times the pixels per screenshot.
+assert.equal(windowSizeArg(retina!), "--window-size=1470,900");
+assert.equal(windowSizeArg(DEFAULT_SCREEN), "--window-size=1600,900");
+assert.equal(windowSizeArg(parseScreen("1280x800")!), "--window-size=1280,800");
 assert.equal(parseDisplay('{"frame":[1280,800],"visible":[1280,800],"scale":1}')?.colorDepth, 24);
 assert.equal(parseDisplay('{"frame":[1470.0,955.5],"visible":[1470,923],"scale":2}')?.height, 956);
 // visibleFrame is the only field that may be missing, and a window sized to the whole screen is still inside it.
 assert.equal(parseDisplay('{"frame":[1470,956],"scale":2}')?.availHeight, 956);
 for (const bad of ["", "not json", "[]", "{}", '{"frame":[0,0],"scale":2}', '{"frame":[1470],"scale":2}']) {
 	assert.equal(parseDisplay(bad), undefined, bad);
+}
+
+// A dpr of 1 keeps screenshots to a quarter of the pixels, and the depth follows the scale unless it is given outright.
+assert.equal(DEFAULT_SCREEN.scale, 1);
+assert.equal(screenInfoArg(DEFAULT_SCREEN), "--screen-info={1920x1080 colorDepth=24 devicePixelRatio=1}");
+assert.deepEqual(parseScreen("2560x1440"), {
+	width: 2560,
+	height: 1440,
+	availWidth: 2560,
+	availHeight: 1440,
+	scale: 1,
+	colorDepth: 24,
+});
+assert.equal(parseScreen("1470x956@2")?.colorDepth, 30);
+assert.equal(parseScreen("1920x1080@1:30")?.colorDepth, 30);
+assert.equal(parseScreen(" 1920x1080@2 ")?.scale, 2);
+for (const bad of ["", "real", "1920", "1920x", "1920*1080", "0x1080", "1920x1080@"]) {
+	assert.equal(parseScreen(bad), undefined, bad);
 }
 
 // The wrapper is what carries the flags agent-browser will not: it drops --user-agent, and splits --args on the commas
@@ -175,7 +198,23 @@ assert.deepEqual(
 );
 assert.deepEqual(pageSignatures([{ type: "page", url: "chrome-untrusted://new-tab-page/" }]), []);
 assert.deepEqual(pageSignatures([{ type: "page", url: "devtools://devtools/bundled/x.html" }]), []);
-assert.deepEqual(pageSignatures([{ type: "page", url: "about:blank" }]), ["about:blank\t"]);
+// A state save against a windowless browser materialises about:blank. Counted as a page, it makes the close undetectable and
+// every save materialises another one, so closing the window stopped ending the login and windows kept stealing focus.
+assert.deepEqual(pageSignatures([{ type: "page", url: "about:blank" }]), []);
+assert.deepEqual(pageSignatures([{ type: "page", url: "about:blank?x=1" }]), []);
+assert.deepEqual(pageSignatures([{ type: "page", url: "about:blank#a" }]), []);
+// A site of its own is not a blank page, however it starts
+assert.deepEqual(pageSignatures([{ type: "page", url: "https://about:blank.example.com/" }]), [
+	"https://about:blank.example.com/\t",
+]);
+// The materialised blank next to the real login leaves the login as the only window that counts
+assert.deepEqual(
+	pageSignatures([
+		{ type: "page", url: "about:blank" },
+		{ type: "page", url: "https://app.example.com/login", title: "Log in" },
+	]),
+	["https://app.example.com/login\tLog in"],
+);
 assert.deepEqual(pageSignatures([]), []);
 assert.deepEqual(pageSignatures([{ type: "page" }, null, 1, "page"]), []);
 assert.deepEqual(pageSignatures(undefined), []);
@@ -203,6 +242,7 @@ assert.deepEqual(
 	]),
 	["B2", "C3"],
 );
+// Deliberately not pageSignatures' answer: a blank tab is nothing for the watcher to count, and nothing to close either
 assert.deepEqual(strayTargets([{ type: "page", url: "about:blank", id: "A1" }]), []);
 assert.deepEqual(strayTargets([]), []);
 assert.deepEqual(strayTargets(undefined), []);
