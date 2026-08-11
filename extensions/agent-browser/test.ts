@@ -18,11 +18,16 @@ import {
 	identity,
 	initScripts,
 	launchArgs,
+	loginOf,
 	mergeConfig,
 	pageSignatures,
 	parseVersion,
+	ranked,
+	savedLogins,
 	sessionFallback,
+	sessionsOn,
 	stateSummary,
+	storedOrigins,
 	strayTargets,
 	userAgent,
 	workSession,
@@ -174,6 +179,64 @@ assert.deepEqual(stateSummary({ cookies: [{ domain: "a.com" }, { domain: "a.com"
 	domains: ["a.com"],
 });
 assert.deepEqual(stateSummary(undefined), { cookies: 0, domains: [] });
+
+// A token-based login keeps nothing in its cookies, so forget has to count web storage too or it reports an empty state file
+// over a bearer token that is still there.
+assert.deepEqual(
+	storedOrigins({
+		origins: [
+			{ origin: "https://b.example.com", localStorage: [{ name: "authToken" }] },
+			{ origin: "https://a.example.com", localStorage: [{ name: "a" }, { name: "b" }] },
+			{ localStorage: [{ name: "orphan" }] },
+			{ origin: "https://c.example.com" },
+		],
+	}),
+	{ origins: ["https://a.example.com", "https://b.example.com", "https://c.example.com"], entries: 3 },
+);
+assert.deepEqual(storedOrigins({}), { origins: [], entries: 0 });
+assert.deepEqual(storedOrigins(undefined), { origins: [], entries: 0 });
+
+// Deleting the state file is half a forget: every session on that login still holds the same cookies in memory. The work
+// sessions are the login plus a pid, and a login that is a prefix of another must not drag that other one in.
+assert.deepEqual(sessionsOn(["pi-abc-7177", "pi-abc", "pi-abcdef", "pi-abcdef-42", "other"], "pi-abc"), [
+	"pi-abc",
+	"pi-abc-7177",
+]);
+assert.deepEqual(sessionsOn(["pi-abc-7177"], ""), []);
+assert.deepEqual(sessionsOn([], "pi-abc"), []);
+assert.equal(loginOf("pi-abc-7177"), "pi-abc");
+assert.equal(loginOf("pi-abc"), "pi-abc");
+assert.equal(loginOf("pi-9f3a1c2b"), "pi-9f3a1c2b");
+
+// The inventory is the union: a state file with no browser open is credentials at rest, a live session whose login was already
+// forgotten still holds them in memory, and the directory index is not one of the logins.
+assert.deepEqual(
+	savedLogins(["pi-abc.json", "pi-def.json", "directories.json", "pi-abc.json.new", "pi-abc-7177", "stealth.js"], [
+		"pi-def-42",
+		"pi-ghi-99",
+		"pi-ghi",
+	]),
+	["pi-abc", "pi-def", "pi-ghi"],
+);
+assert.deepEqual(savedLogins([], []), []);
+
+// The login you are working in stays at the top however light it is, the rest sort by what they are holding.
+assert.deepEqual(
+	ranked(
+		[
+			{ name: "pi-b", cookies: 0 },
+			{ name: "pi-c", cookies: 40 },
+			{ name: "pi-a", cookies: 40 },
+			{ name: "pi-here", cookies: 1 },
+		],
+		"pi-here",
+	).map((row) => row.name),
+	["pi-here", "pi-a", "pi-c", "pi-b"],
+);
+assert.deepEqual(
+	ranked([{ name: "pi-a", cookies: 1 }], "gone").map((row) => row.name),
+	["pi-a"],
+);
 
 // A login is only saved when the capture gained a cookie the state lacked: a window closed too early comes back with the
 // anonymous cookies the wall itself sets, and reporting that as a saved login is what sent an agent back into the wall.

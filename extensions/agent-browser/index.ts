@@ -11,7 +11,7 @@ import {
 	statSync,
 	writeFileSync,
 } from "node:fs";
-import { platform, release } from "node:os";
+import { homedir, platform, release } from "node:os";
 import { join } from "node:path";
 import {
 	type ExtensionAPI,
@@ -37,13 +37,18 @@ import {
 	identity,
 	initScripts,
 	launchArgs,
+	LOGIN_INDEX,
 	mentionsBinary,
 	mergeConfig,
 	pageSignatures,
 	parseVersion,
+	ranked,
 	readConfig,
+	savedLogins,
 	sessionFallback,
+	sessionsOn,
 	stateSummary,
+	storedOrigins,
 	strayTargets,
 	userAgent,
 	workSession,
@@ -57,6 +62,11 @@ const LOGIN_TIMEOUT_MS = 15 * 60_000;
 // does: it materialises a page target and drops it ~150ms later, which on a headed browser is a window flashing open and
 // shut in the user's face, so the state is saved on navigation rather than on every tick
 const LOGIN_POLL_MS = 1_000;
+// Every file authenticate() writes that holds cookies or tokens, next to the config and screenshots that do not
+const SNAPSHOT = "login.json";
+const PROBE = "probe.json";
+const FINAL = "final.json";
+const CAPTURES = [SNAPSHOT, PROBE, FINAL];
 const NAMED_COOKIES = 4;
 const PROBE_TIMEOUT_MS = 1_500;
 // INFO: fc 11aug26 not under tmpdir: the macOS cleaner deletes unused files there, and a launch with a missing --config aborts
@@ -110,16 +120,6 @@ export default function (pi: ExtensionAPI) {
 		rmSync(scratch, { recursive: true, force: true });
 	});
 
-	pi.registerCommand("browser-login", {
-		description: "Open a page in a Chrome window for you to authenticate, then save cookies for the agents",
-		handler: async (args, ctx) => {
-			await ensure(ctx.cwd);
-			const report = await authenticate(args.trim(), ctx);
-			ctx.ui.notify(report, "info");
-			pi.sendMessage({ customType: BINARY, content: report, display: true }, { deliverAs: "nextTurn" });
-		},
-	});
-
 	pi.registerTool({
 		name: "browser_login",
 		label: "Browser login",
@@ -141,11 +141,11 @@ export default function (pi: ExtensionAPI) {
 		},
 	});
 
-	pi.registerCommand("browser-status", {
-		description: "Show the agent-browser sessions, saved login state and Chrome version for this directory",
+	pi.registerCommand("browser-forget", {
+		description: "Delete the saved login for this directory, cookies and tokens, and close the browsers holding them",
 		handler: async (_args, ctx) => {
 			await ensure(ctx.cwd);
-			await status(ctx);
+			ctx.ui.notify(await forget(ctx), "info");
 		},
 	});
 
@@ -157,7 +157,7 @@ export default function (pi: ExtensionAPI) {
 		if (opened.code !== 0) return `${BINARY} open failed: ${output(opened)}`;
 		const port = cdpPort((await cli(["--session", login, "get", "cdp-url"])).stdout);
 		if (port) await closeStrayTabs(port);
-		const snapshot = join(scratch, "login.json");
+		const snapshot = join(scratch, SNAPSHOT);
 		rmSync(snapshot, { force: true });
 		const before = cookieKeys(readConfig(baseline));
 		const waited = await waitForLogin(ctx, port, snapshot, target);
@@ -232,7 +232,7 @@ export default function (pi: ExtensionAPI) {
 	// INFO: fc 11aug26 the snapshots are the login: a save once the window is gone comes back without the session cookies, which
 	// Chrome drops with the last window, and on Linux the browser dies with it. So each navigation gets one, and the richest wins
 	async function watchWindow(port: number | undefined, snapshot: string, signal: AbortSignal) {
-		const probe = join(scratch, "probe.json");
+		const probe = join(scratch, PROBE);
 		const deadline = Date.now() + LOGIN_TIMEOUT_MS;
 		let snapshotted = "";
 		while (Date.now() < deadline) {
@@ -253,7 +253,7 @@ export default function (pi: ExtensionAPI) {
 	// INFO: fc 11aug26 a command against a closed browser silently relaunches an empty one, so a save can come back anonymous
 	// even from a live-looking port: the snapshots are what survive the user closing the window
 	async function capture(port: number | undefined, snapshot: string): Promise<string | undefined> {
-		const fresh = join(scratch, "final.json");
+		const fresh = join(scratch, FINAL);
 		rmSync(fresh, { force: true });
 		if (port && (await worthSaving(port, snapshot))) await cli(["--session", login, "state", "save", fresh]);
 		return richest([fresh, snapshot]);
@@ -302,6 +302,7 @@ export default function (pi: ExtensionAPI) {
 		scratch = join(STATE_ROOT, work);
 		mkdirSync(scratch, { recursive: true });
 		pruneScratch();
+		remember(cwd);
 
 		const theirs = userConfigs(cwd);
 		const chrome = executable(theirs);
@@ -326,19 +327,74 @@ export default function (pi: ExtensionAPI) {
 		process.env.PI_BROWSER_STATE = baseline;
 	}
 
-	async function status(ctx: ExtensionCommandContext) {
-		const running = await live();
-		const saved = existsSync(baseline) ? `${age(Date.now() - statSync(baseline).mtimeMs)} old` : "none yet";
-		ctx.ui.notify(
-			[
-				`work    ${work} ${running.has(work) ? "live" : "idle"}`,
-				`login   ${login} ${running.has(login) ? "live" : "idle"}`,
-				`state   ${saved}`,
-				`chrome  ${me?.version ?? "unknown"}`,
-				`scratch ${scratch}`,
-			].join("\n"),
-			"info",
+	// Every login on this machine, so you can see where credentials are lying, and none of them goes without being picked out of
+	// a list and then confirmed by name: the other logins belong to other directories, where an agent may be mid-task.
+	async function forget(ctx: ExtensionCommandContext): Promise<string> {
+		const sessions = [...(await live())];
+		const names = savedLogins(children(STATE_ROOT), sessions);
+		if (!names.length) return "No saved login, no browser open";
+		const rows = ranked(
+			names.map((name) => tally(name, sessions)),
+			login,
 		);
+		const lines = new Map(rows.map((row) => [inventory(row), row.name]));
+		if (!ctx.hasUI) return ["Saved logins:", ...lines.keys()].join("\n");
+		const picked = await ctx.ui.select("Forget which login?", [...lines.keys()]);
+		const name = picked ? lines.get(picked) : undefined;
+		if (!name) return ["Nothing deleted:", ...lines.keys()].join("\n");
+		const held = sessionsOn(sessions, name);
+		const warning = held.length ? `Closes ${plural(held.length, "browser")}: ${held.join(", ")}` : "No browser open on it";
+		const prompt = `${picked}\n\n${warning}. Cookies and tokens deleted.`;
+		if (!(await ctx.ui.confirm(`Forget ${name}?`, prompt))) return `Kept ${name}`;
+		for (const session of held) await cli(["--session", session, "close"]);
+		if (name === login) primed = false;
+		return `Forgot ${name}: deleted ${plural(wipeCredentials(name), "file")}, closed ${plural(held.length, "browser")}`;
+	}
+
+	function tally(name: string, sessions: string[]) {
+		const file = join(STATE_ROOT, `${name}.json`);
+		const state = readConfig(file);
+		return {
+			name,
+			cookies: stateSummary(state).cookies,
+			tokens: storedOrigins(state).entries,
+			open: sessionsOn(sessions, name).length,
+			saved: state ? `${age(Date.now() - statSync(file).mtimeMs)} old` : "no state file",
+		};
+	}
+
+	function inventory({ name, cookies, tokens, open, saved }: ReturnType<typeof tally>): string {
+		return `${name}  ${directory(name)}  ${cookies} cookies, ${tokens} tokens, ${open} open, ${saved}`;
+	}
+
+	// The login id is a hash of the directory it is keyed on, so the index is the only thing that can name it back
+	function directory(name: string): string {
+		const known = readConfig(join(STATE_ROOT, LOGIN_INDEX))?.[name];
+		if (typeof known !== "string") return "directory unknown";
+		return `${known.replace(homedir(), "~")}${known === setupCwd ? ", here" : ""}`;
+	}
+
+	function remember(cwd: string) {
+		const file = join(STATE_ROOT, LOGIN_INDEX);
+		writeFileSync(file, JSON.stringify({ ...readConfig(file), [login]: cwd }, null, 1));
+	}
+
+	// INFO: fc 11aug26 the login state is not the only copy: authenticate() snapshots the window into the scratch directory on
+	// every navigation, and each snapshot is a full state file. A forget that leaves those behind leaves the credentials behind
+	function wipeCredentials(name: string): number {
+		const file = join(STATE_ROOT, `${name}.json`);
+		const paths = [file, `${file}.new`];
+		for (const child of children(STATE_ROOT)) {
+			if (!sessionsOn([child], name).length) continue;
+			for (const capture of CAPTURES) paths.push(join(STATE_ROOT, child, capture));
+		}
+		let removed = 0;
+		for (const path of paths) {
+			if (!existsSync(path)) continue;
+			rmSync(path, { force: true });
+			removed += 1;
+		}
+		return removed;
 	}
 
 	// INFO: fc 11aug26 the login state only applies through --state, so it is applied once, on a browser this session started
@@ -447,6 +503,10 @@ function added(before: Set<string>, after: Set<string>): string {
 	const names = cookieNames(new Set([...after].filter((key) => !before.has(key))));
 	const rest = names.length - NAMED_COOKIES;
 	return rest > 0 ? `${names.slice(0, NAMED_COOKIES).join(", ")} +${rest} more` : names.join(", ");
+}
+
+function plural(count: number, noun: string): string {
+	return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
 function output({ stderr, stdout }: { stderr: string; stdout: string }): string {

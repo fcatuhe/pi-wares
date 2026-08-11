@@ -181,6 +181,53 @@ export function cookieKeys(state: Config | undefined): Set<string> {
 	return keys;
 }
 
+// Web storage is where a token-based login keeps its bearer token, so a credential count that only sees cookies reads zero on
+// an app that has your whole session in localStorage.
+export function storedOrigins(state: Config | undefined): { origins: string[]; entries: number } {
+	const listed = Array.isArray(state?.origins) ? (state.origins as Config[]) : [];
+	const origins: string[] = [];
+	let entries = 0;
+	for (const { origin, localStorage } of listed) {
+		if (typeof origin !== "string") continue;
+		origins.push(origin);
+		if (Array.isArray(localStorage)) entries += localStorage.length;
+	}
+	return { origins: origins.sort(), entries };
+}
+
+// INFO: fc 11aug26 every session on this login holds the same cookies in memory, so deleting the file while one is live leaves
+// a logged-in browser behind: the work sessions are the login name plus the pid of the pi process that owns them
+export function sessionsOn(names: string[], login: string): string[] {
+	if (!login) return [];
+	return names.filter((name) => name === login || name.startsWith(`${login}-`)).sort();
+}
+
+export function loginOf(session: string): string {
+	return session.replace(/-\d+$/, "");
+}
+
+// The directories a login was last used from, so a saved login can be named by the work it belongs to rather than by its hash
+export const LOGIN_INDEX = "directories.json";
+
+// The login you are working in first, then whichever holds the most cookies: the heaviest of the others is where a cleanup
+// starts, and an empty one is nothing to decide about.
+export function ranked<T extends { name: string; cookies: number }>(rows: T[], current: string): T[] {
+	const mine = (row: T) => Number(row.name === current);
+	return [...rows].sort((a, b) => mine(b) - mine(a) || b.cookies - a.cookies || a.name.localeCompare(b.name));
+}
+
+// A login with no live session still has its cookies on disk, and a live session whose login was already forgotten still holds
+// them in memory: both are things to clean up, so the inventory is the union.
+export function savedLogins(entries: string[], sessions: string[]): string[] {
+	const names = new Set<string>();
+	for (const entry of entries) {
+		if (entry === LOGIN_INDEX || !entry.endsWith(".json")) continue;
+		names.add(entry.slice(0, -".json".length));
+	}
+	for (const session of sessions) names.add(loginOf(session));
+	return [...names].sort();
+}
+
 export function cookieNames(keys: Set<string>): string[] {
 	return [...new Set([...keys].map((key) => key.split("\t")[1]))].sort();
 }
