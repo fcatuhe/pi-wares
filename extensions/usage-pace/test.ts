@@ -5,16 +5,21 @@ import { barCells, elapsedPercent, formatReset, paceColor, parseClaude, parseCod
 const HOUR = 3_600_000;
 const now = Date.now();
 
-// Claude: fraction utilization, 3h left of a 5h window => 40% elapsed, 42% used => within slack.
+// Claude: 3h left of a 5h window => 40% elapsed, 42% used => within slack.
 const claude = parseClaude({
-	five_hour: { utilization: 0.42, resets_at: new Date(now + 3 * HOUR).toISOString() },
-	seven_day: { utilization: 61, resets_at: new Date(now + 2 * 24 * HOUR).toISOString() },
+	five_hour: { utilization: 42.0, resets_at: new Date(now + 3 * HOUR).toISOString() },
+	seven_day: { utilization: 61.0, resets_at: new Date(now + 2 * 24 * HOUR).toISOString() },
+	limits: [
+		{ kind: "session", group: "session", percent: 42, resets_at: new Date(now + 3 * HOUR).toISOString() },
+		{ kind: "weekly_all", group: "weekly", percent: 61, resets_at: new Date(now + 2 * 24 * HOUR).toISOString() },
+		{ kind: "weekly_scoped", group: "weekly", percent: 99, resets_at: new Date(now + 2 * 24 * HOUR).toISOString() },
+	],
 });
-assert.equal(claude.length, 2);
+assert.equal(claude.length, 2); // weekly_scoped is dropped, the footer only fits two bars
 assert.equal(Math.round(claude[0].usedPercent), 42);
 assert.equal(Math.round(elapsedPercent(claude[0], now)), 40);
 assert.equal(paceColor(claude[0].usedPercent, elapsedPercent(claude[0], now)), "success");
-// 0-100 form must not be re-scaled; 5 of 7 days gone => 71% elapsed, 61% used => under pace.
+// 5 of 7 days gone => 71% elapsed, 61% used => under pace.
 assert.equal(paceColor(claude[1].usedPercent, elapsedPercent(claude[1], now)), "success");
 assert.equal(Math.round(claude[1].usedPercent), 61);
 assert.equal(claude[1].label, "7d");
@@ -46,9 +51,17 @@ assert.equal(paceColor(40, 100 / 7), "error");
 assert.equal(paceColor(90, 95), "error");
 assert.equal(paceColor(89, 95), "success");
 
+// A sub-1% window is a sub-1% window: percent is never rescaled by magnitude.
+assert.equal(
+	parseClaude({ limits: [{ kind: "session", percent: 0.6, resets_at: new Date(now + HOUR).toISOString() }] })[0]
+		.usedPercent,
+	0.6,
+);
+
 // Malformed / missing payloads must not throw or invent windows.
 assert.deepEqual(parseClaude(undefined), []);
-assert.deepEqual(parseClaude({ five_hour: { utilization: 0.5 } }), []); // no resets_at
+assert.deepEqual(parseClaude({ limits: [{ kind: "session", percent: 50 }] }), []); // no resets_at
+assert.deepEqual(parseClaude({ five_hour: { utilization: 50, resets_at: new Date(now + HOUR).toISOString() } }), []);
 assert.deepEqual(parseCodex({ rate_limit: {} }), []);
 
 assert.equal(formatReset(now + 45 * 60_000, now), "45m");

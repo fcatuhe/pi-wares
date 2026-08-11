@@ -33,8 +33,10 @@ Whichever of these is the current model's provider:
 
 | pi provider | Source |
 |---|---|
-| `anthropic` | `GET api.anthropic.com/api/oauth/usage` (5h + 7d windows) |
+| `anthropic` | `GET api.anthropic.com/api/oauth/usage`, `limits[]` kinds `session` (5h) and `weekly_all` (7d) |
 | `openai-codex` | `GET chatgpt.com/backend-api/wham/usage` (primary + secondary windows) |
+
+The weekly per-model cap (`weekly_scoped`, e.g. Opus) is **not** shown, two bars are all the footer fits: a green `7d` does not promise the model you are on has weekly quota left. The sibling `five_hour` / `seven_day` objects are ignored, their float `utilization` has no distinguishable unit below 1 (`0.6` is 0.6%, not 60%).
 
 Any other provider clears the status. Tokens come from `~/.pi/agent/auth.json`, falling back to the Claude Code macOS keychain entry and `$CODEX_HOME/auth.json`.
 

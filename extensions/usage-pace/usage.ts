@@ -14,11 +14,6 @@ function clamp(value: number): number {
 	return Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : 0;
 }
 
-// INFO: fc 02aug26 Anthropic reports utilization as either a 0-1 fraction or a 0-100 percent
-function normalizePercent(value: number): number {
-	return clamp(value > 0 && value <= 1 ? value * 100 : value);
-}
-
 function windowLabel(durationMs: number, fallback: string): string {
 	if (!Number.isFinite(durationMs) || durationMs <= 0) return fallback;
 	const hours = Math.round(durationMs / HOUR);
@@ -26,18 +21,21 @@ function windowLabel(durationMs: number, fallback: string): string {
 	return `${Math.round(hours / 24)}d`;
 }
 
+// INFO: fc 11aug26 limits[] carries an integer percent per window, while the sibling five_hour and
+// seven_day objects report a float utilization whose unit cannot be told apart below 1 (0.6 is 0.6%,
+// not 60%). The weekly per-model cap (kind weekly_scoped) is left out: two bars are all the footer fits.
 export function parseClaude(data: any): Window[] {
 	const windows: Window[] = [];
-	for (const [key, durationMs, label] of [
-		["five_hour", 5 * HOUR, "5h"],
-		["seven_day", 168 * HOUR, "7d"],
+	for (const [kind, durationMs, label] of [
+		["session", 5 * HOUR, "5h"],
+		["weekly_all", 168 * HOUR, "7d"],
 	] as const) {
-		const w = data?.[key];
-		if (w?.utilization === undefined || !w?.resets_at) continue;
+		const limit = data?.limits?.find((entry: any) => entry?.kind === kind);
+		if (limit?.percent === undefined || !limit?.resets_at) continue;
 		windows.push({
 			label,
-			usedPercent: normalizePercent(Number(w.utilization)),
-			resetsAt: new Date(w.resets_at).getTime(),
+			usedPercent: clamp(Number(limit.percent)),
+			resetsAt: new Date(limit.resets_at).getTime(),
 			durationMs,
 		});
 	}
