@@ -67,7 +67,9 @@ export default function (pi: ExtensionAPI) {
 	let setupCwd = "";
 	let primed = false;
 
-	pi.on("resources_discover", () => ({ skillPaths: [join(import.meta.dirname, "skill", "SKILL.md")] }));
+	// INFO: fc 11aug26 SKILL.md sits in the extension directory, not a skill/ below it: a consumer that names a skill after
+	// its parent directory then reads agent-browser rather than "skill"
+	pi.on("resources_discover", () => ({ skillPaths: [join(import.meta.dirname, "SKILL.md")] }));
 
 	// INFO: fc 11aug26 a resumed or forked session can land in another directory, and the sessions are keyed on it
 	pi.on("session_start", () => {

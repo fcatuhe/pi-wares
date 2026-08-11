@@ -2,7 +2,7 @@
 
 House rules for the [`agent-browser`](https://github.com/vercel-labs/agent-browser) CLI, as defaults rather than prose: one browser session per pi process, one saved login per directory, headless without the headless tells, and credentials only ever typed by you.
 
-Loads when the binary is on `PATH`, and contributes [`skill/SKILL.md`](./skill/SKILL.md) through `resources_discover`, so the skill appears exactly when the ware is enabled. Nothing is injected into the system prompt: the defaults are environment, and the skill is read on demand.
+Loads when the binary is on `PATH`, and contributes [`SKILL.md`](./SKILL.md) through `resources_discover`, so the skill appears exactly when the ware is enabled. Nothing is injected into the system prompt: the defaults are environment, and the skill is read on demand.
 
 A session that never browses pays nothing. Setup costs three execs and four writes, and it is deferred until a `bash` tool call or a `!` command mentions `agent-browser`, or the agent calls `browser_login`, or you run one of the two commands. It is single-flight, so two agent commands arriving together still configure once, and a `/resume` into another directory re-derives the sessions on next use.
 
