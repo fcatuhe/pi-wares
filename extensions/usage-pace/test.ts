@@ -73,4 +73,3 @@ assert.deepEqual(barCells(100, 100, 1), ["mark"]);
 // Clamps: past reset and over-100 usage stay in range.
 assert.equal(elapsedPercent({ label: "5h", usedPercent: 0, resetsAt: now - HOUR, durationMs: 5 * HOUR }, now), 100);
 
-console.log("usage-pace: ok");

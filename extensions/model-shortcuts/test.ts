@@ -45,4 +45,3 @@ assert.deepEqual(parseShortcuts('{" opus ":{"provider":" anthropic ","model":" c
 	opus: { provider: "anthropic", model: "claude-opus-5", thinkingLevel: undefined },
 });
 
-console.log("model-shortcuts: ok");

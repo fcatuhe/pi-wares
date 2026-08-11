@@ -98,4 +98,3 @@ assert.deepEqual(splitArgs("w1:p1", CWD, { auto: false, direction: "down", ratio
 	"pane", "split", "--pane", "w1:p1", "--direction", "down", "--ratio", "0.4", "--cwd", CWD, "--no-focus",
 ]);
 
-console.log("herdr-preview: ok");

@@ -294,4 +294,3 @@ assert.deepEqual(broken.run.entries, [], "a failed run still appended a report")
 assert.equal(broken.run.notices[0][1], "error");
 assert.match(broken.run.notices[0][0], /^wares-doctor:apply failed: /);
 
-console.log("wares-doctor: ok");

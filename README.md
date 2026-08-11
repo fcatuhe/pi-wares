@@ -131,6 +131,7 @@ pi-wares/
 │       ├── index.ts          ← entry point (required filename), pi API and fs live here
 │       ├── shortcuts.ts      ← the pure half: parsing and formatting, no pi imports
 │       ├── test.ts           ← `npx tsx extensions/<ware>/test.ts`, runs off the pure half
+│       │                       `npm test` runs every extensions/*/test.ts, no registration
 │       └── README.md         ← per-ware docs, co-located with code
 ├── skills/                   ← one folder per skill, each a SKILL.md
 ├── herdr-app/                ← macOS app that launches herdr, not a ware

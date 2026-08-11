@@ -240,5 +240,3 @@ const unrelated = [
 for (const text of unrelated) {
 	assert.equal(rewritePromptText(text), text);
 }
-
-console.log("oauth-tool-alias self-check passed");

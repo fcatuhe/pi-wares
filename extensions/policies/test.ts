@@ -56,4 +56,3 @@ for (const [which, { files, ...expected }] of Object.entries(CASES)) {
   }
 }
 
-console.log("policies: ok");

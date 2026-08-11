@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "tsx extensions/anthropic-token-login/test.ts && tsx extensions/bang-zsh/test.ts && tsx extensions/herdr-preview/test.ts && tsx extensions/model-shortcuts/test.ts && tsx extensions/oauth-tool-alias/test.ts && tsx extensions/policies/test.ts && tsx extensions/usage-pace/test.ts && tsx extensions/wares-doctor/test.ts"
+    "test": "tsx --test extensions/*/test.ts"
   },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",

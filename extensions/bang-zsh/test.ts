@@ -28,4 +28,3 @@ assert.equal(loginZsh("/usr/bin/fish"), undefined);
 // $SHELL unset, on a bare cron-like environment.
 assert.equal(loginZsh(""), undefined);
 
-console.log("bang-zsh: ok");

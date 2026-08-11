@@ -152,4 +152,3 @@ assert.equal(registrationsFor(withTokenLogin(fakeBase())).length, 0);
 // A provider without OAuth is left alone rather than registered back half-built.
 assert.equal(registrationsFor(undefined).length, 0);
 
-console.log("anthropic-token-login: ok");
