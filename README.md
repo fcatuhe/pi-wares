@@ -55,13 +55,12 @@ Some skills drive CLIs this package does not install:
 
 - **`gog`**: the [`gog` CLI](https://github.com/openclaw/gogcli), install per its README. Needs your own Google Cloud OAuth "Desktop app" client: download its `credentials.json`, then `gog auth credentials set credentials.json` and `gog auth add you@example.com`.
 - **`outline-cli`**: `npm i -g @doist/outline-cli`, then `ol auth token <token>` with a personal token from Settings > API. `ol auth login` also works, but those tokens expire.
-- **`agent-browser`**: `npm i -g agent-browser && agent-browser install` (the second downloads its own Chrome). No ware wraps it: it ships its own version-matched usage guide, `agent-browser skills get core --full`, so keep the CLI current and read that.
+- **`agent-browser`**: `npm i -g agent-browser && agent-browser install` (the second downloads its own Chrome).
 - **`mdcat`**: `brew install mdcat`, the renderer [`herdr-preview`](./extensions/herdr-preview/) runs in its split.
 
 ## Keys
 
 - **`brave-search`** needs `BRAVE_API_KEY` in your shell profile. Free tier at [api-dashboard.search.brave.com](https://api-dashboard.search.brave.com/register): create a "Free AI" subscription (card required, not charged), then an API key.
-- **`oauth-tool-alias`**, **`usage-pace`** and **`anthropic-token-login`** reuse pi's own credentials (`/login`, `~/.pi/agent/auth.json`) and need no setup.
 
 ## Wares
 
@@ -93,8 +92,7 @@ Loaded on demand rather than injected, so they can be as long as they need to be
 | [`exa-search/`](./skills/exa-search/SKILL.md) | Web search and content extraction via Exa's keyless MCP endpoint. No key or browser needed. |
 | [`gog/`](./skills/gog/SKILL.md) | Safe [`gog`](https://github.com/openclaw/gogcli) Google Workspace automation: auth state, JSON output, scoped reads and writes. |
 | [`outline-cli/`](./skills/outline-cli/SKILL.md) | Search and manage [Outline](https://www.getoutline.com) wiki documents and collections via the [`ol`](https://github.com/Doist/outline-cli) CLI. |
-
-Runtime deps sit in this package's `dependencies` so pi's install covers them: `jsdom`, `turndown`, `turndown-plugin-gfm`, `@mozilla/readability` for `brave-search`, `jsonc-parser` and `toml-eslint-parser` for `wares-doctor`.
+| [`agent-browser/`](./skills/agent-browser/SKILL.md) | Headed Chrome and an existing `~/.agent-browser` session for the [`agent-browser`](https://agent-browser.dev) CLI, which serves the usage guide itself. |
 
 ## Vendored skills
 
