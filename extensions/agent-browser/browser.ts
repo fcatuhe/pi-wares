@@ -42,9 +42,19 @@ export const DEFAULT_SCREEN: Display = {
 	colorDepth: SRGB_COLOR_DEPTH,
 };
 
-// Bigger than this and screenshots cost more than the extra page is worth; a window is never larger than the desktop either
-const MAX_WINDOW_WIDTH = 1600;
-const MAX_WINDOW_HEIGHT = 900;
+// A window is measured in page per token, not in pixels. A vision API downscales to about 1568px on the long edge, so 1280 is
+// the widest that survives 1:1 and is read without resampling, which is what dense small text needs. It costs the same as a
+// 1920 wide window, whose 1568x790 after the downscale carries the same 1.24M pixels: the wider one shows a third more page,
+// this one is sharper for the money. Two thirds of a 1080p desktop is also an ordinary shape for a window to have.
+// Height is never the long edge, so it is pure gain and the window takes the desktop.
+// INFO: fc 11aug26 agent-browser passes its own --window-size=1280,720 and Chrome takes the last value on the command line,
+// which is ours. Verified: the page reports the size set here. argv is not readable from a page, so the two disagreeing is a
+// hygiene question and not a fingerprint one, and a taller window is worth more than the tidier command line.
+const MAX_WINDOW_WIDTH = 1280;
+const MAX_WINDOW_HEIGHT = 1080;
+// No window on a macOS desktop is flush with the top of the screen, and the clamp keeps it inside a smaller one, which is the
+// impossible shape detectors look for
+const MENU_BAR_HEIGHT = 25;
 
 // WxH, optionally @scale and :colorDepth, e.g. 1920x1080, 2560x1440@1:24, 1470x956@2:30
 export function parseScreen(setting: string): Display | undefined {
@@ -104,7 +114,9 @@ export function screenInfoArg({ width, height, scale, colorDepth }: Display): st
 }
 
 export function windowSizeArg({ availWidth, availHeight }: Display): string {
-	return `--window-size=${Math.min(availWidth, MAX_WINDOW_WIDTH)},${Math.min(availHeight, MAX_WINDOW_HEIGHT)}`;
+	const width = Math.min(availWidth, MAX_WINDOW_WIDTH);
+	const height = Math.min(availHeight - MENU_BAR_HEIGHT, MAX_WINDOW_HEIGHT);
+	return `--window-size=${width},${height}`;
 }
 
 export function userAgentArg(ua: string): string {

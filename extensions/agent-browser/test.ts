@@ -123,10 +123,17 @@ assert.deepEqual(retina, {
 	colorDepth: 30,
 });
 assert.equal(screenInfoArg(retina!), "--screen-info={2940x1912 colorDepth=30 devicePixelRatio=2}");
-// The window is capped, not stretched to the desktop: a 2x screen would otherwise cost four times the pixels per screenshot.
-assert.equal(windowSizeArg(retina!), "--window-size=1470,900");
-assert.equal(windowSizeArg(DEFAULT_SCREEN), "--window-size=1600,900");
-assert.equal(windowSizeArg(parseScreen("1280x800")!), "--window-size=1280,800");
+// Two thirds of the desktop wide, and all of it high less the menu bar: 1280 is the widest a screenshot survives 1:1, and
+// height is never the long edge a vision API downscales on, so it is free.
+assert.equal(windowSizeArg(DEFAULT_SCREEN), "--window-size=1280,1055");
+// 923 - 25: an NSScreen visibleFrame has already taken the menu bar off, so the real display loses it twice and the window
+// ends 25px shorter than it could be. Harmless, and it errs towards staying inside the desktop.
+assert.equal(windowSizeArg(retina!), "--window-size=1280,898");
+// A screen smaller than the cap wins, or the window would be larger than the desktop it sits on.
+assert.equal(windowSizeArg(parseScreen("1024x768")!), "--window-size=1024,743");
+assert.equal(windowSizeArg(parseScreen("800x600")!), "--window-size=800,575");
+// Past the cap the window stops growing: a 4K desktop would cost more per screenshot than the extra page is worth.
+assert.equal(windowSizeArg(parseScreen("3840x2160")!), "--window-size=1280,1080");
 assert.equal(parseDisplay('{"frame":[1280,800],"visible":[1280,800],"scale":1}')?.colorDepth, 24);
 assert.equal(parseDisplay('{"frame":[1470.0,955.5],"visible":[1470,923],"scale":2}')?.height, 956);
 // visibleFrame is the only field that may be missing, and a window sized to the whole screen is still inside it.
