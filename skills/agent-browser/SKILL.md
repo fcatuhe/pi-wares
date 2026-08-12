@@ -20,17 +20,18 @@ Install: `npm i -g agent-browser && agent-browser install`.
 
 Everything runs in one headed Chrome on the profile `agent-browser`, which holds the logins. Each agent works in its own tab, named after its task.
 
-**1. Start the browser, only if it is not already up.** Run it exactly like this, the `||` guard is load-bearing: a second `open about:blank` on a running browser blanks whatever tab is active, which may be another agent's page.
+**1. Start the browser.** Safe to run whether or not it is already up: `tab list` navigates nothing, and a second call reuses the running browser instead of relaunching it.
 
 ```bash
-agent-browser session list | grep -q '^  agent-browser$' || \
 agent-browser --session agent-browser \
   --profile ~/.agent-browser/profiles/agent-browser \
   --executable-path "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
   --headed --pin-tab \
   --args "--disable-blink-features=AutomationControlled,--no-first-run,--no-default-browser-check" \
-  open about:blank
+  tab list
 ```
+
+It prints the tabs, so you also see who else is working. Chrome opens with one blank tab, and that tab is what keeps the window alive when every agent has left.
 
 Chrome creates the profile directory on first use. That first run is logged out of every site: ask the user to log in in the visible window, once. It persists from then on.
 
@@ -57,7 +58,7 @@ That detaches you and leaves the window up for everyone else.
 ## Rules
 
 - Never `agent-browser close --all`, and never `close` a session you did not open.
-- Never read or navigate with the `agent-browser` session. It owns the window, its `about:blank` tab keeps Chrome alive, and it follows whichever tab was opened last even under `--pin-tab`, so a command sent to it can land on another agent's page.
+- Never navigate with the `agent-browser` session (`open`, `click`, `fill`). It owns the window, and it follows whichever tab was opened last even under `--pin-tab`, so it can act on another agent's page. Reading it, `tab list` or `get cdp-url`, is safe.
 - Never pass `--profile`, `--restore`, `--headed` or `--executable-path` on your own commands. A different flag set relaunches the browser under everyone.
 - **Never `--restore` on a profile.** Two stores of auth, and the stale one overwrites the live cookies on launch, which logs the profile out.
 - Headless works but do not use it: the UA says `HeadlessChrome`, `screen` is 800x600. Overriding `--user-agent` makes it worse, it empties `navigator.userAgentData.brands`, which no real Chrome does.
@@ -69,3 +70,4 @@ That detaches you and leaves the window up for everyone else.
 - Two agents starting the browser in the same second both fail with a daemon startup error. Wait a second and retry, one of them will already have it up.
 - `tab_gone`: your tab was closed under you. `agent-browser --session <tab> tab new <url>` rebinds.
 - Tab ids (`t1`, `t2`) are session-local, the same tab has different ids in different agents' lists. To point at another agent's tab, use `targetId` from `tab list --json`.
+- `read <url>` fetches outside the browser, so it never sends the profile's cookies and a logged-in site answers with a login page or an error (LinkedIn returns HTTP 999). On any site that needs the login, `open` then `get text` or `snapshot`.
