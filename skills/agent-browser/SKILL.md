@@ -39,21 +39,22 @@ Chrome creates the profile directory on first use. That first run is logged out 
 
 ```bash
 CDP=$(agent-browser --session agent-browser get cdp-url)
-agent-browser --session <tab> --cdp "$CDP" --pin-tab open https://example.com
-agent-browser --session <tab> snapshot -i
-agent-browser --session <tab> screenshot /tmp/page.png
+agent-browser --session <you> --cdp "$CDP" --pin-tab open https://example.com
+agent-browser --session <you> snapshot -i
+agent-browser --session <you> screenshot /tmp/page.png
 ```
 
-`<tab>` is yours alone, named after the task. `--pin-tab` is what stops parallel agents from driving each other's page.
+`<you>` is your own name for this task, `hire-friedbert` or `docs-review`. **The session is what owns a tab**, one tab per session, so two agents sharing a session name share a tab and overwrite each other. `--pin-tab` only makes that ownership strict, it does not create it. Never reuse a name from `session list`.
 
 **3. Close your tab when the task ends.** Not optional, the browser is shared:
 
 ```bash
-agent-browser --session <tab> tab close
-agent-browser --session <tab> close
+agent-browser --session <you> tab close
+agent-browser --session <you> close
+rm -f ~/.agent-browser/<you>.config ~/.agent-browser/<you>.target
 ```
 
-That detaches you and leaves the window up for everyone else.
+That detaches you and leaves the window up for everyone else. `close` leaves those two files behind, and the stale `.target` makes a later command rebind to a tab that no longer exists.
 
 ## Rules
 
@@ -68,6 +69,7 @@ That detaches you and leaves the window up for everyone else.
 ## When something is off
 
 - Two agents starting the browser in the same second both fail with a daemon startup error. Wait a second and retry, one of them will already have it up.
-- `tab_gone`: your tab was closed under you. `agent-browser --session <tab> tab new <url>` rebinds.
+- `tab_gone`, or a CDP connect refused: your tab or the whole window went away under you. Re-run step 1, then `agent-browser --session <you> tab new <url>` to rebind.
+- A tab in the window that you did not open belongs to another agent or to the user. Read `tab list` if you like, never close it.
 - Tab ids (`t1`, `t2`) are session-local, the same tab has different ids in different agents' lists. To point at another agent's tab, use `targetId` from `tab list --json`.
 - `read <url>` fetches outside the browser, so it never sends the profile's cookies and a logged-in site answers with a login page or an error (LinkedIn returns HTTP 999). On any site that needs the login, `open` then `get text` or `snapshot`.
