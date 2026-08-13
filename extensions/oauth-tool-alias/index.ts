@@ -6,14 +6,17 @@ const MAX_TOOL_NAME_LENGTH = 128;
 const WRAPPER_DIRS = new Set(["extensions", "dist", "src", "build"]);
 const FALLBACK_NAMESPACE = "local";
 
-// INFO: fc 05aug26 "cli" is what the transport's own first system block calls itself, and phrases rather than \bpi\b because that also renames "Raspberry Pi" and "calculate pi".
-const CLIENT_NAME_PHRASES: Array<[string | RegExp, string]> = [
-	["pi itself", "the cli itself"],
-	["pi packages", "cli packages"],
-	["pi docs", "cli docs"],
-	["pi topics", "cli topics"],
-	["pi .md files", "cli .md files"],
-	[/^Pi documentation/gm, "CLI documentation"],
+// INFO: fc 05aug26 "cli" is what the transport's own first system block calls itself, and each phrase carries enough of its stock sentence that "Raspberry Pi" or "calculate pi" in project instructions cannot match it | 06aug26 upstream rewording then matches nothing and the prompt keeps its own wording.
+const CLIENT_NAME_PHRASES: Array<[string, string]> = [
+	["operating inside pi, a coding agent harness", "operating inside a coding agent harness"],
+	[
+		"Pi documentation (read only when the user asks about pi itself",
+		"CLI documentation (read only when the user asks about the cli itself",
+	],
+	["When reading pi docs or examples", "When reading cli docs or examples"],
+	["(docs/models.md), pi packages (docs/packages.md)", "(docs/models.md), cli packages (docs/packages.md)"],
+	["When working on pi topics, read the docs and examples", "When working on cli topics, read the docs and examples"],
+	["Always read pi .md files completely", "Always read cli .md files completely"],
 ];
 
 export interface AliasMaps {
@@ -41,9 +44,8 @@ function escapeRegExp(text: string): string {
 
 export function rewritePromptText(text: string): string {
 	let result = text;
-	for (const [pattern, replacement] of CLIENT_NAME_PHRASES) {
-		result =
-			typeof pattern === "string" ? result.replaceAll(pattern, replacement) : result.replace(pattern, replacement);
+	for (const [phrase, replacement] of CLIENT_NAME_PHRASES) {
+		result = result.replaceAll(phrase, replacement);
 	}
 	return result;
 }

@@ -221,20 +221,41 @@ assert.equal(historyCall.content[0]!.name, "ls");
 
 // Client-name phrases from the stock prompt are neutralized.
 assert.equal(
-	transformPayload({ system: "questions about pi itself and pi packages" }, candidates, createAliasMaps()).system,
-	"questions about the cli itself and cli packages",
+	rewritePromptText("You are an expert coding assistant operating inside pi, a coding agent harness."),
+	"You are an expert coding assistant operating inside a coding agent harness.",
 );
 assert.equal(
-	rewritePromptText("When reading pi docs, working on pi topics, always read pi .md files completely"),
-	"When reading cli docs, working on cli topics, always read cli .md files completely",
+	transformPayload(
+		{ system: "Pi documentation (read only when the user asks about pi itself, its SDK, extensions, or TUI):" },
+		candidates,
+		createAliasMaps(),
+	).system,
+	"CLI documentation (read only when the user asks about the cli itself, its SDK, extensions, or TUI):",
 );
-assert.equal(rewritePromptText("Pi documentation (read only when asked)"), "CLI documentation (read only when asked)");
+assert.equal(
+	rewritePromptText("- When reading pi docs or examples, resolve docs/... under Additional docs"),
+	"- When reading cli docs or examples, resolve docs/... under Additional docs",
+);
+assert.equal(
+	rewritePromptText("adding models (docs/models.md), pi packages (docs/packages.md), environment variables"),
+	"adding models (docs/models.md), cli packages (docs/packages.md), environment variables",
+);
+assert.equal(
+	rewritePromptText("- When working on pi topics, read the docs and examples, and follow .md cross-references"),
+	"- When working on cli topics, read the docs and examples, and follow .md cross-references",
+);
+assert.equal(
+	rewritePromptText("- Always read pi .md files completely and follow links to related docs"),
+	"- Always read cli .md files completely and follow links to related docs",
+);
 
-// Words that are not the product name survive: a general \bpi\b pass turned these into nonsense
-// in project instructions, and the heading rewrite is line-anchored for the same reason.
+// Words that are not the product name survive: a general \bpi\b pass turned these into nonsense in
+// project instructions, and a bare phrase does the same to whatever the user writes about a Pi.
 const unrelated = [
 	"Calculate pi to 20 digits.",
 	"See the Raspberry Pi documentation for pinout details.",
+	"Pi documentation for the GPIO header lives on the vendor site.",
+	"We keep pi docs and pi packages for the Raspberry Pi cluster in the wiki.",
 	"- Main documentation: /opt/homebrew/lib/node_modules/@earendil-works/pi-coding-agent/README.md",
 ];
 for (const text of unrelated) {
