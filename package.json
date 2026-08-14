@@ -32,6 +32,8 @@
     ]
   },
   "devDependencies": {
+    "@types/jsdom": "^30.0.0",
+    "@types/turndown": "^5.0.6",
     "tsx": "^4.23.11"
   }
 }

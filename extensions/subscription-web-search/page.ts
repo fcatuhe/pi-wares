@@ -13,14 +13,6 @@ const ACCEPT = "text/markdown, text/html, */*";
 const DOMAIN_INFO_URL = "https://api.anthropic.com/api/web/domain_info?domain=";
 const DOMAIN_CHECK_TIMEOUT_MS = 10_000;
 
-interface TurndownInstance {
-	use(plugin: unknown): void;
-	remove(tags: string[]): void;
-	turndown(html: string): string;
-}
-
-type TurndownConstructor = new (options: Record<string, string>) => TurndownInstance;
-
 export interface Page {
 	url: string;
 	status: number;
@@ -177,11 +169,11 @@ export function withoutStylesheets(html: string): string {
 
 // INFO: fc 06aug26 jsdom and turndown cost ~200ms to import, so they load on first fetch rather than at pi startup.
 export async function renderMarkdown(html: string, url: string): Promise<string> {
-	const [{ JSDOM, VirtualConsole }, { Readability }, turndown, gfm] = await Promise.all([
+	const [{ JSDOM, VirtualConsole }, { Readability }, turndown, { gfm }] = await Promise.all([
 		import("jsdom"),
 		import("@mozilla/readability"),
-		import("turndown") as Promise<{ default: TurndownConstructor }>,
-		import("turndown-plugin-gfm") as Promise<{ gfm: unknown }>,
+		import("turndown"),
+		import("turndown-plugin-gfm"),
 	]);
 	// A VirtualConsole with no listeners drops what the default one forwards to the process console.
 	const document = new JSDOM(withoutStylesheets(html), { url, virtualConsole: new VirtualConsole() }).window.document;
@@ -189,7 +181,7 @@ export async function renderMarkdown(html: string, url: string): Promise<string>
 	// INFO: fc 06aug26 Readability rewrites the document it parses, so the fallback body is taken first.
 	const article = new Readability(document).parse();
 	const service = new turndown.default({ headingStyle: "atx", codeBlockStyle: "fenced" });
-	service.use(gfm.gfm);
+	service.use(gfm);
 	service.remove(["script", "style", "noscript", "iframe"]);
 	const markdown = service.turndown(article?.content ?? body).trim();
 	if (!markdown) {
