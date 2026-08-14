@@ -174,6 +174,22 @@ assert.match(markdown, /\| Model \| Price \|/);
 assert.match(markdown, /```\nzig build\n```/);
 assert.doesNotMatch(markdown, /should not survive/);
 
+// Regression: a page using CSS nesting made jsdom emit "Could not parse CSS stylesheet" through its
+// default virtual console, which forwards to the process console and lands in the TUI mid-prompt.
+const nested = "<html><head><style>.card { .title { color: red } }</style></head><body><article><p>Body text long enough that the extractor keeps this article rather than treating it as navigation chrome.</p></article></body></html>";
+const quiet: unknown[] = [];
+const realError = console.error;
+const realWarn = console.warn;
+console.error = (...args: unknown[]) => quiet.push(args);
+console.warn = (...args: unknown[]) => quiet.push(args);
+try {
+	assert.match(await renderMarkdown(nested, "https://example.com/nested"), /Body text/);
+} finally {
+	console.error = realError;
+	console.warn = realWarn;
+}
+assert.deepEqual(quiet, []);
+
 // A fragment Readability rejects still yields the body text instead of an empty page.
 const bare = await renderMarkdown("<html><body><p>Just one line.</p></body></html>", "https://example.com/bare");
 assert.match(bare, /Just one line\./);

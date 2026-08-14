@@ -82,7 +82,7 @@ export async function fetchPage(url: string, signal?: AbortSignal): Promise<Page
 	};
 }
 
-// INFO: fc 06aug26 css-tree warns straight to the console on ordinary pages (css-tree/lib/lexer/match.js:528) and jsdom exposes no hook for it, so it is muted around the parse rather than left to land in the TUI.
+// INFO: fc 06aug26 css-tree warns straight to the console on ordinary pages (css-tree/lib/lexer/match.js:528) and exposes no hook for it, so it is muted around the parse rather than left to land in the TUI. jsdom's own "Could not parse CSS stylesheet", which any page using CSS nesting produces, goes through the virtual console instead, see renderMarkdown.
 export function withoutCssWarnings<T>(parse: () => T): T {
 	const warn = console.warn;
 	console.warn = () => {};
@@ -95,14 +95,15 @@ export function withoutCssWarnings<T>(parse: () => T): T {
 
 // INFO: fc 06aug26 jsdom and turndown cost ~200ms to import, so they load on first fetch rather than at pi startup.
 export async function renderMarkdown(html: string, url: string): Promise<string> {
-	const [{ JSDOM }, { Readability }, turndown, gfm] = await Promise.all([
+	const [{ JSDOM, VirtualConsole }, { Readability }, turndown, gfm] = await Promise.all([
 		import("jsdom"),
 		import("@mozilla/readability"),
 		import("turndown") as Promise<{ default: TurndownConstructor }>,
 		import("turndown-plugin-gfm") as Promise<{ gfm: unknown }>,
 	]);
 	const extracted = withoutCssWarnings(() => {
-		const document = new JSDOM(html, { url }).window.document;
+		// A VirtualConsole with no listeners drops what the default one forwards to the process console.
+		const document = new JSDOM(html, { url, virtualConsole: new VirtualConsole() }).window.document;
 		const body = document.body?.innerHTML ?? "";
 		// INFO: fc 06aug26 Readability rewrites the document it parses, so the fallback body is taken first.
 		const article = new Readability(document).parse();
