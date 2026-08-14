@@ -148,8 +148,7 @@ export function transformPayload(
 	}
 
 	if (payload.system !== undefined) {
-		const renames = [...candidates].filter(([flat, alias]) => maps.flatByAlias.get(alias) === flat);
-		payload.system = rewriteSystemField(payload.system, renames);
+		payload.system = rewriteSystemField(payload.system, [...maps.aliasByFlat]);
 	}
 
 	return payload;
