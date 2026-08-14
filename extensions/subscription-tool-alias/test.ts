@@ -1,4 +1,4 @@
-/** Self-check: npx tsx extensions/oauth-tool-alias/test.ts */
+/** Self-check: npx tsx extensions/subscription-tool-alias/test.ts */
 import assert from "node:assert/strict";
 import {
 	buildAliasCandidates,
@@ -38,6 +38,16 @@ assert.equal(candidates.get("read"), "mcp__local__read");
 
 // A name the provider would reject as an alias is left without one.
 assert.equal(buildAliasCandidates([{ name: "foo.bar", sourceInfo: { path: "/x/pi-a/i.ts" } }]).size, 0);
+
+// An extension can opt out of aliasing by naming its tool as the transport spells its own: pi-ai
+// canonicalizes "websearch" to "WebSearch" before this hook, so the payload name misses the
+// candidate map keyed by registered names, and the tool goes out under the first-party name.
+const firstParty = transformPayload(
+	{ tools: [{ name: "WebSearch", input_schema: {} }] },
+	buildAliasCandidates([{ name: "websearch", sourceInfo: { path: "/x/pi-wares/extensions/subscription-web-search/index.ts" } }]),
+	createAliasMaps(),
+);
+assert.deepEqual((firstParty.tools as Array<{ name: string }>).map((tool) => tool.name), ["WebSearch"]);
 
 // Names differing only in case are separate tools in the registry, so they keep separate
 // aliases. A lowercase-keyed index dropped one of them, and it went out unaliased.

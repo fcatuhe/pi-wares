@@ -8,7 +8,7 @@ Select Anthropic login method:
   Long-lived token (1 year, headless)
 ```
 
-The token is the one `claude setup-token` mints, `sk-ant-oat01-...`. Paste it and pi stores it as its own Anthropic OAuth credential, which is the point: `isUsingOAuth` and `isUsingSubscription` stay true, so the usage bar, `oauth-tool-alias` and pi's own subscription warning all behave as they do after a browser login. The same token in `ANTHROPIC_OAUTH_TOKEN` lands in the API-key slot instead, where pi believes it is on pay-per-token billing.
+The token is the one `claude setup-token` mints, `sk-ant-oat01-...`. Paste it and pi stores it as its own Anthropic OAuth credential, which is the point: `isUsingOAuth` and `isUsingSubscription` stay true, so the usage bar, `subscription-tool-alias` and pi's own subscription warning all behave as they do after a browser login. The same token in `ANTHROPIC_OAUTH_TOKEN` lands in the API-key slot instead, where pi believes it is on pay-per-token billing.
 
 The paste is followed by the rotation date, offered as a placeholder pi renders dim above the input:
 

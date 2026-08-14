@@ -1,4 +1,4 @@
-# oauth-tool-alias
+# subscription-tool-alias
 
 Renames extension tool names to `mcp__<namespace>__<name>` in the outgoing request, and renames them back before pi resolves the call, so each extension's own `execute` runs untouched. Schemas, `cache_control` markers and everything else about a tool are left alone.
 
@@ -16,6 +16,6 @@ Never renamed: prose, including tool descriptions and any sentence mentioning a 
 
 Streaming tool calls are renamed back on `message_update` by mutating the shared block in place: the TUI resolves a tool row's custom renderer from the streamed name when the row is created, before `message_end` fires, so without this the row renders generically under the `mcp__` name instead of through the tool's own `renderCall` / `renderResult`. Alias maps are cleared on `session_start`.
 
-Only fires when the model's provider reports OAuth credentials. API-key credentials and every other provider get their payloads unmodified.
+Only fires when the anthropic provider is on a subscription credential, composed the way pi's own `ModelRuntime.isUsingSubscription` composes it: OAuth, and the provider's OAuth config declaring `isSubscription`. pi exposes that on the runtime, not on the registry extensions get. For anthropic the two are the same set today, since its OAuth is always a subscription, and the guard names the transport the first-party tool list belongs to rather than the credential shape. API keys, and every other provider, get their payloads unmodified.
 
-No config. No commands. Self-check: `npx tsx extensions/oauth-tool-alias/test.ts`.
+No config. No commands. Self-check: `npx tsx extensions/subscription-tool-alias/test.ts`.

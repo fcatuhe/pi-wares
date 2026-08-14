@@ -202,7 +202,7 @@ export function unaliasToolCalls(message: unknown, maps: AliasMaps): boolean {
 	return changed;
 }
 
-export default function oauthToolAlias(pi: ExtensionAPI): void {
+export default function subscriptionToolAlias(pi: ExtensionAPI): void {
 	const maps = createAliasMaps();
 
 	pi.on("session_start", () => {
@@ -210,9 +210,14 @@ export default function oauthToolAlias(pi: ExtensionAPI): void {
 		maps.flatByAlias.clear();
 	});
 
+	// INFO: fc 06aug26 the tool set being validated belongs to the subscription transport, so the guard names it: pi has no isUsingSubscription on the extension registry, it is composed as pi's own ModelRuntime does (model-runtime.js:334).
 	pi.on("before_provider_request", (event, ctx) => {
 		const model = ctx.model;
-		if (!model || model.provider !== "anthropic" || !ctx.modelRegistry.isUsingOAuth(model)) return undefined;
+		if (!model || model.provider !== "anthropic") return undefined;
+		const subscription =
+			ctx.modelRegistry.isUsingOAuth(model) &&
+			ctx.modelRegistry.getProvider(model.provider)?.auth?.oauth?.isSubscription === true;
+		if (!subscription) return undefined;
 		if (!isPlainObject(event.payload)) return undefined;
 		return transformPayload(event.payload as Record<string, unknown>, buildAliasCandidates(pi.getAllTools()), maps);
 	});
