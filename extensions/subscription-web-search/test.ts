@@ -11,7 +11,21 @@ import {
 	summaryRequest,
 	usageTokens,
 } from "./anthropic.ts";
-import { capMarkdown, formatBytes, formatPage, type Page, renderMarkdown, validateUrl, withoutStylesheets } from "./page.ts";
+import {
+	cachedPage,
+	cachePage,
+	capMarkdown,
+	assertFetchable,
+	clearPageCache,
+	fetchPage,
+	isSamePublisher,
+	formatBytes,
+	formatPage,
+	type Page,
+	renderMarkdown,
+	validateUrl,
+	withoutStylesheets,
+} from "./page.ts";
 
 const searchResponse = {
 	content: [
@@ -139,11 +153,94 @@ assert.equal(validateUrl("https://a.example/b?c=d#e").href, "https://a.example/b
 assert.throws(() => validateUrl("file:///etc/passwd"), /Only http and https/);
 assert.throws(() => validateUrl("data:text/html,<b>x</b>"), /Only http and https/);
 assert.throws(() => validateUrl("/relative/path"), /Not a URL/);
+// The rest of the rules are Claude Code's: http is upgraded, credentials and single-label hosts refused, 2000 char ceiling.
+assert.equal(validateUrl("http://a.example/x").href, "https://a.example/x");
+assert.throws(() => validateUrl("https://user:pass@a.example/"), /carrying credentials/);
+assert.throws(() => validateUrl("https://localhost:3000/admin"), /Not a public hostname/);
+assert.throws(() => validateUrl(`https://a.example/${"q".repeat(2000)}`), /over the 2000 limit/);
+
+// A redirect may not change publisher: same port, same host bar a leading www.
+assert.equal(isSamePublisher(new URL("https://a.example/x"), new URL("https://www.a.example/y")), true);
+assert.equal(isSamePublisher(new URL("https://www.a.example/x"), new URL("https://a.example/y")), true);
+assert.equal(isSamePublisher(new URL("https://a.example/x"), new URL("https://b.example/y")), false);
+assert.equal(isSamePublisher(new URL("https://a.example/x"), new URL("https://a.example:8443/y")), false);
+
+// Taking the Claude-User name means keeping its policy: every hostname is cleared against Anthropic's
+// can_fetch endpoint, and a publisher who opted out is refused rather than fetched under that name.
+const realFetch = globalThis.fetch;
+const stub = (handler: (url: string) => Response) => {
+	globalThis.fetch = async (input: unknown) => handler(String(input));
+};
+const domainInfo = (canFetch: boolean) => new Response(JSON.stringify({ can_fetch: canFetch }), { status: 200 });
+const isDomainCheck = (url: string) => url.startsWith("https://api.anthropic.com/api/web/domain_info");
+
+try {
+	stub((url) => (isDomainCheck(url) ? domainInfo(false) : new Response("body")));
+	await assert.rejects(assertFetchable("opted-out.example"), /opted out of being fetched by Claude/);
+	stub((url) => (isDomainCheck(url) ? new Response("nope", { status: 500 }) : new Response("body")));
+	await assert.rejects(assertFetchable("unknown.example"), /Cannot verify whether unknown\.example/);
+
+	// Redirects are followed by hand: counted, revalidated, and refused when they leave the publisher.
+	let hops = 0;
+	stub((url) => {
+		if (isDomainCheck(url)) return domainInfo(true);
+		hops++;
+		return new Response(null, { status: 302, headers: { location: "https://a.example/next" } });
+	});
+	await assert.rejects(fetchPage("https://a.example/start"), /More than 10 redirects/);
+	assert.equal(hops, 11);
+	stub((url) =>
+		isDomainCheck(url)
+			? domainInfo(true)
+			: new Response(null, { status: 302, headers: { location: "file:///etc/passwd" } }),
+	);
+	await assert.rejects(fetchPage("https://a.example/start"), /Only http and https/);
+	stub((url) =>
+		isDomainCheck(url)
+			? domainInfo(true)
+			: new Response(null, { status: 302, headers: { location: "https://elsewhere.example/x" } }),
+	);
+	await assert.rejects(fetchPage("https://a.example/start"), /redirects to another site\. Fetch https:\/\/elsewhere\.example\/x/);
+} finally {
+	globalThis.fetch = realFetch;
+	clearPageCache();
+}
+
+// HTML past 1MB used to be dropped inside the converter, where nothing could report it. One slice, one flag.
+stub((url) =>
+	isDomainCheck(url)
+		? new Response(JSON.stringify({ can_fetch: true }), { status: 200 })
+		: new Response(`<html><body><article><p>${"word ".repeat(300_000)}</p></article></body></html>`, {
+				headers: { "content-type": "text/html" },
+			}),
+);
+try {
+	const big = await fetchPage("https://big.example/page");
+	assert.equal(big.truncated, true);
+	assert.ok(big.bytes > 1_048_576);
+} finally {
+	globalThis.fetch = realFetch;
+	clearPageCache();
+}
 
 assert.deepEqual(capMarkdown("short"), { markdown: "short", truncated: false });
-const capped = capMarkdown("x".repeat(300_001));
+const capped = capMarkdown("x".repeat(100_001));
 assert.equal(capped.truncated, true);
-assert.equal(capped.markdown.length, 300_000);
+assert.equal(capped.markdown.length, 100_000);
+
+// A page is cached by url for 15 minutes, so a second question about it costs no second fetch.
+clearPageCache();
+const cachedSubject = { url: "https://a.example/p", bytes: 10, markdown: "body" } as Page;
+cachePage("https://a.example/p", cachedSubject);
+assert.equal(cachedPage("https://a.example/p"), cachedSubject);
+assert.equal(cachedPage("https://a.example/other"), undefined);
+// Eviction is by total bytes held, oldest first.
+clearPageCache();
+cachePage("https://a.example/1", { url: "https://a.example/1", bytes: 40_000_000 } as Page);
+cachePage("https://a.example/2", { url: "https://a.example/2", bytes: 40_000_000 } as Page);
+assert.equal(cachedPage("https://a.example/1"), undefined);
+assert.ok(cachedPage("https://a.example/2"));
+clearPageCache();
 
 const html = `<!doctype html><html><head><title>Spec Sheet</title></head><body>
 <nav><a href="/">home</a></nav>
@@ -188,6 +285,7 @@ assert.match(bare, /Just one line\./);
 
 await assert.rejects(renderMarkdown("<html><body></body></html>", "https://example.com/empty"), /No readable text/);
 
+// Sizes read as a person would say them, and the same string is used in the TUI row and the model's text.
 assert.equal(formatBytes(512), "512B");
 assert.equal(formatBytes(39834), "38.9KB");
 assert.equal(formatBytes(406494), "397KB");
