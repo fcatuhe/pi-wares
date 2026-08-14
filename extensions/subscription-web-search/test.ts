@@ -1,4 +1,5 @@
-import assert from "node:assert";
+/** Self-check: npx tsx extensions/subscription-web-search/test.ts */
+import assert from "node:assert/strict";
 import type { Api, Model } from "@earendil-works/pi-ai";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
@@ -288,5 +289,3 @@ const bare = await renderMarkdown("<html><body><p>Just one line.</p></body></htm
 assert.match(bare, /Just one line\./);
 
 await assert.rejects(renderMarkdown("<html><body></body></html>", "https://example.com/empty"), /No readable text/);
-
-console.log("subscription-web-search: ok");
