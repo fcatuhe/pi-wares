@@ -147,7 +147,7 @@ assert.equal((out.messages as any)[0].content[0].name, "mcp__codex_subagents__sp
 assert.equal((out.messages as any)[1].content[0].content[0].tool_name, "mcp__codex_subagents__wait_agent");
 // Original payload untouched.
 assert.ok((payload.tools as any[]).some((tool) => tool.name === "spawn_agent"));
-assert.equal(payload.messages[0].content[0].name, "spawn_agent");
+assert.equal((payload.messages[0].content[0] as { name: string }).name, "spawn_agent");
 
 // Idempotency: transforming the transformed payload changes nothing.
 assert.deepEqual(transformPayload(out, candidates, maps), out);
