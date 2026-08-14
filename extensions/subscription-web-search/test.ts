@@ -11,7 +11,7 @@ import {
 	summaryRequest,
 	usageTokens,
 } from "./anthropic.ts";
-import { capMarkdown, formatBytes, formatPage, type Page, renderMarkdown, validateUrl, withoutCssWarnings } from "./page.ts";
+import { capMarkdown, formatBytes, formatPage, type Page, renderMarkdown, validateUrl, withoutStylesheets } from "./page.ts";
 
 const searchResponse = {
 	content: [
@@ -161,8 +161,13 @@ assert.match(markdown, /\| Model \| Price \|/);
 assert.match(markdown, /```\nzig build\n```/);
 assert.doesNotMatch(markdown, /should not survive/);
 
-// Regression: a page using CSS nesting made jsdom emit "Could not parse CSS stylesheet" through its
-// default virtual console, which forwards to the process console and lands in the TUI mid-prompt.
+// Stylesheets go before jsdom sees them: parsing CSS the extraction never reads printed css-tree
+// grammar warnings and, for a page using nesting, jsdom's own "Could not parse CSS stylesheet",
+// straight onto the terminal the TUI is drawing on.
+assert.equal(withoutStylesheets('<style media="print">.a { .b { color: red } }</style >x'), "x");
+assert.equal(withoutStylesheets('<link rel=stylesheet href="a.css">x<link rel="icon" href="i.png">'), 'x<link rel="icon" href="i.png">');
+assert.equal(withoutStylesheets("<p>keeps <style-like>markup</style-like></p>"), "<p>keeps <style-like>markup</style-like></p>");
+
 const nested = "<html><head><style>.card { .title { color: red } }</style></head><body><article><p>Body text long enough that the extractor keeps this article rather than treating it as navigation chrome.</p></article></body></html>";
 const quiet: unknown[] = [];
 const realError = console.error;
@@ -183,28 +188,6 @@ assert.match(bare, /Just one line\./);
 
 await assert.rejects(renderMarkdown("<html><body></body></html>", "https://example.com/empty"), /No readable text/);
 
-// css-tree warnings would land in the TUI, and the original console must come back even when parsing throws.
-const originalWarn = console.warn;
-const seen: unknown[] = [];
-console.warn = (...args: unknown[]) => seen.push(args);
-assert.equal(
-	withoutCssWarnings(() => {
-		console.warn("[csstree-match] BREAK");
-		return 7;
-	}),
-	7,
-);
-assert.deepEqual(seen, []);
-assert.throws(() =>
-	withoutCssWarnings(() => {
-		throw new Error("parse blew up");
-	}),
-);
-console.warn("restored");
-assert.deepEqual(seen, [["restored"]]);
-console.warn = originalWarn;
-
-// Sizes read as a person would say them, and the same string is used in the TUI row and the model's text.
 assert.equal(formatBytes(512), "512B");
 assert.equal(formatBytes(39834), "38.9KB");
 assert.equal(formatBytes(406494), "397KB");

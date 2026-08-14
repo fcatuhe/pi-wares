@@ -83,15 +83,11 @@ export async function fetchPage(url: string, signal?: AbortSignal): Promise<Page
 	};
 }
 
-// INFO: fc 06aug26 css-tree warns straight to the console on ordinary pages (css-tree/lib/lexer/match.js:528) and exposes no hook for it, so it is muted around the parse rather than left to land in the TUI. jsdom's own "Could not parse CSS stylesheet", which any page using CSS nesting produces, goes through the virtual console instead, see renderMarkdown.
-export function withoutCssWarnings<T>(parse: () => T): T {
-	const warn = console.warn;
-	console.warn = () => {};
-	try {
-		return parse();
-	} finally {
-		console.warn = warn;
-	}
+// INFO: fc 06aug26 extraction never reads CSS and external sheets are never fetched, so the stylesheets go before jsdom sees them. Parsing them printed css-tree grammar warnings (css-tree/lib/lexer/match.js:528) and jsdom's own "Could not parse CSS stylesheet" for any page using nesting, both straight to the console the TUI is drawing on.
+const STYLESHEET = /<style\b[^>]*>[\s\S]*?<\/style\s*>|<link\b[^>]*\brel\s*=\s*["']?stylesheet\b[^>]*>/gi;
+
+export function withoutStylesheets(html: string): string {
+	return html.replace(STYLESHEET, "");
 }
 
 // INFO: fc 06aug26 jsdom and turndown cost ~200ms to import, so they load on first fetch rather than at pi startup.
@@ -102,22 +98,20 @@ export async function renderMarkdown(html: string, url: string): Promise<string>
 		import("turndown") as Promise<{ default: TurndownConstructor }>,
 		import("turndown-plugin-gfm") as Promise<{ gfm: unknown }>,
 	]);
-	const extracted = withoutCssWarnings(() => {
-		// A VirtualConsole with no listeners drops what the default one forwards to the process console.
-		const document = new JSDOM(html, { url, virtualConsole: new VirtualConsole() }).window.document;
-		const body = document.body?.innerHTML ?? "";
-		// INFO: fc 06aug26 Readability rewrites the document it parses, so the fallback body is taken first.
-		const article = new Readability(document).parse();
-		return { body, title: article?.title?.trim(), content: article?.content };
-	});
+	// A VirtualConsole with no listeners drops what the default one forwards to the process console.
+	const document = new JSDOM(withoutStylesheets(html), { url, virtualConsole: new VirtualConsole() }).window.document;
+	const body = document.body?.innerHTML ?? "";
+	// INFO: fc 06aug26 Readability rewrites the document it parses, so the fallback body is taken first.
+	const article = new Readability(document).parse();
 	const service = new turndown.default({ headingStyle: "atx", codeBlockStyle: "fenced" });
 	service.use(gfm.gfm);
 	service.remove(["script", "style", "noscript"]);
-	const markdown = service.turndown(extracted.content ?? extracted.body).trim();
+	const markdown = service.turndown(article?.content ?? body).trim();
 	if (!markdown) {
 		throw new Error(`No readable text extracted from ${url}`);
 	}
-	return extracted.title ? `# ${extracted.title}\n\n${markdown}` : markdown;
+	const title = article?.title?.trim();
+	return title ? `# ${title}\n\n${markdown}` : markdown;
 }
 
 function isHtml(contentType: string): boolean {
