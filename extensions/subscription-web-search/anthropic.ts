@@ -20,6 +20,13 @@ export interface Worker {
 	headers?: Record<string, string>;
 }
 
+export interface UsageTokens {
+	input: number;
+	output: number;
+	cacheRead: number;
+	cacheWrite: number;
+}
+
 export interface SearchResult {
 	title: string;
 	url: string;
@@ -145,26 +152,15 @@ export function parseText(response: unknown): string {
 	return text;
 }
 
-export function usageFrom(model: Model<Api>, response: unknown): Usage {
+// The counts are ours to read off the response; the money is pi's calculateCost, which also applies
+// tiered rates and the double charge on 1h cache writes.
+export function usageTokens(response: unknown): UsageTokens {
 	const raw = isRecord(response) && isRecord(response.usage) ? response.usage : {};
-	const input = numberOf(raw.input_tokens);
-	const output = numberOf(raw.output_tokens);
-	const cacheRead = numberOf(raw.cache_read_input_tokens);
-	const cacheWrite = numberOf(raw.cache_creation_input_tokens);
-	const rate = (tokens: number, perMillion: number) => (tokens / 1_000_000) * perMillion;
-	const cost = {
-		input: rate(input, model.cost.input),
-		output: rate(output, model.cost.output),
-		cacheRead: rate(cacheRead, model.cost.cacheRead),
-		cacheWrite: rate(cacheWrite, model.cost.cacheWrite),
-	};
 	return {
-		input,
-		output,
-		cacheRead,
-		cacheWrite,
-		totalTokens: input + output + cacheRead + cacheWrite,
-		cost: { ...cost, total: cost.input + cost.output + cost.cacheRead + cost.cacheWrite },
+		input: numberOf(raw.input_tokens),
+		output: numberOf(raw.output_tokens),
+		cacheRead: numberOf(raw.cache_read_input_tokens),
+		cacheWrite: numberOf(raw.cache_creation_input_tokens),
 	};
 }
 

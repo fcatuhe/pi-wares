@@ -9,7 +9,7 @@ import {
 	resolveWorker,
 	searchRequest,
 	summaryRequest,
-	usageFrom,
+	usageTokens,
 } from "./anthropic.ts";
 import { capMarkdown, formatBytes, formatPage, type Page, renderMarkdown, validateUrl, withoutCssWarnings } from "./page.ts";
 
@@ -129,15 +129,10 @@ await assert.rejects(
 	/token expired/,
 );
 
-const model = { id: "claude-haiku-4-5", cost: { input: 1, output: 5, cacheRead: 0.1, cacheWrite: 1.25 } } as Model<Api>;
-const usage = usageFrom(model, searchResponse);
-assert.equal(usage.input, 9998);
-assert.equal(usage.output, 68);
-assert.equal(usage.cacheRead, 12);
-assert.equal(usage.totalTokens, 9998 + 68 + 12);
-// 9998/1e6*1 + 68/1e6*5 + 12/1e6*0.1
-assert.equal(usage.cost.total.toFixed(8), "0.01033920");
-assert.equal(usageFrom(model, { content: [] }).totalTokens, 0);
+// Token counts are read off the response; pi's calculateCost turns them into money, in index.ts.
+const usage = usageTokens(searchResponse);
+assert.deepEqual(usage, { input: 9998, output: 68, cacheRead: 12, cacheWrite: 0 });
+assert.deepEqual(usageTokens({ content: [] }), { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 });
 
 // Only http(s) is fetchable: file: and data: would turn a web tool into a local exfiltration path.
 assert.equal(validateUrl("https://a.example/b?c=d#e").href, "https://a.example/b?c=d#e");

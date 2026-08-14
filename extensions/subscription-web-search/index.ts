@@ -1,4 +1,4 @@
-import { Type } from "@earendil-works/pi-ai";
+import { type Api, calculateCost, type Model, Type, type Usage } from "@earendil-works/pi-ai";
 import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import {
@@ -10,9 +10,20 @@ import {
 	resolveWorker,
 	searchRequest,
 	summaryRequest,
-	usageFrom,
+	usageTokens,
 } from "./anthropic.ts";
 import { fetchPage, formatPage } from "./page.ts";
+
+const usageOf = (model: Model<Api>, response: unknown): Usage => {
+	const tokens = usageTokens(response);
+	const usage: Usage = {
+		...tokens,
+		totalTokens: tokens.input + tokens.output + tokens.cacheRead + tokens.cacheWrite,
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+	};
+	calculateCost(model, usage);
+	return usage;
+};
 
 const callLine = (lastComponent: unknown, content: string): Text => {
 	const text = (lastComponent as Text | undefined) ?? new Text("", 0, 0);
@@ -41,7 +52,7 @@ export const websearch = defineTool({
 		return {
 			content: [{ type: "text", text: formatResults(params.query, results) }],
 			details: { query: params.query, results },
-			usage: usageFrom(worker.model, response),
+			usage: usageOf(worker.model, response),
 		};
 	},
 
@@ -71,7 +82,7 @@ export const webfetch = defineTool({
 		return {
 			content: [{ type: "text", text: formatPage(page, parseText(response)) }],
 			details: { url: page.url, status: page.status, bytes: page.bytes, contentType: page.contentType },
-			usage: usageFrom(worker.model, response),
+			usage: usageOf(worker.model, response),
 		};
 	},
 
