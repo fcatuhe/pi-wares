@@ -38,10 +38,6 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function escapeRegExp(text: string): string {
-	return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 export function rewritePromptText(text: string): string {
 	let result = text;
 	for (const [phrase, replacement] of CLIENT_NAME_PHRASES) {
@@ -50,11 +46,11 @@ export function rewritePromptText(text: string): string {
 	return result;
 }
 
-// INFO: fc 05aug26 pi's stock prompt declares each tool as "- <name>: <snippet>" under "Available tools".
+// INFO: fc 05aug26 pi's stock prompt declares each tool as "- <name>: <snippet>" under "Available tools", never on the first line of a block, which is what the leading newline anchors to.
 function rewriteToolDeclarations(text: string, renames: Array<[string, string]>): string {
 	let result = text;
 	for (const [flat, alias] of renames) {
-		result = result.replace(new RegExp(`^- ${escapeRegExp(flat)}:`, "gm"), `- ${alias}:`);
+		result = result.replaceAll(`\n- ${flat}:`, `\n- ${alias}:`);
 	}
 	return result;
 }
