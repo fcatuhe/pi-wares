@@ -11,15 +11,7 @@ import {
 	summaryRequest,
 	usageFrom,
 } from "./anthropic.ts";
-import {
-	capMarkdown,
-	formatBytes,
-	formatPage,
-	type Page,
-	renderMarkdown,
-	validateUrl,
-	withoutCssWarnings,
-} from "./page.ts";
+import { capMarkdown, formatBytes, formatPage, type Page, renderMarkdown, validateUrl, withoutCssWarnings } from "./page.ts";
 
 const searchResponse = {
 	content: [
@@ -223,8 +215,8 @@ assert.equal(formatBytes(39834), "38.9KB");
 assert.equal(formatBytes(406494), "397KB");
 assert.equal(formatBytes(5_000_000), "4.8MB");
 
-const page = { url: "https://a.example", bytes: 4096, truncated: false } as Page;
-assert.equal(formatPage(page, "Answer."), "https://a.example (4.0KB)\n\nAnswer.");
-assert.match(formatPage({ ...page, truncated: true }, "Answer."), /4\.0KB, truncated before reading/);
+const page = { url: "https://a.example", bytes: 4096, status: 200, statusText: "OK", truncated: false } as Page;
+assert.equal(formatPage(page, "Answer."), "https://a.example (4.0KB, 200 OK)\n\nAnswer.");
+assert.match(formatPage({ ...page, truncated: true }, "Answer."), /4\.0KB, 200 OK, truncated before reading/);
 
 console.log("subscription-web-search: ok");

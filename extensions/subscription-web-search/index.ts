@@ -1,5 +1,5 @@
 import { Type } from "@earendil-works/pi-ai";
-import { defineTool, type ExtensionAPI, type Theme } from "@earendil-works/pi-coding-agent";
+import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import {
 	formatResults,
@@ -8,36 +8,17 @@ import {
 	parseText,
 	postMessages,
 	resolveWorker,
-	type SearchResult,
 	searchRequest,
 	summaryRequest,
 	usageFrom,
 } from "./anthropic.ts";
-import { fetchPage, formatBytes, formatPage } from "./page.ts";
+import { fetchPage, formatPage } from "./page.ts";
 
-interface SearchDetails {
-	query: string;
-	results: SearchResult[];
-	ms: number;
-}
-
-interface FetchDetails {
-	url: string;
-	status: number;
-	statusText: string;
-	bytes: number;
-	contentType: string;
-	ms: number;
-}
-
-const seconds = (ms: number) => `${(ms / 1000).toFixed(1)}s`;
-
-const answerOf = (result: { content: Array<{ type: string; text?: string }> }) =>
-	result.content.find((block) => block.type === "text")?.text ?? "";
-
-// The row would otherwise read "0 results" for a call that failed loudly, hiding why.
-const errorText = (result: { content: Array<{ type: string; text?: string }> }, theme: Theme) =>
-	new Text(theme.fg("error", answerOf(result) || "failed"), 0, 0);
+const callLine = (lastComponent: unknown, content: string): Text => {
+	const text = (lastComponent as Text | undefined) ?? new Text("", 0, 0);
+	text.setText(content);
+	return text;
+};
 
 // INFO: fc 06aug26 no underscore in either name: pi-ai canonicalizes a tool whose name matches its first-party list case-insensitively (anthropic-messages.js:64), which both passes the subscription transport as-is and tells subscription-tool-alias the transport accepted it, so neither tool needs an mcp__ alias. "web_search" would match nothing and be aliased.
 export const websearch = defineTool({
@@ -54,33 +35,19 @@ export const websearch = defineTool({
 	}),
 
 	async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-		const started = Date.now();
 		const worker = await resolveWorker(ctx);
 		const response = await postMessages(worker, searchRequest(worker.model.id, params.query), signal);
 		const results = parseSearchResults(response);
 		return {
 			content: [{ type: "text", text: formatResults(params.query, results) }],
-			details: { query: params.query, results, ms: Date.now() - started } satisfies SearchDetails,
+			details: { query: params.query, results },
 			usage: usageFrom(worker.model, response),
 		};
 	},
 
-	renderCall(args, theme) {
-		const title = theme.fg("toolTitle", theme.bold("Web Search"));
-		return new Text(args.query ? `${title}${theme.fg("muted", `("${args.query}")`)}` : title, 0, 0);
-	},
-
-	renderResult(result, { expanded, isPartial }, theme, context) {
-		if (isPartial) return new Text(theme.fg("muted", "Searching..."), 0, 0);
-		if (context.isError) return errorText(result, theme);
-		const details = result.details as SearchDetails;
-		let text = theme.fg("muted", `Did 1 search in ${seconds(details.ms)}, ${details.results.length} results`);
-		if (expanded) {
-			for (const found of details.results) {
-				text += `\n${theme.fg("dim", found.title)}\n  ${theme.fg("muted", found.url)}`;
-			}
-		}
-		return new Text(text, 0, 0);
+	renderCall(args, theme, context) {
+		const title = theme.fg("toolTitle", theme.bold("websearch"));
+		return callLine(context.lastComponent, args.query ? `${title} ${theme.fg("accent", args.query)}` : title);
 	},
 });
 
@@ -96,7 +63,6 @@ export const webfetch = defineTool({
 	}),
 
 	async execute(_toolCallId, params, signal, onUpdate, ctx) {
-		const started = Date.now();
 		const worker = await resolveWorker(ctx);
 		onUpdate?.({ content: [{ type: "text", text: `Fetching ${params.url}` }], details: {} });
 		const page = await fetchPage(params.url, signal);
@@ -104,33 +70,16 @@ export const webfetch = defineTool({
 		const response = await postMessages(worker, request, signal);
 		return {
 			content: [{ type: "text", text: formatPage(page, parseText(response)) }],
-			details: {
-				url: page.url,
-				status: page.status,
-				statusText: page.statusText,
-				bytes: page.bytes,
-				contentType: page.contentType,
-				ms: Date.now() - started,
-			} satisfies FetchDetails,
+			details: { url: page.url, status: page.status, bytes: page.bytes, contentType: page.contentType },
 			usage: usageFrom(worker.model, response),
 		};
 	},
 
-	renderCall(args, theme) {
-		const title = theme.fg("toolTitle", theme.bold("Fetch"));
-		return new Text(args.url ? `${title}${theme.fg("muted", `(${args.url})`)}` : title, 0, 0);
-	},
-
-	renderResult(result, { expanded, isPartial }, theme, context) {
-		if (isPartial) return new Text(theme.fg("muted", "Fetching..."), 0, 0);
-		if (context.isError) return errorText(result, theme);
-		const details = result.details as FetchDetails;
-		let text = theme.fg(
-			"muted",
-			`Received ${formatBytes(details.bytes)} (${details.status} ${details.statusText}) in ${seconds(details.ms)}`,
-		);
-		if (expanded) text += `\n${theme.fg("dim", answerOf(result))}`;
-		return new Text(text, 0, 0);
+	renderCall(args, theme, context) {
+		const title = theme.fg("toolTitle", theme.bold("webfetch"));
+		let text = args.url ? `${title} ${theme.fg("accent", args.url)}` : title;
+		if (context.expanded && args.prompt) text += theme.fg("toolOutput", ` ${args.prompt}`);
+		return callLine(context.lastComponent, text);
 	},
 });
 

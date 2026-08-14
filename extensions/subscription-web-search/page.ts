@@ -30,9 +30,10 @@ export function formatBytes(bytes: number): string {
 	return `${(kb / 1024).toFixed(1)}MB`;
 }
 
+// The row is pi's own result preview of this text, so what a reader wants about the fetch belongs in its first line.
 export function formatPage(page: Page, answer: string): string {
 	const cut = page.truncated ? ", truncated before reading" : "";
-	return `${page.url} (${formatBytes(page.bytes)}${cut})\n\n${answer}`;
+	return `${page.url} (${formatBytes(page.bytes)}, ${page.status} ${page.statusText}${cut})\n\n${answer}`;
 }
 
 export function validateUrl(url: string): URL {
