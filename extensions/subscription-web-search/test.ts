@@ -168,13 +168,24 @@ assert.equal(isSamePublisher(new URL("https://a.example/x"), new URL("https://a.
 // Taking the Claude-User name means keeping its policy: every hostname is cleared against Anthropic's
 // can_fetch endpoint, and a publisher who opted out is refused rather than fetched under that name.
 const realFetch = globalThis.fetch;
-const stub = (handler: (url: string) => Response) => {
-	globalThis.fetch = async (input: unknown) => handler(String(input));
+const stub = (handler: (url: string, init?: RequestInit) => Response) => {
+	globalThis.fetch = async (input: unknown, init?: RequestInit) => handler(String(input), init);
 };
 const domainInfo = (canFetch: boolean) => new Response(JSON.stringify({ can_fetch: canFetch }), { status: 200 });
 const isDomainCheck = (url: string) => url.startsWith("https://api.anthropic.com/api/web/domain_info");
 
 try {
+	// The check gets a deadline of its own: passing the caller's signal straight through would leave a
+	// hung endpoint hanging the tool until the user aborts the turn.
+	let checkSignal: AbortSignal | null | undefined;
+	const caller = new AbortController().signal;
+	stub((url, init) => {
+		if (isDomainCheck(url)) checkSignal = init?.signal;
+		return domainInfo(true);
+	});
+	await assertFetchable("deadline.example", caller);
+	assert.notEqual(checkSignal, caller);
+
 	stub((url) => (isDomainCheck(url) ? domainInfo(false) : new Response("body")));
 	await assert.rejects(assertFetchable("opted-out.example"), /opted out of being fetched by Claude/);
 	stub((url) => (isDomainCheck(url) ? new Response("nope", { status: 500 }) : new Response("body")));

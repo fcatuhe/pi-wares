@@ -81,8 +81,9 @@ export async function assertFetchable(hostname: string, signal?: AbortSignal): P
 	if (clearedDomains.has(hostname)) return;
 	let canFetch: unknown;
 	try {
+		const timeout = AbortSignal.timeout(DOMAIN_CHECK_TIMEOUT_MS);
 		const response = await fetch(`${DOMAIN_INFO_URL}${encodeURIComponent(hostname)}`, {
-			signal: signal ?? AbortSignal.timeout(DOMAIN_CHECK_TIMEOUT_MS),
+			signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
 		});
 		if (!response.ok) throw new Error(`status ${response.status}`);
 		canFetch = ((await response.json()) as { can_fetch?: unknown }).can_fetch;
