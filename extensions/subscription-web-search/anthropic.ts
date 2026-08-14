@@ -43,16 +43,11 @@ export function formatResults(query: string, results: SearchResult[]): string {
 
 export async function resolveWorker(ctx: ExtensionContext): Promise<Worker> {
 	const registry = ctx.modelRegistry;
-	const preferred = WORKER_MODEL_IDS.map((id) => registry.find("anthropic", id)).find(
-		(model) => model && registry.hasConfiguredAuth(model),
-	);
-	// INFO: fc 06aug26 cheapest first, never merely available: a 300k character page summarized on Opus costs dollars where Haiku costs cents.
+	// INFO: fc 14aug26 getAvailable() is every catalog model of an authenticated provider (model-runtime.js:171), so membership is the auth check. A preferred worker first, then the cheapest, never merely the first: a 300k character page summarized on Opus costs dollars where Haiku costs cents.
+	const anthropic = registry.getAvailable().filter((model) => model.provider === "anthropic");
 	const model =
-		preferred ??
-		registry
-			.getAvailable()
-			.filter((candidate) => candidate.provider === "anthropic")
-			.sort((a, b) => a.cost.input - b.cost.input)[0];
+		WORKER_MODEL_IDS.map((id) => anthropic.find((candidate) => candidate.id === id)).find(Boolean) ??
+		anthropic.sort((a, b) => a.cost.input - b.cost.input)[0];
 	if (!model) {
 		throw new Error("No authenticated anthropic model. Run /login anthropic.");
 	}

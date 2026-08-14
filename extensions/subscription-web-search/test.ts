@@ -107,12 +107,9 @@ const anthropicModel = (id: string, input: number) =>
 		cost: { input, output: input * 5, cacheRead: input / 10, cacheWrite: input * 1.25 },
 	}) as Model<Api>;
 
-const registryWith = (available: Model<Api>[], configured: string[] = []) =>
+const registryWith = (available: Model<Api>[]) =>
 	({
 		modelRegistry: {
-			find: (provider: string, id: string) =>
-				available.find((model) => model.provider === provider && model.id === id),
-			hasConfiguredAuth: (model: Model<Api>) => configured.includes(model.id),
 			getAvailable: () => available,
 			getApiKeyAndHeaders: async () => ({ ok: true, apiKey: "sk-ant-oat01-x" }),
 		},
@@ -123,10 +120,10 @@ const opus = anthropicModel("claude-opus-5", 15);
 const sonnet = anthropicModel("claude-sonnet-5", 3);
 const gpt = { id: "gpt-5.6-sol", provider: "openai-codex", cost: { input: 0.1 } } as Model<Api>;
 
-// The worker is what gets billed: a preferred cheap model when it is authenticated.
-const preferred = await resolveWorker(registryWith([opus, haiku, sonnet], ["claude-haiku-4-5"]));
+// The worker is what gets billed: a preferred cheap model whenever one is available.
+const preferred = await resolveWorker(registryWith([opus, haiku, sonnet]));
 assert.equal(preferred.model.id, "claude-haiku-4-5");
-// With no preferred model authenticated, the cheapest anthropic model wins, never the first listed.
+// With no preferred model available, the cheapest anthropic model wins, never the first listed.
 assert.equal((await resolveWorker(registryWith([opus, sonnet]))).model.id, "claude-sonnet-5");
 // A cheaper model from another provider is not a candidate: only anthropic serves this server tool.
 assert.equal((await resolveWorker(registryWith([gpt, opus]))).model.id, "claude-opus-5");
@@ -134,8 +131,6 @@ await assert.rejects(resolveWorker(registryWith([gpt])), /Run \/login anthropic/
 await assert.rejects(
 	resolveWorker({
 		modelRegistry: {
-			find: () => haiku,
-			hasConfiguredAuth: () => true,
 			getAvailable: () => [haiku],
 			getApiKeyAndHeaders: async () => ({ ok: false, error: "token expired" }),
 		},
