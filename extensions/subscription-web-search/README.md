@@ -36,7 +36,7 @@ Neither name has an underscore, and that is load-bearing. pi-ai canonicalizes a 
 
 Token use and cost of every side call are reported through the tool result, so they land in pi's totals instead of being spent invisibly.
 
-Rows read as pi's own do, `websearch <query>` and `webfetch <url>`, bold tool name then the argument in accent, the fetch prompt appearing in tool colour only once the row is expanded. Neither tool renders its result: pi's fallback previews the text the model gets and offers `ctrl+o`, so what a reader wants about a fetch, size and HTTP status, is written into the first line of that text rather than into a renderer only the terminal sees.
+Rows read as pi's own do, `websearch <query>` and `webfetch <url>`, bold tool name then the argument in accent, the fetch prompt appearing in tool colour only once the row is expanded. Neither tool renders its result: pi's fallback previews the text the model gets and offers `ctrl+o`, so what a reader wants about a fetch, size and HTTP status, is written into the first line of that text rather than into a renderer only the terminal sees. The size is pi's `formatSize`, the same string its own truncation notices print.
 
 Against the `exa-search` and `brave-search` skills, which cover the same ground: those are prose the model reads and then drives a CLI or MCP endpoint with, one keyless and one needing `BRAVE_API_KEY`. These are tools, so they cost a schema rather than a skill file in the prompt, they bill to the subscription already paid for, and their output is shaped here instead of by whatever the vendor returns.
 

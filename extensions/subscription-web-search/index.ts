@@ -1,5 +1,5 @@
 import { type Api, calculateCost, type Model, Type, type Usage } from "@earendil-works/pi-ai";
-import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { defineTool, type ExtensionAPI, formatSize } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import {
 	formatResults,
@@ -12,7 +12,7 @@ import {
 	summaryRequest,
 	usageTokens,
 } from "./anthropic.ts";
-import { fetchPage, formatPage } from "./page.ts";
+import { fetchPage } from "./page.ts";
 
 const usageOf = (model: Model<Api>, response: unknown): Usage => {
 	const tokens = usageTokens(response);
@@ -79,8 +79,11 @@ export const webfetch = defineTool({
 		const page = await fetchPage(params.url, signal);
 		const request = summaryRequest(worker.model.id, page.url, page.markdown, params.prompt);
 		const response = await postMessages(worker, request, signal);
+		// The row is pi's own result preview of this text, so what a reader wants about the fetch belongs in its first line.
+		const cut = page.truncated ? ", truncated before reading" : "";
+		const head = `${page.url} (${formatSize(page.bytes)}, ${page.status} ${page.statusText}${cut})`;
 		return {
-			content: [{ type: "text", text: formatPage(page, parseText(response)) }],
+			content: [{ type: "text", text: `${head}\n\n${parseText(response)}` }],
 			details: { url: page.url, status: page.status, bytes: page.bytes, contentType: page.contentType },
 			usage: usageOf(worker.model, response),
 		};

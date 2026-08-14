@@ -31,19 +31,6 @@ export interface Page {
 	truncated: boolean;
 }
 
-export function formatBytes(bytes: number): string {
-	if (bytes < 1024) return `${bytes}B`;
-	const kb = bytes / 1024;
-	if (kb < 1024) return `${kb < 100 ? kb.toFixed(1) : Math.round(kb)}KB`;
-	return `${(kb / 1024).toFixed(1)}MB`;
-}
-
-// The row is pi's own result preview of this text, so what a reader wants about the fetch belongs in its first line.
-export function formatPage(page: Page, answer: string): string {
-	const cut = page.truncated ? ", truncated before reading" : "";
-	return `${page.url} (${formatBytes(page.bytes)}, ${page.status} ${page.statusText}${cut})\n\n${answer}`;
-}
-
 export function validateUrl(url: string): URL {
 	if (url.length > MAX_URL_CHARS) {
 		throw new Error(`URL is ${url.length} characters, over the ${MAX_URL_CHARS} limit`);

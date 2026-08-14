@@ -19,8 +19,6 @@ import {
 	clearPageCache,
 	fetchPage,
 	isSamePublisher,
-	formatBytes,
-	formatPage,
 	type Page,
 	renderMarkdown,
 	validateUrl,
@@ -290,15 +288,5 @@ const bare = await renderMarkdown("<html><body><p>Just one line.</p></body></htm
 assert.match(bare, /Just one line\./);
 
 await assert.rejects(renderMarkdown("<html><body></body></html>", "https://example.com/empty"), /No readable text/);
-
-// Sizes read as a person would say them, and the same string is used in the TUI row and the model's text.
-assert.equal(formatBytes(512), "512B");
-assert.equal(formatBytes(39834), "38.9KB");
-assert.equal(formatBytes(406494), "397KB");
-assert.equal(formatBytes(5_000_000), "4.8MB");
-
-const page = { url: "https://a.example", bytes: 4096, status: 200, statusText: "OK", truncated: false } as Page;
-assert.equal(formatPage(page, "Answer."), "https://a.example (4.0KB, 200 OK)\n\nAnswer.");
-assert.match(formatPage({ ...page, truncated: true }, "Answer."), /4\.0KB, 200 OK, truncated before reading/);
 
 console.log("subscription-web-search: ok");
