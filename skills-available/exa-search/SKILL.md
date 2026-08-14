@@ -1,6 +1,6 @@
 ---
 name: exa-search
-description: Web search and content extraction via Exa's keyless MCP endpoint. No API key or browser required. Use for searching documentation, facts, or any web content, and as a fallback when other search providers are rate-limited.
+description: Web search and content extraction via Exa's keyless MCP endpoint. No API key or browser required. Semantic search that returns page highlights with every result, so a follow-up fetch is often unnecessary. Use for searching documentation, facts, or any web content.
 ---
 
 # Exa Search
@@ -53,4 +53,4 @@ Plain text as returned by Exa: per-result blocks with `Title`, `URL`, `Published
 - Searching for documentation or API references
 - Looking up facts or current information
 - Fetching content from specific URLs
-- Fallback when brave-search hits its rate limit or quota
+- Queries better described than keyworded, where semantic matching beats term matching

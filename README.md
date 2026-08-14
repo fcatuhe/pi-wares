@@ -60,7 +60,7 @@ Some skills drive CLIs this package does not install:
 
 ## Keys
 
-- **`brave-search`** needs `BRAVE_API_KEY` in your shell profile. Free tier at [api-dashboard.search.brave.com](https://api-dashboard.search.brave.com/register): create a "Free AI" subscription (card required, not charged), then an API key.
+- **`brave-search`** needs `BRAVE_API_KEY` in your shell profile, if you switch that skill on at all. Free tier at [api-dashboard.search.brave.com](https://api-dashboard.search.brave.com/register): create a "Free AI" subscription (card required, not charged), then an API key.
 
 ## Wares
 
@@ -89,11 +89,28 @@ Loaded on demand rather than injected, so they can be as long as they need to be
 | Skill | What it does |
 |---|---|
 | [`pr-description/`](./skills/pr-description/SKILL.md) | Section structure for a feature pull request body. Cited from `policies/policy-git/`. |
-| [`brave-search/`](./skills/brave-search/SKILL.md) | Web search and page-to-markdown extraction through the Brave Search API. Needs `BRAVE_API_KEY`. |
-| [`exa-search/`](./skills/exa-search/SKILL.md) | Web search and content extraction via Exa's keyless MCP endpoint. No key or browser needed. |
 | [`gog/`](./skills/gog/SKILL.md) | Safe [`gog`](https://github.com/openclaw/gogcli) Google Workspace automation: auth state, JSON output, scoped reads and writes. |
 | [`outline-cli/`](./skills/outline-cli/SKILL.md) | Search and manage [Outline](https://www.getoutline.com) wiki documents and collections via the [`ol`](https://github.com/Doist/outline-cli) CLI. |
 | [`agent-browser/`](./skills/agent-browser/SKILL.md) | Headed Chrome and an existing `~/.agent-browser` session for the [`agent-browser`](https://agent-browser.dev) CLI, which serves the usage guide itself. |
+
+## Skills available
+
+Outside the `pi` manifest, so nothing loads them and they cost no prompt tokens. `websearch` and `webfetch` from [`subscription-web-search/`](./extensions/subscription-web-search/) cover the same ground on the subscription token already paid for, so these two wait here for the session that wants a second opinion or hits a rate limit.
+
+Switching one on means naming its path in settings. A `+` force-include in the package filter will not do it: filters narrow what the manifest already allows, and an unlisted folder is never collected in the first place.
+
+```json
+{
+  "skills": ["~/.pi/agent/git/github.com/fcatuhe/pi-wares/skills-available/exa-search/SKILL.md"]
+}
+```
+
+`pi --skill <path>` does the same for a single run.
+
+| Skill | What it does |
+|---|---|
+| [`exa-search/`](./skills-available/exa-search/SKILL.md) | Web search and content extraction via Exa's keyless MCP endpoint. No key or browser needed. |
+| [`brave-search/`](./skills-available/brave-search/SKILL.md) | Web search and page-to-markdown extraction through the Brave Search API. Needs `BRAVE_API_KEY`. |
 
 ## Vendored skills
 
@@ -101,7 +118,7 @@ Copies of upstream skills, so one install covers them. They drift, resync delibe
 
 | Skill | Upstream | Copied at |
 |---|---|---|
-| `brave-search/` | [badlogic/pi-skills](https://github.com/badlogic/pi-skills) (MIT) | `90bb51c`, minus the `npm install` setup step |
+| `skills-available/brave-search/` | [badlogic/pi-skills](https://github.com/badlogic/pi-skills) (MIT) | `90bb51c`, minus the `npm install` setup step |
 | `gog/` | [openclaw/gogcli](https://github.com/openclaw/gogcli) `.agents/skills/gog/` (MIT) | `v0.34.1`, verbatim. Documents flags the CLI only gained in that release, so track `gog --version`. |
 | `outline-cli/` | [Doist/outline-cli](https://github.com/Doist/outline-cli) (MIT) | `v1.10.2`, verbatim. After `ol update`, `ol skill install pi` regenerates it into `~/.pi/skills/`: diff and copy. |
 
@@ -131,6 +148,7 @@ pi-wares/
 │       │                       `npm test` runs every extensions/*/test.ts, no registration
 │       └── README.md         ← per-ware docs, co-located with code
 ├── skills/                   ← one folder per skill, each a SKILL.md
+├── skills-available/         ← same shape, unlisted: opt in by path in settings
 ├── herdr-app/                ← macOS app that launches herdr, not a ware
 └── node_modules/             ← bundled external extensions (gitignored)
 ```
