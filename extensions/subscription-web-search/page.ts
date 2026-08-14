@@ -16,15 +16,23 @@ type TurndownConstructor = new (options: Record<string, string>) => TurndownInst
 export interface Page {
 	url: string;
 	status: number;
+	statusText: string;
 	bytes: number;
 	contentType: string;
 	markdown: string;
 	truncated: boolean;
 }
 
+export function formatBytes(bytes: number): string {
+	if (bytes < 1024) return `${bytes}B`;
+	const kb = bytes / 1024;
+	if (kb < 1024) return `${kb < 100 ? kb.toFixed(1) : Math.round(kb)}KB`;
+	return `${(kb / 1024).toFixed(1)}MB`;
+}
+
 export function formatPage(page: Page, answer: string): string {
 	const cut = page.truncated ? ", truncated before reading" : "";
-	return `${page.url} (${Math.round(page.bytes / 1024)}KB${cut})\n\n${answer}`;
+	return `${page.url} (${formatBytes(page.bytes)}${cut})\n\n${answer}`;
 }
 
 export function validateUrl(url: string): URL {
@@ -66,6 +74,7 @@ export async function fetchPage(url: string, signal?: AbortSignal): Promise<Page
 	return {
 		url: response.url || target.href,
 		status: response.status,
+		statusText: response.statusText,
 		bytes,
 		contentType,
 		markdown: capped.markdown,

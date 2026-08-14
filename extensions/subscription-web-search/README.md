@@ -32,6 +32,8 @@ Neither name has an underscore, and that is load-bearing. pi-ai canonicalizes a 
 
 Token use and cost of every side call are reported through the tool result, so they land in pi's totals instead of being spent invisibly.
 
+Rows collapse to one line, `Did 1 search in 7.2s, 2 results` and `Received 397KB (200 OK) in 1.2s`, with the result list and the page answer behind expand. The model still receives the full text either way: `renderResult` only decides what the terminal shows.
+
 Against the `exa-search` and `brave-search` skills, which cover the same ground: those are prose the model reads and then drives a CLI or MCP endpoint with, one keyless and one needing `BRAVE_API_KEY`. These are tools, so they cost a schema rather than a skill file in the prompt, they bill to the subscription already paid for, and their output is shaped here instead of by whatever the vendor returns.
 
 No config. No commands. Self-check: `npx tsx extensions/subscription-web-search/test.ts`.
