@@ -25,12 +25,6 @@ const usageOf = (model: Model<Api>, response: unknown): Usage => {
 	return usage;
 };
 
-const callLine = (lastComponent: unknown, content: string): Text => {
-	const text = (lastComponent as Text | undefined) ?? new Text("", 0, 0);
-	text.setText(content);
-	return text;
-};
-
 // INFO: fc 06aug26 no underscore in either name: pi-ai canonicalizes a tool whose name matches its first-party list case-insensitively (anthropic-messages.js:64), which both passes the subscription transport as-is and tells subscription-tool-alias the transport accepted it, so neither tool needs an mcp__ alias. "web_search" would match nothing and be aliased.
 export const websearch = defineTool({
 	name: "websearch",
@@ -57,8 +51,10 @@ export const websearch = defineTool({
 	},
 
 	renderCall(args, theme, context) {
+		const text = (context.lastComponent as Text | undefined) ?? new Text("", 0, 0);
 		const title = theme.fg("toolTitle", theme.bold("websearch"));
-		return callLine(context.lastComponent, args.query ? `${title} ${theme.fg("accent", args.query)}` : title);
+		text.setText(args.query ? `${title} ${theme.fg("accent", args.query)}` : title);
+		return text;
 	},
 });
 
@@ -90,10 +86,12 @@ export const webfetch = defineTool({
 	},
 
 	renderCall(args, theme, context) {
+		const text = (context.lastComponent as Text | undefined) ?? new Text("", 0, 0);
 		const title = theme.fg("toolTitle", theme.bold("webfetch"));
-		let text = args.url ? `${title} ${theme.fg("accent", args.url)}` : title;
-		if (context.expanded && args.prompt) text += theme.fg("toolOutput", ` ${args.prompt}`);
-		return callLine(context.lastComponent, text);
+		let content = args.url ? `${title} ${theme.fg("accent", args.url)}` : title;
+		if (context.expanded && args.prompt) content += theme.fg("toolOutput", ` ${args.prompt}`);
+		text.setText(content);
+		return text;
 	},
 });
 
