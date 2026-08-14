@@ -104,7 +104,7 @@ export function withTokenLogin(base: OAuthAuth): OAuthAuth {
 // INFO: fc 06aug26 the marker rides on the method itself because /reload reruns this module against a
 // registry that still holds the previous registration, and wrapping a wrapper stacks a second selector.
 function isWrapped(oauth: OAuthAuth): boolean {
-	return (oauth as Record<symbol, unknown>)[WRAPPED] === true;
+	return Reflect.get(oauth, WRAPPED) === true;
 }
 
 export function installTokenLogin(pi: ExtensionAPI, ctx: ExtensionContext): void {
