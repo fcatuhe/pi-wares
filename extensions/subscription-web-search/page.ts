@@ -21,6 +21,8 @@ export interface Page {
 	contentType: string;
 	markdown: string;
 	truncated: boolean;
+	requestMs: number;
+	cached: boolean;
 }
 
 export function validateUrl(url: string): URL {
@@ -132,15 +134,18 @@ export function clearPageCache(): void {
 export async function fetchPage(url: string, signal?: AbortSignal): Promise<Page> {
 	const target = validateUrl(url);
 	const hit = cachedPage(target.href);
-	if (hit) return hit;
+	if (hit) return { ...hit, cached: true };
 	await assertFetchable(target.hostname, signal);
 	const timeout = AbortSignal.timeout(FETCH_TIMEOUT_MS);
+	const started = performance.now();
 	const response = await fetchFollowing(target, signal ? AbortSignal.any([signal, timeout]) : timeout);
 	if (!response.ok) {
 		throw new Error(`HTTP ${response.status} ${response.statusText} for ${target.href}`);
 	}
 	const contentType = response.headers.get("content-type") ?? "";
 	const { text, bytes } = await readCapped(response);
+	// Request and body only: what the server took, with neither the publisher check before it nor the conversion after.
+	const requestMs = performance.now() - started;
 	const source = text.slice(0, MAX_SOURCE_CHARS);
 	const rendered = isHtml(contentType) ? await renderMarkdown(source, target.href) : plainText(contentType, source);
 	const capped = capMarkdown(rendered);
@@ -155,6 +160,8 @@ export async function fetchPage(url: string, signal?: AbortSignal): Promise<Page
 		contentType,
 		markdown: capped.markdown,
 		truncated: capped.truncated || source.length < text.length,
+		requestMs,
+		cached: false,
 	};
 	cachePage(target.href, page);
 	return page;

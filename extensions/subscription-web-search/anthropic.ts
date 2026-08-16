@@ -33,12 +33,19 @@ export interface SearchResult {
 	pageAge?: string;
 }
 
-export function formatResults(query: string, results: SearchResult[]): string {
+// The query is in the call row right above, so the first line spends itself on what the row cannot show.
+export function formatResults(results: SearchResult[], elapsedMs: number): string {
 	const lines = results.map((result, index) => {
 		const age = result.pageAge ? ` (${result.pageAge})` : "";
 		return `${String(index + 1).padStart(2)}. ${result.title}${age}\n    ${result.url}`;
 	});
-	return [`${results.length} results for "${query}"`, "", ...lines, "", "Titles and URLs only. Read a result with webfetch."].join("\n");
+	const head = `${results.length} results in ${formatDuration(elapsedMs)}`;
+	return [head, "", ...lines, "", "Titles and URLs only. Read a result with webfetch."].join("\n");
+}
+
+// INFO: fc 15aug26 pi's own formatDuration is module-private to core/tools/bash.js, so unlike formatSize it cannot be imported. Same shape, so a duration reads the same in both rows.
+export function formatDuration(ms: number): string {
+	return `${(ms / 1000).toFixed(1)}s`;
 }
 
 export async function resolveWorker(ctx: ExtensionContext): Promise<Worker> {

@@ -50,8 +50,8 @@ assert.deepEqual(results, [
 	{ title: "Zig downloads", url: "https://ziglang.org/download/" },
 ]);
 
-const formatted = formatResults("zig release", results);
-assert.match(formatted, /^2 results for "zig release"$/m);
+const formatted = formatResults(results, 3210);
+assert.match(formatted, /^2 results in 3\.2s$/m);
 assert.match(formatted, /^ 1\. 0\.16\.0 Released \(1 day\)$/m);
 assert.match(formatted, /^ {4}https:\/\/ziglang\.org\/news\/$/m);
 assert.match(formatted, /^ 2\. Zig downloads$/m);
@@ -223,6 +223,10 @@ try {
 	const big = await fetchPage("https://big.example/page");
 	assert.equal(big.truncated, true);
 	assert.ok(big.bytes > 1_048_576);
+	assert.equal(big.cached, false);
+	assert.ok(big.requestMs >= 0);
+	// A second read of the same url is answered by the cache, and says so rather than repeating the first request's timing.
+	assert.equal((await fetchPage("https://big.example/page")).cached, true);
 } finally {
 	globalThis.fetch = realFetch;
 	clearPageCache();

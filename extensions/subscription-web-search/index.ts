@@ -2,6 +2,7 @@ import { type Api, calculateCost, type Model, Type, type Usage } from "@earendil
 import { defineTool, type ExtensionAPI, formatSize } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import {
+	formatDuration,
 	formatResults,
 	MAX_QUERY_CHARS,
 	parseSearchResults,
@@ -41,10 +42,12 @@ export const websearch = defineTool({
 
 	async execute(_toolCallId, params, signal, _onUpdate, ctx) {
 		const worker = await resolveWorker(ctx);
+		const started = performance.now();
 		const response = await postMessages(worker, searchRequest(worker.model.id, params.query), signal);
+		const requestMs = performance.now() - started;
 		const results = parseSearchResults(response);
 		return {
-			content: [{ type: "text", text: formatResults(params.query, results) }],
+			content: [{ type: "text", text: formatResults(results, requestMs) }],
 			details: { query: params.query, results },
 			usage: usageOf(worker.model, response),
 		};
@@ -75,9 +78,10 @@ export const webfetch = defineTool({
 		const page = await fetchPage(params.url, signal);
 		const request = summaryRequest(worker.model.id, page.url, page.markdown, params.prompt);
 		const response = await postMessages(worker, request, signal);
-		// The row is pi's own result preview of this text, so what a reader wants about the fetch belongs in its first line.
+		// The row is pi's own result preview of this text, so what a reader wants about the fetch belongs in its first line. The url is in the call row right above it.
 		const cut = page.truncated ? ", truncated before reading" : "";
-		const head = `${page.url} (${formatSize(page.bytes)}, ${page.status} ${page.statusText}${cut})`;
+		const took = page.cached ? "from cache" : `in ${formatDuration(page.requestMs)}`;
+		const head = `Received ${formatSize(page.bytes)} (${page.status} ${page.statusText}${cut}) ${took}`;
 		return {
 			content: [{ type: "text", text: `${head}\n\n${parseText(response)}` }],
 			details: { url: page.url, status: page.status, bytes: page.bytes, contentType: page.contentType },
