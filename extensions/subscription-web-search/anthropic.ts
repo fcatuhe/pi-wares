@@ -33,7 +33,7 @@ export interface SearchResult {
 	pageAge?: string;
 }
 
-// The query is in the call row right above, so the first line spends itself on what the row cannot show.
+// INFO: fc 17aug26 the query is in the call row right above, so the first line spends itself on what the row cannot show.
 export function formatResults(results: SearchResult[], elapsedMs: number): string {
 	const lines = results.map((result, index) => {
 		const age = result.pageAge ? ` (${result.pageAge})` : "";
@@ -43,7 +43,7 @@ export function formatResults(results: SearchResult[], elapsedMs: number): strin
 	return [head, "", ...lines, "", "Titles and URLs only. Read a result with webfetch."].join("\n");
 }
 
-// INFO: fc 15aug26 pi's own formatDuration is module-private to core/tools/bash.js, so unlike formatSize it cannot be imported. Same shape, so a duration reads the same in both rows.
+// INFO: fc 17aug26 pi's own formatDuration is module-private to core/tools/bash.js, so unlike formatSize it cannot be imported. Same shape, so a duration reads the same in both rows.
 export function formatDuration(ms: number): string {
 	return `${(ms / 1000).toFixed(1)}s`;
 }
@@ -154,8 +154,7 @@ export function parseText(response: unknown): string {
 	return text;
 }
 
-// The counts are ours to read off the response; the money is pi's calculateCost, which also applies
-// tiered rates and the double charge on 1h cache writes.
+// INFO: fc 17aug26 the counts are ours to read off the response. The money is pi's calculateCost, which also applies tiered rates and the double charge on 1h cache writes.
 export function usageTokens(response: unknown): UsageTokens {
 	const raw = isRecord(response) && isRecord(response.usage) ? response.usage : {};
 	return {

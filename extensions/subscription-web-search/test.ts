@@ -223,10 +223,8 @@ try {
 	const big = await fetchPage("https://big.example/page");
 	assert.equal(big.truncated, true);
 	assert.ok(big.bytes > 1_048_576);
-	assert.equal(big.cached, false);
-	assert.ok(big.requestMs >= 0);
-	// A second read of the same url is answered by the cache, and says so rather than repeating the first request's timing.
-	assert.equal((await fetchPage("https://big.example/page")).cached, true);
+	// A second read of the same url is answered by the cache, and is the same page object.
+	assert.equal(await fetchPage("https://big.example/page"), big);
 } finally {
 	globalThis.fetch = realFetch;
 	clearPageCache();
@@ -251,62 +249,6 @@ assert.equal(cachedPage("https://a.example/1"), undefined);
 assert.ok(cachedPage("https://a.example/2"));
 clearPageCache();
 
-// One page per rule the conversion applies, since every one of them is a page a site really serves.
-const html = `<!doctype html><html><head><title>Spec &amp; Sheet</title><base href="/reviews/"></head><body>
-<nav><a href="/">home</a></nav>
-<header role="banner"><a href="/account">Sign in</a></header>
-<div role="navigation"><a href="/phones">Phones</a></div>
-<aside><a href="/ads">Sponsored</a></aside>
-<div hidden><p>cookie banner</p></div>
-<div aria-hidden="true"><p>screen reader trap</p></div>
-<article><h1>Pixel</h1>
-<p>The chip is a <a href="../chips/tensor?v=6#specs">Tensor G6</a> built on a 2nm process, see
-<a href="https://example.org/absolute">the note</a> and <a href="javascript:alert(1)">nothing</a>.</p>
-<p><a href="/gallery"><img src="/img/pixel.png" alt="9"></a></p>
-<p><img src="data:image/png;base64,AAAA" alt="Benchmark chart comparing both chips"></p>
-<table><thead><tr><th>Model</th><th>Price</th></tr></thead><tbody><tr><td>Pro</td><td>$1,099</td></tr></tbody></table>
-<pre><code>const trap = "](/not-a-link)";</code></pre>
-<script>window.tracker = "should not survive";</script>
-<form><button>Buy</button><label>Email</label><select><option>a</option></select></form>
-</article><footer><a href="/tos">Terms</a></footer></body></html>`;
-const markdown = await renderMarkdown(html, "https://example.com/reviews/pixel");
-
-// The title comes from <title>, entities decoded, and heads the page the model reads.
-assert.match(markdown, /^# Spec & Sheet\n/);
-assert.match(markdown, /\| Model \| Price \|/);
-assert.match(markdown, /```\nconst trap = "\]\(\/not-a-link\)";\n```/);
-// Relative hrefs resolve against the page's own <base>, absolute ones are left alone, opaque ones lose the href.
-assert.match(markdown, /\[Tensor G6\]\(https:\/\/example\.com\/chips\/tensor\?v=6#specs\)/);
-assert.match(markdown, /\[the note\]\(https:\/\/example\.org\/absolute\)/);
-assert.match(markdown, /(?<!\]\()nothing/);
-assert.doesNotMatch(markdown, /javascript:/);
-// An image is a src the model cannot see: only an alt that reads like a description survives.
-assert.match(markdown, /\[image: Benchmark chart comparing both chips\]/);
-assert.doesNotMatch(markdown, /base64|pixel\.png|image: 9/);
-// An anchor emptied by its image would otherwise print as [](url).
-assert.doesNotMatch(markdown, /\[\]\(/);
-// Chrome goes by tag and by landmark role, since a page built out of divs only says nav with a role.
-for (const gone of ["home", "Sign in", "Phones", "Sponsored", "cookie banner", "screen reader trap", "Terms", "should not survive", "Buy", "Email"]) {
-	assert.doesNotMatch(markdown, new RegExp(gone), `chrome survived: ${gone}`);
-}
-assert.doesNotMatch(markdown, /\n{3,}/);
-
-// Repetition is content in documentation, so nothing may deduplicate lines: docs.python.org says asyncio.run fifteen times.
-const repeated = `<html><head><title>Docs</title></head><body><article>${"<p>call asyncio.run(main()) here</p>".repeat(5)}</article></body></html>`;
-assert.equal((await renderMarkdown(repeated, "https://example.com/docs")).match(/asyncio\.run/g)?.length, 5);
-
-// A link list is the content of an index page, so link-dense lines may not be dropped either.
-const index = `<html><head><title>News</title></head><body><main><ul>${[1, 2, 3].map((n) => `<li><a href="/post-${n}">Post ${n}</a></li>`).join("")}</ul></main></body></html>`;
-const listing = await renderMarkdown(index, "https://example.com/news");
-for (const n of [1, 2, 3]) assert.match(listing, new RegExp(`\\[Post ${n}\\]\\(https://example\\.com/post-${n}\\)`));
-
-// A page whose text is all chrome has nothing left to summarize, and that is an error, not an empty answer.
-await assert.rejects(renderMarkdown("<html><body><nav><a href=\"/\">home</a></nav></body></html>", "https://example.com/empty"), /No readable text/);
-
-// A converter writing to the process console lands on the terminal the TUI is drawing on, so conversion must
-// reach it by no path at all: css-tree's own warning (lexer/match.js:528) is what this caught under jsdom.
-const bomb = "all 1s ease 1s, ".repeat(300);
-const noisy = `<html><head><style>.card { .title { color: red } }</style></head><body><article><p style="transition: ${bomb}all 1s">Body text long enough to be worth converting at all.</p></article></body></html>`;
 const realConsole = { ...console };
 const realStdout = process.stdout.write;
 const realStderr = process.stderr.write;
@@ -327,9 +269,61 @@ async function heardWhile<T>(work: () => Promise<T> | T): Promise<{ heard: strin
 	}
 }
 
-const extraction = await heardWhile(() => renderMarkdown(noisy, "https://example.com/noisy"));
-assert.deepEqual(extraction.heard, []);
-assert.match(extraction.value, /Body text/);
+// One page for every rule the conversion applies, each shape one a site really serves, converted once and
+// watched while it runs. The style attribute is the css-tree bomb: 300 transitions exhaust its match limit and
+// it warns straight onto the terminal the TUI is drawing on (lexer/match.js:528), which is what a jsdom
+// pipeline did here before the guard.
+const bomb = "all 1s ease 1s, ".repeat(300);
+const page = `<!doctype html><html><head><title>Spec &amp; Sheet</title><base href="/reviews/">
+<style>.card { .title { color: red } }</style></head><body>
+<nav><a href="/">home</a></nav>
+<header role="banner"><a href="/account">Sign in</a></header>
+<div role="navigation"><a href="/phones">Phones</a></div>
+<aside><a href="/ads">Sponsored</a></aside>
+<div hidden><p>cookie banner</p></div>
+<div aria-hidden="true"><p>screen reader trap</p></div>
+<article><h1>Pixel</h1>
+<p style="transition: ${bomb}all 1s">The chip is a <a href="../chips/tensor?v=6#specs">Tensor G6</a> built on a 2nm
+process, see <a href="https://example.org/absolute">the note</a> and <a href="javascript:alert(1)">nothing</a>.</p>
+<p><a href="/gallery"><img src="/img/pixel.png" alt="9"></a></p>
+<p><img src="data:image/png;base64,AAAA" alt="Benchmark chart comparing both chips"></p>
+<table><thead><tr><th>Model</th><th>Price</th></tr></thead><tbody><tr><td>Pro</td><td>$1,099</td></tr></tbody></table>
+<pre><code>const trap = "](/not-a-link)";</code></pre>
+${"<p>call asyncio.run(main()) here</p>".repeat(5)}
+<ul>${[1, 2, 3].map((n) => `<li><a href="/post-${n}">Post ${n}</a></li>`).join("")}</ul>
+<script>window.tracker = "should not survive";</script>
+<form><button>Buy</button><label>Email</label><select><option>a</option></select></form>
+</article><footer><a href="/tos">Terms</a></footer></body></html>`;
+const converted = await heardWhile(() => renderMarkdown(page, "https://example.com/reviews/pixel"));
+assert.deepEqual(converted.heard, []);
+const markdown = converted.value;
+
+// The title comes from <title>, entities decoded, and heads the page the model reads.
+assert.match(markdown, /^# Spec & Sheet\n/);
+assert.match(markdown, /\| Model \| Price \|/);
+assert.match(markdown, /```\nconst trap = "\]\(\/not-a-link\)";\n```/);
+// Relative hrefs resolve against the page's own <base>, absolute ones are left alone, opaque ones lose the href.
+assert.match(markdown, /\[Tensor G6\]\(https:\/\/example\.com\/chips\/tensor\?v=6#specs\)/);
+assert.match(markdown, /\[the note\]\(https:\/\/example\.org\/absolute\)/);
+assert.match(markdown, /(?<!\]\()nothing/);
+assert.doesNotMatch(markdown, /javascript:/);
+// An image is a src the model cannot see: only an alt that reads like a description survives.
+assert.match(markdown, /\[image: Benchmark chart comparing both chips\]/);
+assert.doesNotMatch(markdown, /base64|pixel\.png|image: 9|\[image: \]/);
+// An anchor emptied by its image would otherwise print as [](url).
+assert.doesNotMatch(markdown, /\[\]\(/);
+// Chrome goes by tag and by landmark role, since a page built out of divs only says nav with a role.
+for (const gone of ["home", "Sign in", "Phones", "Sponsored", "cookie banner", "screen reader trap", "Terms", "should not survive", "Buy", "Email"]) {
+	assert.doesNotMatch(markdown, new RegExp(gone), `chrome survived: ${gone}`);
+}
+assert.doesNotMatch(markdown, /\n{3,}/);
+// Repetition is content in documentation, and a link list is the content of an index page, so neither
+// deduplicating lines nor dropping link-dense ones is allowed: both were prototyped and both lost pages.
+assert.equal(markdown.match(/asyncio\.run/g)?.length, 5);
+for (const n of [1, 2, 3]) assert.match(markdown, new RegExp(`\\[Post ${n}\\]\\(https://example\\.com/post-${n}\\)`));
+
+// A page whose text is all chrome has nothing left to summarize, and that is an error, not an empty answer.
+await assert.rejects(renderMarkdown('<html><body><nav><a href="/">home</a></nav></body></html>', "https://example.com/empty"), /No readable text/);
 
 // A library reaching past the console for the stream itself is held the same way.
 const direct = await heardWhile(() =>
@@ -349,8 +343,7 @@ assert.throws(() => withoutTerminalOutput(() => {
 assert.equal(console.warn, realConsole.warn);
 assert.equal(process.stdout.write, realStdout);
 
-// A fragment Readability rejects still yields the body text instead of an empty page.
-const bare = await renderMarkdown("<html><body><p>Just one line.</p></body></html>", "https://example.com/bare");
-assert.match(bare, /Just one line\./);
+// A fragment with no title and no article still converts, and gains no heading it did not have.
+assert.equal(await renderMarkdown("<html><body><p>Just one line.</p></body></html>", "https://example.com/bare"), "Just one line.");
 
 await assert.rejects(renderMarkdown("<html><body></body></html>", "https://example.com/empty"), /No readable text/);

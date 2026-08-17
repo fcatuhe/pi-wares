@@ -21,8 +21,6 @@ export interface Page {
 	contentType: string;
 	markdown: string;
 	truncated: boolean;
-	requestMs: number;
-	cached: boolean;
 }
 
 export function validateUrl(url: string): URL {
@@ -38,7 +36,7 @@ export function validateUrl(url: string): URL {
 	if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
 		throw new Error(`Only http and https are fetchable, got ${parsed.protocol}`);
 	}
-	// Credentials in a URL are a phishing shape, and a hostname with no dot is a local or intranet name.
+	// INFO: fc 17aug26 credentials in a URL are a phishing shape, and a hostname with no dot is a local or intranet name.
 	if (parsed.username || parsed.password) {
 		throw new Error(`Refusing a URL carrying credentials: ${parsed.host}`);
 	}
@@ -49,8 +47,7 @@ export function validateUrl(url: string): URL {
 	return parsed;
 }
 
-// A redirect may not change publisher: same port, same host bar a leading www. Protocol and credentials are
-// not compared because validateUrl has already forced https and refused both, on every hop.
+// INFO: fc 17aug26 a redirect may not change publisher: same port, same host bar a leading www. Protocol and credentials are not compared because validateUrl has already forced https and refused both, on every hop.
 export function isSamePublisher(from: URL, to: URL): boolean {
 	const bare = (url: URL) => url.hostname.replace(/^www\./, "");
 	return from.port === to.port && bare(from) === bare(to);
@@ -77,7 +74,7 @@ export async function assertFetchable(hostname: string, signal?: AbortSignal): P
 	clearedDomains.add(hostname);
 }
 
-// Redirects are followed by hand so each hop is validated and counted, which fetch's own follow mode does neither of.
+// INFO: fc 17aug26 redirects are followed by hand so each hop is validated and counted, which fetch's own follow mode does neither of.
 async function fetchFollowing(url: URL, signal: AbortSignal): Promise<Response> {
 	let target = url;
 	for (let hop = 0; ; hop++) {
@@ -104,7 +101,7 @@ export function capMarkdown(markdown: string): { markdown: string; truncated: bo
 	return { markdown: markdown.slice(0, MAX_MARKDOWN_CHARS), truncated: true };
 }
 
-// A page is cached by url, not by prompt: asking a second question about one page costs no second fetch.
+// INFO: fc 17aug26 the cache is keyed by url and not by prompt, so a second question about one page costs no second fetch.
 const cache = new Map<string, { page: Page; expires: number }>();
 
 export function cachePage(url: string, page: Page): void {
@@ -134,18 +131,15 @@ export function clearPageCache(): void {
 export async function fetchPage(url: string, signal?: AbortSignal): Promise<Page> {
 	const target = validateUrl(url);
 	const hit = cachedPage(target.href);
-	if (hit) return { ...hit, cached: true };
+	if (hit) return hit;
 	await assertFetchable(target.hostname, signal);
 	const timeout = AbortSignal.timeout(FETCH_TIMEOUT_MS);
-	const started = performance.now();
 	const response = await fetchFollowing(target, signal ? AbortSignal.any([signal, timeout]) : timeout);
 	if (!response.ok) {
 		throw new Error(`HTTP ${response.status} ${response.statusText} for ${target.href}`);
 	}
 	const contentType = response.headers.get("content-type") ?? "";
 	const { text, bytes } = await readCapped(response);
-	// Request and body only: what the server took, with neither the publisher check before it nor the conversion after.
-	const requestMs = performance.now() - started;
 	const source = text.slice(0, MAX_SOURCE_CHARS);
 	const rendered = isHtml(contentType) ? await renderMarkdown(source, target.href) : plainText(contentType, source);
 	const capped = capMarkdown(rendered);
@@ -160,14 +154,12 @@ export async function fetchPage(url: string, signal?: AbortSignal): Promise<Page
 		contentType,
 		markdown: capped.markdown,
 		truncated: capped.truncated || source.length < text.length,
-		requestMs,
-		cached: false,
 	};
 	cachePage(target.href, page);
 	return page;
 }
 
-// INFO: fc 15aug26 a converter writing to the process console lands on the terminal pi's TUI is drawing, one row above the prompt the user is typing in, because interactive mode leaves process.stdout alone (takeOverStdout runs only for the non-interactive modes). Conversion is synchronous from parse to turndown, so nothing else can be writing while the process is held, and what a library prints there is worth less than the frame it breaks.
+// INFO: fc 17aug26 a converter writing to the process console lands on the terminal pi's TUI is drawing, one row above the prompt, since interactive mode leaves process.stdout alone (takeOverStdout runs only for the non-interactive modes). Conversion is synchronous, so nothing else can be writing while the process is held.
 const CONSOLE_METHODS = ["log", "warn", "error", "info", "debug", "trace"] as const;
 const swallow = () => true;
 
@@ -187,7 +179,7 @@ export function withoutTerminalOutput<T>(work: () => T): T {
 	}
 }
 
-// INFO: fc 15aug26 domino and turndown cost ~100ms to import, so they load on first fetch rather than at pi startup.
+// INFO: fc 17aug26 domino and turndown cost ~100ms to import, so they load on first fetch rather than at pi startup.
 export async function renderMarkdown(html: string, url: string): Promise<string> {
 	const [domino, turndown, { gfm }] = await Promise.all([
 		import("@mixmark-io/domino"),
@@ -195,21 +187,20 @@ export async function renderMarkdown(html: string, url: string): Promise<string>
 		import("turndown-plugin-gfm"),
 	]);
 	const markdown = withoutTerminalOutput(() => {
-		// INFO: fc 15aug26 the address is what makes element.href absolute below, and domino honours a page's own <base href> against it.
+		// INFO: fc 17aug26 the address is what makes element.href absolute in stripToContent, and domino honours a page's own <base href> against it.
 		const document = domino.createWindow(html, url).document;
-		const title = document.title?.replace(/\s+/g, " ").trim() ?? "";
+		const title = document.title.replace(/\s+/g, " ").trim();
 		stripToContent(document);
 		const service = new turndown.default({ headingStyle: "atx", codeBlockStyle: "fenced" });
 		service.use(gfm);
-		// A rule's output is not escaped, where the same text in a node would come out as \[image: ...\].
+		// INFO: fc 17aug26 a rule's output escapes nothing, where the same text in a node comes out as \[image: ...\].
 		service.addRule("describedImage", {
 			filter: "img",
-			replacement: (_content, node) => `[image: ${(node as Element).getAttribute("alt")?.trim()}]`,
+			replacement: (_content, node) => `[image: ${description(node as Element)}]`,
 		});
-		// The node, not its innerHTML: a string would be parsed a second time, and this one already carries the rewrites.
 		const body = tidy(service.turndown(document.body));
 		const heading = `# ${title}`;
-		if (!body || !title || body.startsWith(heading) || body.includes(`\n${heading}\n`)) return body;
+		if (!body || !title || body.split("\n").includes(heading)) return body;
 		return `${heading}\n\n${body}`;
 	});
 	if (!markdown) {
@@ -218,62 +209,38 @@ export async function renderMarkdown(html: string, url: string): Promise<string>
 	return markdown;
 }
 
-// Chrome a reader would skip and a summarizing model would be paid to read. Landmark roles are here because a
-// page built out of divs says nav with a role and nothing else.
+// INFO: fc 17aug26 the landmark roles are in this list because a page built out of divs says nav with a role and nothing else.
 const CHROME = [
-	"script",
-	"style",
-	"noscript",
-	"iframe",
-	"svg",
-	"canvas",
-	"video",
-	"audio",
-	"object",
-	"embed",
-	"form",
-	"button",
-	"select",
-	"label",
-	"dialog",
-	"template",
-	"nav",
-	"footer",
-	"aside",
-	"menu",
-	"[hidden]",
-	'[aria-hidden="true"]',
-	'[role="navigation"]',
-	'[role="banner"]',
-	'[role="contentinfo"]',
-	'[role="search"]',
-	'[role="complementary"]',
-	'[role="menu"]',
-	'[role="menubar"]',
-	'[role="toolbar"]',
-	'[role="tablist"]',
+	"script,style,noscript,iframe,template",
+	"svg,canvas,video,audio,object,embed",
+	"form,button,select,label,dialog",
+	"nav,footer,aside,menu",
+	'[hidden],[aria-hidden="true"]',
+	'[role="navigation"],[role="banner"],[role="contentinfo"],[role="search"],[role="complementary"]',
+	'[role="menu"],[role="menubar"],[role="toolbar"],[role="tablist"]',
 ].join(",");
-// An alt of "4" or "logo" describes nothing; a sentence describes a chart the model cannot see.
+// INFO: fc 17aug26 an alt of "4" or "logo" describes nothing, where a sentence describes a chart the model cannot see.
 const ALT_MIN_WORDS = 3;
 const OPAQUE_HREF = /^(?:javascript|data):/i;
 
-// INFO: fc 15aug26 domino's querySelectorAll returns an array-like NodeList with no Symbol.iterator, so Array.from, never a spread.
+// INFO: fc 17aug26 domino's querySelectorAll returns an array-like NodeList with no Symbol.iterator, so Array.from, never a spread.
 const all = (document: Document, selector: string): Element[] => Array.from(document.querySelectorAll(selector));
+
+const description = (image: Element): string => {
+	const alt = (image.getAttribute("alt") ?? "").trim();
+	return alt.split(/\s+/).filter(Boolean).length >= ALT_MIN_WORDS ? alt : "";
+};
 
 function stripToContent(document: Document): void {
 	for (const element of all(document, CHROME)) element.remove();
-	// INFO: fc 15aug26 turndown's own image rule matches before its remove list, so remove(["img"]) is silently a no-op and an image the model cannot see has to go from the document. The ones left are rendered by describedImage.
-	for (const image of all(document, "img")) {
-		const alt = (image.getAttribute("alt") ?? "").trim();
-		if (alt.split(/\s+/).filter(Boolean).length < ALT_MIN_WORDS) image.remove();
-	}
-	// A relative href is a dead end for a model whose next move is to fetch it, and turndown reads the attribute, not the resolved property.
+	// INFO: fc 17aug26 turndown's own image rule matches before its remove list, so remove(["img"]) is silently a no-op and an undescribed image has to go from the document instead.
+	for (const image of all(document, "img")) if (!description(image)) image.remove();
+	// INFO: fc 17aug26 turndown reads the href attribute rather than the resolved property, and a relative href is a dead end for a model whose next move is to fetch it.
 	for (const link of all(document, "a[href], area[href]")) {
-		const href = link.getAttribute("href") ?? "";
-		if (OPAQUE_HREF.test(href)) link.removeAttribute("href");
+		if (OPAQUE_HREF.test(link.getAttribute("href") ?? "")) link.removeAttribute("href");
 		else link.setAttribute("href", (link as HTMLAnchorElement).href);
 	}
-	// Turndown counts an anchor as meaningful when blank, so one emptied by its image would print as [](url).
+	// INFO: fc 17aug26 turndown counts an anchor as meaningful when blank, so one emptied by its image prints as [](url).
 	for (const link of all(document, "a")) {
 		if (!link.textContent?.trim() && !link.querySelector("img")) link.remove();
 	}

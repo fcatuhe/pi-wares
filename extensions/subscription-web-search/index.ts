@@ -15,7 +15,7 @@ import {
 } from "./anthropic.ts";
 import { fetchPage } from "./page.ts";
 
-// INFO: fc 15aug26 a page a fetch summarized can tell the model to put escape sequences in the next call's arguments, and this row prints to the terminal the TUI is drawing on. pi sanitizes tool output (core/tools/render-utils.js) but passes call arguments through as given, so the two rows carrying page-influenced text sanitize their own.
+// INFO: fc 17aug26 a page a fetch summarized can tell the model to put escape sequences in the next call's arguments, and this row prints to the terminal the TUI is drawing on. pi sanitizes tool output (core/tools/render-utils.js) but passes call arguments through as given, so the two rows carrying page-influenced text sanitize their own.
 const rowText = (value: unknown): string =>
 	typeof value === "string" ? stripTerminalSequences(value).replace(/\p{Cc}/gu, " ") : "";
 
@@ -45,13 +45,13 @@ export const websearch = defineTool({
 	}),
 
 	async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-		const worker = await resolveWorker(ctx);
+		// INFO: fc 17aug26 the clock covers the whole call, credential resolution included: reporting one leg of it printed 0.4s of a 24 second wait.
 		const started = performance.now();
+		const worker = await resolveWorker(ctx);
 		const response = await postMessages(worker, searchRequest(worker.model.id, params.query), signal);
-		const requestMs = performance.now() - started;
 		const results = parseSearchResults(response);
 		return {
-			content: [{ type: "text", text: formatResults(results, requestMs) }],
+			content: [{ type: "text", text: formatResults(results, performance.now() - started) }],
 			details: { query: params.query, results },
 			usage: usageOf(worker.model, response),
 		};
@@ -78,15 +78,15 @@ export const webfetch = defineTool({
 	}),
 
 	async execute(_toolCallId, params, signal, onUpdate, ctx) {
+		const started = performance.now();
 		const worker = await resolveWorker(ctx);
 		onUpdate?.({ content: [{ type: "text", text: `Fetching ${params.url}` }], details: {} });
 		const page = await fetchPage(params.url, signal);
 		const request = summaryRequest(worker.model.id, page.url, page.markdown, params.prompt);
 		const response = await postMessages(worker, request, signal);
-		// The row is pi's own result preview of this text, so what a reader wants about the fetch belongs in its first line. The url is in the call row right above it.
+		// INFO: fc 17aug26 this text is what pi previews in the row, so what a reader wants about the fetch belongs in its first line. The url is in the call row right above it.
 		const cut = page.truncated ? ", truncated before reading" : "";
-		const took = page.cached ? "from cache" : `in ${formatDuration(page.requestMs)}`;
-		const head = `Received ${formatSize(page.bytes)} (${page.status} ${page.statusText}${cut}) ${took}`;
+		const head = `Received ${formatSize(page.bytes)} (${page.status} ${page.statusText}${cut}) in ${formatDuration(performance.now() - started)}`;
 		return {
 			content: [{ type: "text", text: `${head}\n\n${parseText(response)}` }],
 			details: { url: page.url, status: page.status, bytes: page.bytes, contentType: page.contentType },
