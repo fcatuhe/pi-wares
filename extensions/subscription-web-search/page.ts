@@ -167,35 +167,123 @@ export async function fetchPage(url: string, signal?: AbortSignal): Promise<Page
 	return page;
 }
 
-// INFO: fc 06aug26 extraction never reads CSS and external sheets are never fetched, so the stylesheets go before jsdom sees them. Parsing them printed css-tree grammar warnings (css-tree/lib/lexer/match.js:528) and jsdom's own "Could not parse CSS stylesheet" for any page using nesting, both straight to the console the TUI is drawing on.
-const STYLESHEET = /<style\b[^>]*>[\s\S]*?<\/style\s*>|<link\b[^>]*\brel\s*=\s*["']?stylesheet\b[^>]*>/gi;
+// INFO: fc 15aug26 a converter writing to the process console lands on the terminal pi's TUI is drawing, one row above the prompt the user is typing in, because interactive mode leaves process.stdout alone (takeOverStdout runs only for the non-interactive modes). Conversion is synchronous from parse to turndown, so nothing else can be writing while the process is held, and what a library prints there is worth less than the frame it breaks.
+const CONSOLE_METHODS = ["log", "warn", "error", "info", "debug", "trace"] as const;
+const swallow = () => true;
 
-export function withoutStylesheets(html: string): string {
-	return html.replace(STYLESHEET, "");
+export function withoutTerminalOutput<T>(work: () => T): T {
+	const heldConsole = CONSOLE_METHODS.map((name) => [name, console[name]] as const);
+	const heldStdout = process.stdout.write;
+	const heldStderr = process.stderr.write;
+	for (const [name] of heldConsole) console[name] = swallow;
+	process.stdout.write = swallow as typeof process.stdout.write;
+	process.stderr.write = swallow as typeof process.stderr.write;
+	try {
+		return work();
+	} finally {
+		for (const [name, method] of heldConsole) console[name] = method;
+		process.stdout.write = heldStdout;
+		process.stderr.write = heldStderr;
+	}
 }
 
-// INFO: fc 06aug26 jsdom and turndown cost ~200ms to import, so they load on first fetch rather than at pi startup.
+// INFO: fc 15aug26 domino and turndown cost ~100ms to import, so they load on first fetch rather than at pi startup.
 export async function renderMarkdown(html: string, url: string): Promise<string> {
-	const [{ JSDOM, VirtualConsole }, { Readability }, turndown, { gfm }] = await Promise.all([
-		import("jsdom"),
-		import("@mozilla/readability"),
+	const [domino, turndown, { gfm }] = await Promise.all([
+		import("@mixmark-io/domino"),
 		import("turndown"),
 		import("turndown-plugin-gfm"),
 	]);
-	// A VirtualConsole with no listeners drops what the default one forwards to the process console.
-	const document = new JSDOM(withoutStylesheets(html), { url, virtualConsole: new VirtualConsole() }).window.document;
-	const body = document.body?.innerHTML ?? "";
-	// INFO: fc 06aug26 Readability rewrites the document it parses, so the fallback body is taken first.
-	const article = new Readability(document).parse();
-	const service = new turndown.default({ headingStyle: "atx", codeBlockStyle: "fenced" });
-	service.use(gfm);
-	service.remove(["script", "style", "noscript", "iframe"]);
-	const markdown = service.turndown(article?.content ?? body).trim();
+	const markdown = withoutTerminalOutput(() => {
+		// INFO: fc 15aug26 the address is what makes element.href absolute below, and domino honours a page's own <base href> against it.
+		const document = domino.createWindow(html, url).document;
+		const title = document.title?.replace(/\s+/g, " ").trim() ?? "";
+		stripToContent(document);
+		const service = new turndown.default({ headingStyle: "atx", codeBlockStyle: "fenced" });
+		service.use(gfm);
+		// A rule's output is not escaped, where the same text in a node would come out as \[image: ...\].
+		service.addRule("describedImage", {
+			filter: "img",
+			replacement: (_content, node) => `[image: ${(node as Element).getAttribute("alt")?.trim()}]`,
+		});
+		// The node, not its innerHTML: a string would be parsed a second time, and this one already carries the rewrites.
+		const body = tidy(service.turndown(document.body));
+		const heading = `# ${title}`;
+		if (!body || !title || body.startsWith(heading) || body.includes(`\n${heading}\n`)) return body;
+		return `${heading}\n\n${body}`;
+	});
 	if (!markdown) {
 		throw new Error(`No readable text extracted from ${url}`);
 	}
-	const title = article?.title?.trim();
-	return title ? `# ${title}\n\n${markdown}` : markdown;
+	return markdown;
+}
+
+// Chrome a reader would skip and a summarizing model would be paid to read. Landmark roles are here because a
+// page built out of divs says nav with a role and nothing else.
+const CHROME = [
+	"script",
+	"style",
+	"noscript",
+	"iframe",
+	"svg",
+	"canvas",
+	"video",
+	"audio",
+	"object",
+	"embed",
+	"form",
+	"button",
+	"select",
+	"label",
+	"dialog",
+	"template",
+	"nav",
+	"footer",
+	"aside",
+	"menu",
+	"[hidden]",
+	'[aria-hidden="true"]',
+	'[role="navigation"]',
+	'[role="banner"]',
+	'[role="contentinfo"]',
+	'[role="search"]',
+	'[role="complementary"]',
+	'[role="menu"]',
+	'[role="menubar"]',
+	'[role="toolbar"]',
+	'[role="tablist"]',
+].join(",");
+// An alt of "4" or "logo" describes nothing; a sentence describes a chart the model cannot see.
+const ALT_MIN_WORDS = 3;
+const OPAQUE_HREF = /^(?:javascript|data):/i;
+
+// INFO: fc 15aug26 domino's querySelectorAll returns an array-like NodeList with no Symbol.iterator, so Array.from, never a spread.
+const all = (document: Document, selector: string): Element[] => Array.from(document.querySelectorAll(selector));
+
+function stripToContent(document: Document): void {
+	for (const element of all(document, CHROME)) element.remove();
+	// INFO: fc 15aug26 turndown's own image rule matches before its remove list, so remove(["img"]) is silently a no-op and an image the model cannot see has to go from the document. The ones left are rendered by describedImage.
+	for (const image of all(document, "img")) {
+		const alt = (image.getAttribute("alt") ?? "").trim();
+		if (alt.split(/\s+/).filter(Boolean).length < ALT_MIN_WORDS) image.remove();
+	}
+	// A relative href is a dead end for a model whose next move is to fetch it, and turndown reads the attribute, not the resolved property.
+	for (const link of all(document, "a[href], area[href]")) {
+		const href = link.getAttribute("href") ?? "";
+		if (OPAQUE_HREF.test(href)) link.removeAttribute("href");
+		else link.setAttribute("href", (link as HTMLAnchorElement).href);
+	}
+	// Turndown counts an anchor as meaningful when blank, so one emptied by its image would print as [](url).
+	for (const link of all(document, "a")) {
+		if (!link.textContent?.trim() && !link.querySelector("img")) link.remove();
+	}
+}
+
+function tidy(markdown: string): string {
+	return markdown
+		.replace(/[ \t]+$/gm, "")
+		.replace(/\n{3,}/g, "\n\n")
+		.trim();
 }
 
 function isHtml(contentType: string): boolean {

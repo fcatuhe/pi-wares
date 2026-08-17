@@ -1,6 +1,6 @@
 import { type Api, calculateCost, type Model, Type, type Usage } from "@earendil-works/pi-ai";
 import { defineTool, type ExtensionAPI, formatSize } from "@earendil-works/pi-coding-agent";
-import { Text } from "@earendil-works/pi-tui";
+import { stripTerminalSequences, Text } from "@earendil-works/pi-tui";
 import {
 	formatDuration,
 	formatResults,
@@ -14,6 +14,10 @@ import {
 	usageTokens,
 } from "./anthropic.ts";
 import { fetchPage } from "./page.ts";
+
+// INFO: fc 15aug26 a page a fetch summarized can tell the model to put escape sequences in the next call's arguments, and this row prints to the terminal the TUI is drawing on. pi sanitizes tool output (core/tools/render-utils.js) but passes call arguments through as given, so the two rows carrying page-influenced text sanitize their own.
+const rowText = (value: unknown): string =>
+	typeof value === "string" ? stripTerminalSequences(value).replace(/\p{Cc}/gu, " ") : "";
 
 const usageOf = (model: Model<Api>, response: unknown): Usage => {
 	const tokens = usageTokens(response);
@@ -56,7 +60,8 @@ export const websearch = defineTool({
 	renderCall(args, theme, context) {
 		const text = (context.lastComponent as Text | undefined) ?? new Text("", 0, 0);
 		const title = theme.fg("toolTitle", theme.bold("websearch"));
-		text.setText(args.query ? `${title} ${theme.fg("accent", args.query)}` : title);
+		const query = rowText(args.query);
+		text.setText(query ? `${title} ${theme.fg("accent", query)}` : title);
 		return text;
 	},
 });
@@ -92,8 +97,10 @@ export const webfetch = defineTool({
 	renderCall(args, theme, context) {
 		const text = (context.lastComponent as Text | undefined) ?? new Text("", 0, 0);
 		const title = theme.fg("toolTitle", theme.bold("webfetch"));
-		let content = args.url ? `${title} ${theme.fg("accent", args.url)}` : title;
-		if (context.expanded && args.prompt) content += theme.fg("toolOutput", ` ${args.prompt}`);
+		const url = rowText(args.url);
+		const prompt = rowText(args.prompt);
+		let content = url ? `${title} ${theme.fg("accent", url)}` : title;
+		if (context.expanded && prompt) content += theme.fg("toolOutput", ` ${prompt}`);
 		text.setText(content);
 		return text;
 	},
