@@ -22,6 +22,7 @@ import {
 	isSamePublisher,
 	type Page,
 	renderMarkdown,
+	transportReason,
 	validateUrl,
 	withoutTerminalOutput,
 } from "./page.ts";
@@ -206,6 +207,69 @@ try {
 			: new Response(null, { status: 302, headers: { location: "https://elsewhere.example/x" } }),
 	);
 	await assert.rejects(fetchPage("https://a.example/start"), /redirects to another site\. Fetch https:\/\/elsewhere\.example\/x/);
+
+	// A DNS blip used to reach the model as undici's bare "fetch failed", which sent it to curl to find out what
+	// broke. Both the host and the reason undici buried in error.cause belong in the message.
+	const transportFailure = (cause: Error) => Object.assign(new TypeError("fetch failed"), { cause });
+	const enotfound = Object.assign(new Error("getaddrinfo ENOTFOUND a.example"), { code: "ENOTFOUND" });
+	let attempts = 0;
+	stub((url) => {
+		if (isDomainCheck(url)) return domainInfo(true);
+		attempts++;
+		throw transportFailure(enotfound);
+	});
+	await assert.rejects(
+		fetchPage("https://a.example/x"),
+		/Cannot reach a\.example: getaddrinfo ENOTFOUND a\.example \(ENOTFOUND\)/,
+	);
+	// A GET is idempotent and a blip usually clears: the failure the model sees is the second one.
+	assert.equal(attempts, 2);
+	attempts = 0;
+	stub((url) => {
+		if (isDomainCheck(url)) return domainInfo(true);
+		attempts++;
+		if (attempts === 1) throw transportFailure(enotfound);
+		return new Response("<html><body><p>second time</p></body></html>", { headers: { "content-type": "text/html" } });
+	});
+	assert.match((await fetchPage("https://blip.example/x")).markdown, /second time/);
+	assert.equal(attempts, 2);
+	// A deadline is not a blip, and retrying one would double the wait.
+	attempts = 0;
+	stub((url) => {
+		if (isDomainCheck(url)) return domainInfo(true);
+		attempts++;
+		throw Object.assign(new Error("The operation was aborted due to timeout"), { name: "TimeoutError" });
+	});
+	await assert.rejects(fetchPage("https://slow.example/x"), /Cannot reach slow\.example: no response within 60s/);
+	assert.equal(attempts, 1);
+	stub((url) => {
+		if (isDomainCheck(url)) throw transportFailure(enotfound);
+		return new Response("body");
+	});
+	await assert.rejects(
+		fetchPage("https://unreachable.example/x"),
+		/Cannot verify whether unreachable\.example allows fetching: getaddrinfo ENOTFOUND a\.example \(ENOTFOUND\)/,
+	);
+
+	// Each deadline reports its own: 60s for the page, 10s for the domain check.
+	const timedOut = Object.assign(new Error("The operation was aborted due to timeout"), { name: "TimeoutError" });
+	assert.equal(transportReason(timedOut, 60_000), "no response within 60s");
+	assert.equal(transportReason(timedOut, 10_000), "no response within 10s");
+	// undici wraps a multi-address connection failure in an AggregateError, whose own message is empty.
+	const refused = Object.assign(new Error("connect ECONNREFUSED 127.0.0.1:443"), { code: "ECONNREFUSED" });
+	assert.equal(
+		transportReason(transportFailure(new AggregateError([refused])), 60_000),
+		"connect ECONNREFUSED 127.0.0.1:443 (ECONNREFUSED)",
+	);
+
+	// An abort is the user cancelling the turn, so it passes through for pi to render as cancellation, once.
+	attempts = 0;
+	stub(() => {
+		attempts++;
+		throw Object.assign(new Error("This operation was aborted"), { name: "AbortError" });
+	});
+	await assert.rejects(fetchPage("https://a.example/x"), { name: "AbortError" });
+	assert.equal(attempts, 1);
 } finally {
 	globalThis.fetch = realFetch;
 	clearPageCache();

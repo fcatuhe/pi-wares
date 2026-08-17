@@ -12,6 +12,7 @@ const USER_AGENT = "Claude-User (2.1.222; +https://support.anthropic.com/)";
 const ACCEPT = "text/markdown, text/html, */*";
 const DOMAIN_INFO_URL = "https://api.anthropic.com/api/web/domain_info?domain=";
 const DOMAIN_CHECK_TIMEOUT_MS = 10_000;
+const RETRY_DELAY_MS = 250;
 
 export interface Page {
 	url: string;
@@ -55,18 +56,31 @@ export function isSamePublisher(from: URL, to: URL): boolean {
 
 const clearedDomains = new Set<string>();
 
+// INFO: fc 17aug26 undici reports every transport failure as TypeError "fetch failed" and hangs the reason off error.cause, so a DNS blip, a refused connection and an expired certificate all read as two useless words. The chain is walked down to the reason a reader can act on, and its own deadline arrives as a bare TimeoutError naming neither host nor limit.
+export function transportReason(error: unknown, timeoutMs: number): string {
+	if (error instanceof Error && error.name === "TimeoutError") return `no response within ${timeoutMs / 1000}s`;
+	let reason: unknown = error;
+	while (reason instanceof Error && reason.cause !== undefined) reason = reason.cause;
+	if (reason instanceof AggregateError && reason.errors.length > 0) reason = reason.errors[0];
+	if (!(reason instanceof Error)) return String(reason);
+	const code = (reason as { code?: unknown }).code;
+	return typeof code === "string" ? `${reason.message} (${code})` : reason.message;
+}
+
 export async function assertFetchable(hostname: string, signal?: AbortSignal): Promise<void> {
 	if (clearedDomains.has(hostname)) return;
 	let canFetch: unknown;
 	try {
 		const timeout = AbortSignal.timeout(DOMAIN_CHECK_TIMEOUT_MS);
-		const response = await fetch(`${DOMAIN_INFO_URL}${encodeURIComponent(hostname)}`, {
+		const response = await fetchOnceMore(`${DOMAIN_INFO_URL}${encodeURIComponent(hostname)}`, {
 			signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
 		});
 		if (!response.ok) throw new Error(`status ${response.status}`);
 		canFetch = ((await response.json()) as { can_fetch?: unknown }).can_fetch;
 	} catch (error) {
-		throw new Error(`Cannot verify whether ${hostname} allows fetching: ${(error as Error).message}`);
+		throw new Error(
+			`Cannot verify whether ${hostname} allows fetching: ${transportReason(error, DOMAIN_CHECK_TIMEOUT_MS)}`,
+		);
 	}
 	if (canFetch !== true) {
 		throw new Error(`${hostname} has opted out of being fetched by Claude`);
@@ -78,11 +92,7 @@ export async function assertFetchable(hostname: string, signal?: AbortSignal): P
 async function fetchFollowing(url: URL, signal: AbortSignal): Promise<Response> {
 	let target = url;
 	for (let hop = 0; ; hop++) {
-		const response = await fetch(target, {
-			redirect: "manual",
-			signal,
-			headers: { "user-agent": USER_AGENT, accept: ACCEPT },
-		});
+		const response = await reach(target, signal);
 		const location = response.status >= 300 && response.status < 400 ? response.headers.get("location") : null;
 		if (!location) return response;
 		if (hop >= MAX_REDIRECTS) {
@@ -93,6 +103,31 @@ async function fetchFollowing(url: URL, signal: AbortSignal): Promise<Response> 
 			throw new Error(`${target.href} redirects to another site. Fetch ${next.href} instead.`);
 		}
 		target = next;
+	}
+}
+
+// INFO: fc 17aug26 both calls here are GETs, so one retry is safe, and a transport failure is usually a blip: the first fetch of this page failed with ENOTFOUND while the same URL answered in 1.3s moments later. undici raises a TypeError for a transport failure and a DOMException for a deadline or an abort, neither of which a second attempt helps: a retried timeout would double the wait.
+async function fetchOnceMore(url: string | URL, init: RequestInit): Promise<Response> {
+	try {
+		return await fetch(url, init);
+	} catch (error) {
+		if (!(error instanceof TypeError)) throw error;
+		await new Promise((resume) => setTimeout(resume, RETRY_DELAY_MS));
+		return await fetch(url, init);
+	}
+}
+
+// INFO: fc 17aug26 an abort is the user cancelling the turn, and pi renders it as such: only a transport failure is rewritten.
+async function reach(target: URL, signal: AbortSignal): Promise<Response> {
+	try {
+		return await fetchOnceMore(target, {
+			redirect: "manual",
+			signal,
+			headers: { "user-agent": USER_AGENT, accept: ACCEPT },
+		});
+	} catch (error) {
+		if (error instanceof Error && error.name === "AbortError") throw error;
+		throw new Error(`Cannot reach ${target.host}: ${transportReason(error, FETCH_TIMEOUT_MS)}`);
 	}
 }
 
