@@ -119,8 +119,8 @@ Copies of upstream skills, so one install covers them. They drift, resync delibe
 | Skill | Upstream | Copied at |
 |---|---|---|
 | `skills-available/brave-search/` | [badlogic/pi-skills](https://github.com/badlogic/pi-skills) (MIT) | `90bb51c`, minus the `npm install` setup step |
-| `gog/` | [openclaw/gogcli](https://github.com/openclaw/gogcli) `.agents/skills/gog/` (MIT) | `v0.34.1`, verbatim. Documents flags the CLI only gained in that release, so track `gog --version`. |
-| `outline-cli/` | [Doist/outline-cli](https://github.com/Doist/outline-cli) (MIT) | `v1.10.2`, verbatim. After `ol update`, `ol skill install pi` regenerates it into `~/.pi/skills/`: diff and copy. |
+| `gog/` | [openclaw/gogcli](https://github.com/openclaw/gogcli) `.agents/skills/gog/` (MIT) | `v0.37.0`, verbatim. Resync when `gog --version` moves. |
+| `outline-cli/` | [Doist/outline-cli](https://github.com/Doist/outline-cli) (MIT) | `v1.10.4`, verbatim. `ol skill install pi --local` regenerates it: diff and copy. |
 
 ## Bundled extensions
 
