@@ -1,23 +1,64 @@
 onboarding = false
 
+# omarchy's config/herdr/config.toml is the standard, one file for both machines.
+# Three layers: its prefix chords verbatim, its alt chords verbatim, and a ctrl+alt
+# chord where macOS never delivers the alt one. Hyprland owns every super chord and
+# macOS Ghostty binds nothing on ctrl+alt, so no layer collides with the other machine.
 [keys]
 prefix = "ctrl+space"
-previous_tab = "cmd+shift+left"
-next_tab = "cmd+shift+right"
-previous_workspace = "cmd+shift+up"
-next_workspace = "cmd+shift+down"
-new_tab = "cmd+shift+t"
-close_pane = "cmd+alt+w"
-close_tab = "cmd+shift+w"
-rename_tab = "cmd+shift+r"
-focus_pane_left = "cmd+alt+left"
-focus_pane_down = "cmd+alt+down"
-focus_pane_up = "cmd+alt+up"
-focus_pane_right = "cmd+alt+right"
+
+# Config and help
+reload_config = "prefix+q"
+help = "prefix+?"
+detach = "prefix+d"
+
+# Copy mode
+copy_mode = "prefix+["
+
+# Panes. Option composes no character out of enter and esc, so those alt chords do arrive on macOS.
+split_horizontal = ["prefix+h", "alt+enter", "ctrl+alt+enter"]
+split_vertical = ["prefix+v", "alt+shift+enter", "ctrl+alt+shift+enter"]
+close_pane = ["prefix+x", "alt+esc", "ctrl+alt+esc"]
+zoom = "prefix+z"
+last_pane = "prefix+;"
+
+# No tmux equivalent; herdr's default prefix+shift+p is taken by previous workspace
+rename_pane = "prefix+shift+o"
+
+# Arrows are pane focus and resize on both machines, which is what puts tab and
+# workspace navigation on hjkl here rather than on ctrl+alt+arrows.
+focus_pane_left = "ctrl+alt+left"
+focus_pane_down = "ctrl+alt+down"
+focus_pane_up = "ctrl+alt+up"
+focus_pane_right = "ctrl+alt+right"
+
+resize_mode = ["prefix+ctrl+left", "prefix+ctrl+down", "prefix+ctrl+up", "prefix+ctrl+right"]
+resize_pane_left = "ctrl+alt+shift+left"
+resize_pane_down = "ctrl+alt+shift+down"
+resize_pane_up = "ctrl+alt+shift+up"
+resize_pane_right = "ctrl+alt+shift+right"
+
+# Windows -> tabs. Ghostty makes alt+left/right shell word motion on macOS and Option
+# composes a character out of alt+1..9, so those three get a ctrl+alt chord of their own.
+new_tab = ["prefix+c", "ctrl+alt+t"]
+rename_tab = ["prefix+r", "ctrl+alt+r"]
+close_tab = ["prefix+k", "ctrl+alt+w"]
+switch_tab = ["prefix+1..9", "alt+1..9", "ctrl+alt+1..9"]
+previous_tab = ["prefix+p", "alt+left", "ctrl+alt+h"]
+next_tab = ["prefix+n", "alt+right", "ctrl+alt+l"]
+move_tab_previous = ["alt+shift+left", "ctrl+alt+shift+h"]
+move_tab_next = ["alt+shift+right", "ctrl+alt+shift+l"]
+
+# Sessions -> workspaces, the tab chords with shift
+new_workspace = ["prefix+shift+c", "ctrl+alt+shift+t"]
+rename_workspace = ["prefix+shift+r", "ctrl+alt+shift+r"]
+close_workspace = ["prefix+shift+k", "ctrl+alt+shift+w"]
+previous_workspace = ["prefix+shift+p", "alt+up", "ctrl+alt+k"]
+next_workspace = ["prefix+shift+n", "alt+down", "ctrl+alt+j"]
 
 # New tab running pi, focused, in one keystroke.
 [[keys.command]]
-key = "cmd+shift+i"
+key = "ctrl+alt+i"
 type = "shell"
 command = 'p=$(herdr tab create --focus); p=${p#*\"pane_id\":\"}; herdr pane run "${p%%\"*}" pi'
 
