@@ -1,6 +1,6 @@
 import { applyEdits, modify, parse } from "jsonc-parser";
 
-import { diffDefaults, writes } from "./defaults-diff.js";
+import { diffDefaults, members, writes } from "./defaults-diff.js";
 
 const FORMATTING = { formattingOptions: { insertSpaces: true, tabSize: 2 } };
 
@@ -17,8 +17,4 @@ export function reconcileJson(actualSource, referenceSource, identityByPath = {}
 		text = applyEdits(text, modify(text, finding.path, value, FORMATTING));
 	}
 	return { findings, text };
-}
-
-function members(finding) {
-	return Array.isArray(finding.found) ? [...finding.found, ...finding.absent] : finding.expected;
 }

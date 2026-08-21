@@ -80,6 +80,15 @@ assert.equal(state(edited.findings, "keys.command"), "diverged");
 assert.match(edited.text, /command = 'mine'/);
 assert.equal((edited.text.match(/\[\[keys\.command\]\]/g) ?? []).length, 1, "the entry was duplicated");
 
+// Alternate chords for one action: absent, the array lands whole; set as a lone string, it keeps that string and gains ours.
+const ALTERNATES_TOML = `[keys]\nnext_tab = ["prefix+n", "cmd+shift+right"]\nnew_tab = ["prefix+c", "cmd+shift+t"]\n`;
+const chords = reconcileToml(`[keys]\nnew_tab = "cmd+shift+t"\n`, ALTERNATES_TOML, IDENTITY);
+assert.equal(state(chords.findings, "keys.new_tab"), "incomplete");
+assert.equal(state(chords.findings, "keys.next_tab"), "missing");
+assert.match(chords.text, /new_tab = \["cmd\+shift\+t", "prefix\+c"\]/, "the chord the user set was dropped, or ours never added");
+assert.match(chords.text, /next_tab = \["prefix\+n", "cmd\+shift\+right"\]/, "the missing alternates never landed");
+assert.equal(reconcileToml(chords.text, ALTERNATES_TOML, IDENTITY).text, chords.text, "applying twice is not idempotent");
+
 // Absent root keys land in the root table, not inside the last table.
 const rootless = reconcileToml(`[keys]\nprefix = "ctrl+space"\n`, REFERENCE_TOML, IDENTITY);
 assert.match(rootless.text, /^onboarding = false\n\[keys\]/, "a root key was written into a table");

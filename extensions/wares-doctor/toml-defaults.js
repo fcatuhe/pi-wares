@@ -1,6 +1,6 @@
 import { getStaticTOMLValue, parseTOML } from "toml-eslint-parser";
 
-import { diffDefaults, writes } from "./defaults-diff.js";
+import { diffDefaults, members, writes } from "./defaults-diff.js";
 
 export function reconcileToml(actualSource, referenceSource, identityByPath = {}, force = false) {
 	const reference = parseTOML(referenceSource);
@@ -29,7 +29,12 @@ export function reconcileToml(actualSource, referenceSource, identityByPath = {}
 			appends.push(sliceNode(referenceSource, reference.comments, node));
 			continue;
 		}
-		if (finding.kind !== "value") {
+		if (finding.kind === "members" && finding.state === "incomplete") {
+			const extension = extend(finding, actualIndex);
+			if (extension) replacements.push(extension);
+			continue;
+		}
+		if (finding.kind !== "value" && finding.kind !== "members") {
 			throw new Error(`cannot write a ${finding.kind} finding into TOML at ${finding.path.join(".")}`);
 		}
 
@@ -53,6 +58,20 @@ export function reconcileToml(actualSource, referenceSource, identityByPath = {}
 	}
 
 	return { findings, text: appendBlocks(applyEdits(actualSource, inserts, replacements), appends) };
+}
+
+// A binding the user set as one string becomes an array holding theirs and ours, the way herdr reads alternates.
+function extend(finding, actualIndex) {
+	const where = finding.path.join(".");
+	const value = actualIndex.values.get(where)?.node.value;
+	if (!value) {
+		finding.blocked = `no ${where} written plainly enough to extend`;
+		return undefined;
+	}
+	const list = members(finding)
+		.map((member) => JSON.stringify(member))
+		.join(", ");
+	return { at: value.range[0], through: value.range[1], text: `[${list}]` };
 }
 
 function replace(finding, referenceSource, referenceIndex, actualIndex) {

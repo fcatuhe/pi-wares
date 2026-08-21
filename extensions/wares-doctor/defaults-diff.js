@@ -10,6 +10,16 @@ function sameEntry(reference, found) {
 	return Object.entries(reference).every(([key, value]) => sameScalar(value, found[key]));
 }
 
+export function members(finding) {
+	return [...present(finding.found), ...finding.absent];
+}
+
+// A single value where the reference lists several is one member of that list, not a different kind of value.
+function present(found) {
+	if (Array.isArray(found)) return found;
+	return found === undefined ? [] : [found];
+}
+
 export function writes(finding, force) {
 	if (finding.state === "missing" || finding.state === "incomplete") return true;
 	return force && finding.state === "diverged";
@@ -45,8 +55,7 @@ function collect(reference, actual, path, identityByPath, findings) {
 function diffArray(path, expected, found, identityByPath) {
 	if (expected.every(isRecord)) return diffEntries(path, expected, found, identityByPath);
 
-	const present = Array.isArray(found) ? found : [];
-	const absent = expected.filter((member) => !present.includes(member));
+	const absent = expected.filter((member) => !present(found).includes(member));
 	return [
 		{
 			kind: "members",
