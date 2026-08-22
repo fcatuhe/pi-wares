@@ -17,6 +17,10 @@ Adding a policy: create `policy-<name>/` with a `policy.md` and an `index.ts` of
 
 Markers are searched in cwd and every directory above it, never below. A workspace holding sibling repos sees only what its own root declares, so `cd` into the repo. One consequence of walking up: if `$HOME` is itself a repo, as with dotfiles, `policy-git` loads everywhere.
 
+## Injected, then enforced
+
+A policy is read once per turn and enforced by nobody. Where a rule is mechanical, a checker at the moment of the edit does what a paragraph cannot: [`comment-check`](../comment-check/) blocks a write whose new comment lines break `policy-code-comment`.
+
 ## Inject or make it a skill
 
 |  | Inject here | Skill |
