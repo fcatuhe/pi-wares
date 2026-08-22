@@ -150,7 +150,7 @@ assert.deepEqual(
     "  pi settings",
     "  model shortcuts",
     "  markdown preview",
-    "  codex subagents",
+    "  subagents",
     "  herdr",
   ],
   "a bare machine did not list every target it would create",

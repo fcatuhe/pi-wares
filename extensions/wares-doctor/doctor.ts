@@ -201,7 +201,7 @@ function targets(): Target[] {
 			hint: "next /preview:md picks it up",
 		},
 		{
-			label: "codex subagents",
+			label: "subagents",
 			reference: "config/pi/pi-codex-subagents/config.json",
 			path: join(agentDir, "pi-codex-subagents", "config.json"),
 			hint: "restart pi",
