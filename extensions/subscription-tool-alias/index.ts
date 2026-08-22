@@ -6,7 +6,7 @@ const MAX_TOOL_NAME_LENGTH = 128;
 const WRAPPER_DIRS = new Set(["extensions", "dist", "src", "build"]);
 const FALLBACK_NAMESPACE = "local";
 
-// INFO: fc 05aug26 "cli" is what the transport's own first system block calls itself, and each phrase carries enough of its stock sentence that "Raspberry Pi" or "calculate pi" in project instructions cannot match it | 06aug26 upstream rewording then matches nothing and the prompt keeps its own wording.
+// INFO: fc 05aug26 each phrase carries enough of its stock sentence that a user's own "Raspberry Pi" cannot match it
 const CLIENT_NAME_PHRASES: Array<[string, string]> = [
 	["operating inside pi, a coding agent harness", "operating inside a coding agent harness"],
 	[
@@ -46,7 +46,7 @@ export function rewritePromptText(text: string): string {
 	return result;
 }
 
-// INFO: fc 05aug26 pi's stock prompt declares each tool as "- <name>: <snippet>" under "Available tools", never on the first line of a block, which is what the leading newline anchors to.
+// INFO: fc 05aug26 pi declares each tool as "- <name>: <snippet>", never on a block's first line, which the newline anchors to
 function rewriteToolDeclarations(text: string, renames: Array<[string, string]>): string {
 	let result = text;
 	for (const [flat, alias] of renames) {
@@ -115,7 +115,7 @@ export function transformPayload(
 		if (isPlainObject(tool)) advertised.add(lower(tool.name));
 	}
 
-	// INFO: fc 05aug26 pi canonicalizes every tool this transport accepts as-is (read -> Read) before the hook runs, so a name still spelled exactly as registered is the one needing an alias.
+	// INFO: fc 05aug26 pi canonicalizes every tool this transport accepts as-is (read -> Read), so a name spelled as registered needs one
 	const resolve: AliasResolver = (name) => {
 		const committed = maps.aliasByFlat.get(name);
 		if (committed) return committed;
@@ -205,7 +205,7 @@ export default function subscriptionToolAlias(pi: ExtensionAPI): void {
 		maps.flatByAlias.clear();
 	});
 
-	// INFO: fc 06aug26 the tool set being validated belongs to the subscription transport, so the guard names it: pi has no isUsingSubscription on the extension registry, it is composed as pi's own ModelRuntime does (model-runtime.js:334).
+	// INFO: fc 06aug26 pi has no isUsingSubscription on the extension registry, so it is composed as its own ModelRuntime does (model-runtime.js:334)
 	pi.on("before_provider_request", (event, ctx) => {
 		const model = ctx.model;
 		if (!model || model.provider !== "anthropic") return undefined;

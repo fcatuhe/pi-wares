@@ -79,8 +79,7 @@ assert.throws(() => parseSearchResults({ content: [{ type: "web_search_tool_resu
 assert.equal(parseText({ content: [{ type: "text", text: "a " }, { type: "thinking" }, { type: "text", text: "b" }] }), "a b");
 assert.throws(() => parseText({ content: [{ type: "text", text: "   " }] }), /no text/);
 
-// The search request carries the query verbatim and exactly one server tool. A quoted phrase is common in
-// search terms, so the query is tag-delimited rather than wrapped in quotes it would close early.
+// A quoted phrase is common in search terms, so the query is tag-delimited rather than quoted, which it would close early.
 const request = searchRequest("claude-haiku-4-5", 'zig "0.16"');
 assert.equal(request.model, "claude-haiku-4-5");
 assert.deepEqual(request.tools, [{ type: "web_search_20250305", name: "web_search", max_uses: 1 }]);
@@ -160,8 +159,7 @@ assert.equal(isSamePublisher(new URL("https://www.a.example/x"), new URL("https:
 assert.equal(isSamePublisher(new URL("https://a.example/x"), new URL("https://b.example/y")), false);
 assert.equal(isSamePublisher(new URL("https://a.example/x"), new URL("https://a.example:8443/y")), false);
 
-// Taking the Claude-User name means keeping its policy: every hostname is cleared against Anthropic's
-// can_fetch endpoint, and a publisher who opted out is refused rather than fetched under that name.
+// Taking the Claude-User name means keeping its policy: a publisher who opted out is refused, not fetched under it.
 const realFetch = globalThis.fetch;
 const stub = (handler: (url: string, init?: RequestInit) => Response) => {
 	globalThis.fetch = async (input: unknown, init?: RequestInit) => handler(String(input), init);
@@ -170,8 +168,7 @@ const domainInfo = (canFetch: boolean) => new Response(JSON.stringify({ can_fetc
 const isDomainCheck = (url: string) => url.startsWith("https://api.anthropic.com/api/web/domain_info");
 
 try {
-	// The check gets a deadline of its own: passing the caller's signal straight through would leave a
-	// hung endpoint hanging the tool until the user aborts the turn.
+	// The check gets a deadline of its own, or a hung endpoint holds the tool until the user aborts the turn.
 	let checkSignal: AbortSignal | null | undefined;
 	const caller = new AbortController().signal;
 	stub((url, init) => {
@@ -208,8 +205,7 @@ try {
 	);
 	await assert.rejects(fetchPage("https://a.example/start"), /redirects to another site\. Fetch https:\/\/elsewhere\.example\/x/);
 
-	// A DNS blip used to reach the model as undici's bare "fetch failed", which sent it to curl to find out what
-	// broke. Both the host and the reason undici buried in error.cause belong in the message.
+	// A DNS blip reached the model as undici's bare "fetch failed" and sent it to curl to find out what broke.
 	const transportFailure = (cause: Error) => Object.assign(new TypeError("fetch failed"), { cause });
 	const enotfound = Object.assign(new Error("getaddrinfo ENOTFOUND a.example"), { code: "ENOTFOUND" });
 	let attempts = 0;
@@ -333,10 +329,7 @@ async function heardWhile<T>(work: () => Promise<T> | T): Promise<{ heard: strin
 	}
 }
 
-// One page for every rule the conversion applies, each shape one a site really serves, converted once and
-// watched while it runs. The style attribute is the css-tree bomb: 300 transitions exhaust its match limit and
-// it warns straight onto the terminal the TUI is drawing on (lexer/match.js:528), which is what a jsdom
-// pipeline did here before the guard.
+// One page per conversion rule, each shape one a site serves, and the style attribute is the css-tree bomb.
 const bomb = "all 1s ease 1s, ".repeat(300);
 const page = `<!doctype html><html><head><title>Spec &amp; Sheet</title><base href="/reviews/">
 <style>.card { .title { color: red } }</style></head><body>
@@ -381,8 +374,7 @@ for (const gone of ["home", "Sign in", "Phones", "Sponsored", "cookie banner", "
 	assert.doesNotMatch(markdown, new RegExp(gone), `chrome survived: ${gone}`);
 }
 assert.doesNotMatch(markdown, /\n{3,}/);
-// Repetition is content in documentation, and a link list is the content of an index page, so neither
-// deduplicating lines nor dropping link-dense ones is allowed: both were prototyped and both lost pages.
+// Repetition is content in documentation and a link list is the content of an index page: both passes lost pages.
 assert.equal(markdown.match(/asyncio\.run/g)?.length, 5);
 for (const n of [1, 2, 3]) assert.match(markdown, new RegExp(`\\[Post ${n}\\]\\(https://example\\.com/post-${n}\\)`));
 

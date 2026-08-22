@@ -43,7 +43,7 @@ Any other provider clears the status. Tokens come from `~/.pi/agent/auth.json`, 
 ## Behavior
 
 - Published with `ctx.ui.setStatus("usage", ...)`, so the built-in footer, [`compact-footer`](../compact-footer/) and any other footer render it without extra wiring.
-- Polls every 5 minutes, plus immediately on session start (which pi also fires on `/new`, `/resume` and `/fork`) and on model change. The countdown text therefore lags by up to 5 minutes.
+- Polls every 5 minutes, plus immediately on session start (which pi also fires on `/new`, `/resume` and `/fork`) and on model change. The countdown text therefore lags by up to 5 minutes, and a re-render on `turn_end` is the fix if that ever reads as wrong.
 - Last good snapshot per provider is written to `~/.pi/agent/usage-pace.json`, so a failed or timed-out (5s) request leaves the bar as-is instead of blanking it, and a new session shows a bar before its first poll. No auth, no status.
 - **One poll per 5 minutes machine-wide, not per session.** Each refresh reads the shared file, adopts it if newer than what it holds, and stakes `polledAt` before fetching, so sessions starting in the same second don't stampede. Whichever session wins the slot feeds every other one. This matters: the Anthropic endpoint answers 429 when polled hard.
 - Windows whose reset time has already passed are dropped on load rather than shown stale.

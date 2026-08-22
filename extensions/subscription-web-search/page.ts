@@ -1,4 +1,4 @@
-// INFO: fc 06aug26 limits, validation and cache lifted from Claude Code 2.1.222's own web fetch, so a page reads the same here as there: 10MB response, 60s, 10 redirects, 2000 character URLs, 1MB of source into the converter, 100k characters of markdown to the model, 15 minute cache capped at 50MB.
+// INFO: fc 06aug26 every limit here is Claude Code 2.1.222's own, read out of its binary, so a page reads the same there
 const FETCH_TIMEOUT_MS = 60_000;
 const MAX_PAGE_BYTES = 10_485_760;
 const MAX_REDIRECTS = 10;
@@ -7,7 +7,7 @@ const MAX_SOURCE_CHARS = 1_048_576;
 const MAX_MARKDOWN_CHARS = 100_000;
 const CACHE_TTL_MS = 900_000;
 const CACHE_MAX_BYTES = 52_428_800;
-// INFO: fc 06aug26 Claude-User is the agent a site sees when a Claude model reads a page to answer someone's question, which is exactly this traffic, on the user's own Anthropic subscription. Claiming the name means keeping its policy: every hostname is cleared against Anthropic's own can_fetch endpoint below, so a publisher who has opted out is refused here as it would be in Claude Code.
+// INFO: fc 06aug26 claiming Claude Code's own agent name means keeping its policy, which assertFetchable below is
 const USER_AGENT = "Claude-User (2.1.222; +https://support.anthropic.com/)";
 const ACCEPT = "text/markdown, text/html, */*";
 const DOMAIN_INFO_URL = "https://api.anthropic.com/api/web/domain_info?domain=";
@@ -48,7 +48,7 @@ export function validateUrl(url: string): URL {
 	return parsed;
 }
 
-// INFO: fc 17aug26 a redirect may not change publisher: same port, same host bar a leading www. Protocol and credentials are not compared because validateUrl has already forced https and refused both, on every hop.
+// INFO: fc 17aug26 a redirect may not change publisher: same port, same host bar a leading www
 export function isSamePublisher(from: URL, to: URL): boolean {
 	const bare = (url: URL) => url.hostname.replace(/^www\./, "");
 	return from.port === to.port && bare(from) === bare(to);
@@ -56,7 +56,7 @@ export function isSamePublisher(from: URL, to: URL): boolean {
 
 const clearedDomains = new Set<string>();
 
-// INFO: fc 17aug26 undici reports every transport failure as TypeError "fetch failed" and hangs the reason off error.cause, so a DNS blip, a refused connection and an expired certificate all read as two useless words. The chain is walked down to the reason a reader can act on, and its own deadline arrives as a bare TimeoutError naming neither host nor limit.
+// INFO: fc 17aug26 undici reports every transport failure as TypeError "fetch failed" and hangs the actual reason off error.cause
 export function transportReason(error: unknown, timeoutMs: number): string {
 	if (error instanceof Error && error.name === "TimeoutError") return `no response within ${timeoutMs / 1000}s`;
 	let reason: unknown = error;
@@ -106,7 +106,7 @@ async function fetchFollowing(url: URL, signal: AbortSignal): Promise<Response> 
 	}
 }
 
-// INFO: fc 17aug26 both calls here are GETs, so one retry is safe, and a transport failure is usually a blip: the first fetch of this page failed with ENOTFOUND while the same URL answered in 1.3s moments later. undici raises a TypeError for a transport failure and a DOMException for a deadline or an abort, neither of which a second attempt helps: a retried timeout would double the wait.
+// INFO: fc 17aug26 undici raises a TypeError for a transport failure, which a retry helps, and a DOMException for a deadline, which it does not
 async function fetchOnceMore(url: string | URL, init: RequestInit): Promise<Response> {
 	try {
 		return await fetch(url, init);
@@ -136,7 +136,6 @@ export function capMarkdown(markdown: string): { markdown: string; truncated: bo
 	return { markdown: markdown.slice(0, MAX_MARKDOWN_CHARS), truncated: true };
 }
 
-// INFO: fc 17aug26 the cache is keyed by url and not by prompt, so a second question about one page costs no second fetch.
 const cache = new Map<string, { page: Page; expires: number }>();
 
 export function cachePage(url: string, page: Page): void {
@@ -194,7 +193,7 @@ export async function fetchPage(url: string, signal?: AbortSignal): Promise<Page
 	return page;
 }
 
-// INFO: fc 17aug26 a converter writing to the process console lands on the terminal pi's TUI is drawing, one row above the prompt, since interactive mode leaves process.stdout alone (takeOverStdout runs only for the non-interactive modes). Conversion is synchronous, so nothing else can be writing while the process is held.
+// INFO: fc 17aug26 interactive mode leaves process.stdout alone, so a library's grumble lands on the frame pi is drawing
 const CONSOLE_METHODS = ["log", "warn", "error", "info", "debug", "trace"] as const;
 const swallow = () => true;
 
@@ -268,9 +267,9 @@ const description = (image: Element): string => {
 
 function stripToContent(document: Document): void {
 	for (const element of all(document, CHROME)) element.remove();
-	// INFO: fc 17aug26 turndown's own image rule matches before its remove list, so remove(["img"]) is silently a no-op and an undescribed image has to go from the document instead.
+	// INFO: fc 17aug26 turndown's own image rule matches before its remove list, so remove(["img"]) is silently a no-op
 	for (const image of all(document, "img")) if (!description(image)) image.remove();
-	// INFO: fc 17aug26 turndown reads the href attribute rather than the resolved property, and a relative href is a dead end for a model whose next move is to fetch it.
+	// INFO: fc 17aug26 turndown reads the href attribute rather than the resolved property, and a relative href is a dead end
 	for (const link of all(document, "a[href], area[href]")) {
 		if (OPAQUE_HREF.test(link.getAttribute("href") ?? "")) link.removeAttribute("href");
 		else link.setAttribute("href", (link as HTMLAnchorElement).href);
@@ -299,7 +298,7 @@ function plainText(contentType: string, body: string): string {
 	return body.trim();
 }
 
-// INFO: fc 06aug26 read through the stream and stop at the cap: content-length is absent on chunked responses, and response.text() would buffer the whole body before any check.
+// INFO: fc 06aug26 content-length is absent on chunked responses, and response.text() would buffer the body before any check
 async function readCapped(response: Response): Promise<{ text: string; bytes: number }> {
 	const declared = Number(response.headers.get("content-length") ?? Number.NaN);
 	if (Number.isFinite(declared) && declared > MAX_PAGE_BYTES) {

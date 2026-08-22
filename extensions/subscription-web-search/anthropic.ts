@@ -2,15 +2,15 @@ import type { Api, Model, Usage } from "@earendil-works/pi-ai";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 const ANTHROPIC_VERSION = "2023-06-01";
-// INFO: fc 06aug26 the OAuth protocol beta, not client identity: this endpoint takes a bare subscription token, without the Claude Code system block and user-agent the main conversation needs.
+// INFO: fc 06aug26 the OAuth protocol beta, not client identity: this endpoint takes a bare subscription token
 const OAUTH_BETA = "oauth-2025-04-20";
 const SEARCH_TOOL = { type: "web_search_20250305", name: "web_search", max_uses: 1 };
 const WORKER_MODEL_IDS = ["claude-haiku-4-5", "claude-sonnet-5"];
-// INFO: fc 06aug26 the cap has to outlast the tool arguments, or the turn stops mid-call and no search runs: MAX_QUERY_CHARS of query is ~140 tokens of JSON. Past the results block the model only writes prose we discard, so the rest of the budget is deliberately small.
+// INFO: fc 06aug26 the budget has to outlast the tool arguments, or the turn stops mid-call and no search runs
 export const MAX_QUERY_CHARS = 400;
 const SEARCH_MAX_TOKENS = 300;
 const SUMMARY_MAX_TOKENS = 2048;
-// INFO: fc 06aug26 without a deadline of its own a stalled request hangs the tool until the user aborts the turn; summarizing a capped page takes seconds, not minutes.
+// INFO: fc 06aug26 without a deadline of its own a stalled request hangs the tool until the user aborts the turn
 const REQUEST_TIMEOUT_MS = 120_000;
 
 export interface Worker {
@@ -43,14 +43,14 @@ export function formatResults(results: SearchResult[], elapsedMs: number): strin
 	return [head, "", ...lines, "", "Titles and URLs only. Read a result with webfetch."].join("\n");
 }
 
-// INFO: fc 17aug26 pi's own formatDuration is module-private to core/tools/bash.js, so unlike formatSize it cannot be imported. Same shape, so a duration reads the same in both rows.
+// INFO: fc 17aug26 pi's own is module-private to core/tools/bash.js, so unlike formatSize it cannot be imported
 export function formatDuration(ms: number): string {
 	return `${(ms / 1000).toFixed(1)}s`;
 }
 
 export async function resolveWorker(ctx: ExtensionContext): Promise<Worker> {
 	const registry = ctx.modelRegistry;
-	// INFO: fc 14aug26 getAvailable() is every catalog model of an authenticated provider (model-runtime.js:171), so membership is the auth check. A preferred worker first, then the cheapest, never merely the first: a 300k character page summarized on Opus costs dollars where Haiku costs cents.
+	// INFO: fc 14aug26 getAvailable() is every catalog model of an authenticated provider (model-runtime.js:171), so membership is the auth check
 	const anthropic = registry.getAvailable().filter((model) => model.provider === "anthropic");
 	const model =
 		WORKER_MODEL_IDS.map((id) => anthropic.find((candidate) => candidate.id === id)).find(Boolean) ??
@@ -154,7 +154,7 @@ export function parseText(response: unknown): string {
 	return text;
 }
 
-// INFO: fc 17aug26 the counts are ours to read off the response. The money is pi's calculateCost, which also applies tiered rates and the double charge on 1h cache writes.
+// INFO: fc 17aug26 the counts are ours to read off the response, the money is pi's calculateCost
 export function usageTokens(response: unknown): UsageTokens {
 	const raw = isRecord(response) && isRecord(response.usage) ? response.usage : {};
 	return {
@@ -184,7 +184,7 @@ export async function postMessages(
 	});
 	const text = await response.text();
 	if (response.status === 429) {
-		// INFO: fc 06aug26 the subscription rate limits per model, so this says which one rather than inviting a retry loop on a model that is out.
+		// INFO: fc 06aug26 the subscription rate limits per model, so this names the model rather than inviting a retry loop
 		throw new Error(`${body.model} is rate limited on this account. Retry later.`);
 	}
 	if (!response.ok) {

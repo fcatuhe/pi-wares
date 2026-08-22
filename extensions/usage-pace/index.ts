@@ -17,8 +17,7 @@ import {
 } from "./usage.ts";
 
 const REFRESH_MS = 5 * 60_000;
-// INFO: fc 04aug26 the marker is LIGHT UP, half-height: it rides above the bar's centerline so it
-// never reads as fill
+// INFO: fc 04aug26 half-height, so the marker rides above the bar's centerline and never reads as fill
 const GLYPH: Record<Cell, string> = { full: "━", empty: "─", mark: "╵" };
 const PROVIDERS: Record<string, Provider> = { anthropic: "claude", "openai-codex": "codex" };
 const SNAPSHOT_FILE = join(getAgentDir(), "usage-pace.json");
@@ -59,8 +58,7 @@ function codexToken(): { token: string; accountId?: string } | undefined {
 	return undefined;
 }
 
-// INFO: fc 31jul26 the snapshot file shares last good windows across sessions, one poll serves all of them;
-// last writer wins, fine for a display cache, needs per-provider locking only if ever read back as truth
+// INFO: fc 31jul26 last writer wins, fine for a display cache, and only a truth source would need locking
 type Entry = { at: number; polledAt: number; windows: Window[] };
 type Snapshot = Record<string, Entry>;
 
@@ -80,8 +78,7 @@ function patchSnapshot(provider: Provider, patch: Partial<Entry>): void {
 	} catch {}
 }
 
-// INFO: fc 02aug26 polledAt is the attempt, at the last success: a failed attempt still holds the poll
-// slot without making stale numbers look fresh
+// INFO: fc 02aug26 polledAt is the attempt, so a failed one holds the slot without making stale numbers look fresh
 function claimPoll(provider: Provider): void {
 	patchSnapshot(provider, { polledAt: Date.now() });
 }
@@ -136,10 +133,7 @@ export default function (pi: ExtensionAPI) {
 	let ctxRef: any = null;
 	let timer: ReturnType<typeof setInterval> | null = null;
 
-	// INFO: fc 31jul26 countdown text only refreshes with the 5min poll, so it can lag
-	// by up to 5 minutes. Re-render on turn_end if that ever reads as wrong.
-	// INFO: fc 02aug26 ctx getters throw once the session is replaced/reloaded; drop the dead
-	// ctx and stop the timer, a fresh one arrives with the next session_start
+	// INFO: fc 02aug26 ctx getters throw once the session is replaced, and a fresh ctx arrives with the next session_start
 	function live(): any {
 		try {
 			ctxRef?.hasUI;

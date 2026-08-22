@@ -14,7 +14,7 @@ export function members(finding) {
 	return [...present(finding.found), ...finding.absent];
 }
 
-// A single value where the reference lists several is one member of that list, not a different kind of value.
+// INFO: fc 22aug26 a single value where the reference lists several is one member of that list
 function present(found) {
 	if (Array.isArray(found)) return found;
 	return found === undefined ? [] : [found];

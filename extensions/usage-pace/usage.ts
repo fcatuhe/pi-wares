@@ -21,9 +21,7 @@ function windowLabel(durationMs: number, fallback: string): string {
 	return `${Math.round(hours / 24)}d`;
 }
 
-// INFO: fc 11aug26 limits[] carries an integer percent per window, while the sibling five_hour and
-// seven_day objects report a float utilization whose unit cannot be told apart below 1 (0.6 is 0.6%,
-// not 60%). The weekly per-model cap (kind weekly_scoped) is left out: two bars are all the footer fits.
+// INFO: fc 11aug26 the sibling five_hour and seven_day objects report a float whose unit is unreadable below 1 (0.6 is 0.6%)
 export function parseClaude(data: any): Window[] {
 	const windows: Window[] = [];
 	for (const [kind, durationMs, label] of [
@@ -82,8 +80,7 @@ export function paceColor(usedPercent: number, elapsed: number): "success" | "wa
 	return over <= 10 ? "warning" : "error";
 }
 
-// INFO: fc 04aug26 fill and marker both floor: a cell is colored only once its quota is fully spent,
-// so the bar never claims spend that has not happened and both sides of the comparison share a scale
+// INFO: fc 04aug26 fill and marker both floor, so the bar never claims spend that has not happened
 export function barCells(usedPercent: number, elapsed: number, width = BAR_WIDTH_CELLS): Cell[] {
 	const filled = Math.floor((usedPercent / 100) * width);
 	const mark = Math.min(width - 1, Math.floor((elapsed / 100) * width));

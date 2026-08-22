@@ -98,8 +98,7 @@ export default function (pi: ExtensionAPI) {
 		return !info || info.foreground_process_group_id === info.shell_pid;
 	}
 
-	// INFO: fc 07aug26 mdcat --watch never exits on its own, so reusing the pane means interrupting it:
-	// a command sent while it still runs would be typed into it and swallowed
+	// INFO: fc 07aug26 mdcat --watch never exits, so a command sent to the pane before interrupting it is swallowed
 	async function stopViewer(pane: string): Promise<void> {
 		if (await atPrompt(pane)) return;
 		await herdr(["pane", "send-keys", pane, "ctrl+c"]);
@@ -210,8 +209,7 @@ export default function (pi: ExtensionAPI) {
 		if (written && config().auto) void enqueue(() => show(file));
 	});
 
-	// INFO: fc 07aug26 the pane is borrowed: closing it only when the label is still the one we set
-	// leaves anything the user started in there alone
+	// INFO: fc 07aug26 the pane is borrowed, so closing it on our own label leaves what the user started alone
 	pi.on("session_shutdown", async () => {
 		shutdown = true;
 		// INFO: fc 07aug26 a split in flight would otherwise outlive the session it was opened for

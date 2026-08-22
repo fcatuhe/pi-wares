@@ -60,7 +60,7 @@ export function reconcileToml(actualSource, referenceSource, identityByPath = {}
 	return { findings, text: appendBlocks(applyEdits(actualSource, inserts, replacements), appends) };
 }
 
-// A binding the user set as one string becomes an array holding theirs and ours, the way herdr reads alternates.
+// INFO: fc 22aug26 herdr reads a repeated binding as alternates, so the user's string joins ours in an array
 function extend(finding, actualIndex) {
 	const where = finding.path.join(".");
 	const value = actualIndex.values.get(where)?.node.value;

@@ -1,7 +1,4 @@
-// INFO: fc 01aug26 main executable of Herdr.app. Ghostty takes the command to
-// run from argv only, and a Finder launch passes none, so this seeds the flags
-// and re-execs the ghostty symlink beside it. Compiled rather than a script:
-// launchd refuses an interpreted main executable under the hardened runtime.
+// INFO: fc 01aug26 main executable of Herdr.app: seeds the flags Ghostty only takes from argv, then re-execs the symlink beside it
 #include <limits.h>
 #include <mach-o/dyld.h>
 #include <stdint.h>
@@ -10,8 +7,7 @@
 #include <string.h>
 #include <unistd.h>
 
-// INFO: fc 01aug26 build.sh bakes these in with -D so one source builds many
-// apps: a plain Herdr, a --session one, a --remote one
+// INFO: fc 01aug26 build.sh bakes these in with -D, so one source builds every variant app
 #ifndef APP_TITLE
 #define APP_TITLE "Herdr"
 #endif
@@ -20,8 +16,7 @@
 #endif
 
 int main(void) {
-  // INFO: fc 01aug26 open(1) forwards the caller's environment, and herdr
-  // refuses to run nested inside one of its own panes
+  // INFO: fc 01aug26 open(1) forwards the caller's environment, and herdr refuses to run nested in its own pane
   const char *nested[] = {"HERDR_ENV", "HERDR_TAB_ID", "HERDR_SOCKET_PATH",
                           "HERDR_WORKSPACE_ID", "HERDR_PANE_ID"};
   for (size_t i = 0; i < sizeof(nested) / sizeof(*nested); i++) unsetenv(nested[i]);
@@ -36,9 +31,7 @@ int main(void) {
   const char *home = getenv("HOME");
   if (home == NULL) return 1;
 
-  // INFO: fc 01aug26 the login shell restores the PATH launchd withholds from a
-  // Finder launch, the OSC 0 replaces the ghost emoji Ghostty titles a window
-  // with until herdr sends its own title
+  // INFO: fc 01aug26 the login shell restores the PATH launchd withholds, and OSC 0 replaces Ghostty's ghost emoji
   char command[PATH_MAX];
   if (snprintf(command, sizeof(command),
                "--command=/bin/zsh -lc 'printf \"\\033]0;%s\\a\"; exec %s/.local/bin/herdr%s'",

@@ -121,8 +121,7 @@ export default function (pi: ExtensionAPI) {
 		});
 	}
 
-	// INFO: fc 02aug26 herdr replays a backlog of recent events on every subscribe, so event
-	// payloads are untrusted: any rename notification only triggers a re-read deduped above
+	// INFO: fc 02aug26 herdr replays a backlog on every subscribe, so a rename notification only triggers a re-read
 	function scheduleSync(): void {
 		clearTimeout(settleTimer);
 		settleTimer = setTimeout(pullFromTab, EVENT_SETTLE_MS);
@@ -207,8 +206,7 @@ export default function (pi: ExtensionAPI) {
 		liveRequests.clear();
 	});
 
-	// INFO: fc 02aug26 pi borrows the label and returns it on teardown, otherwise a dead
-	// session's name sticks to the tab forever: the next unnamed session never adopts it
+	// INFO: fc 02aug26 the label is borrowed and returned on teardown, or a dead session's name sticks to the tab
 	async function restoreOriginalLabel(): Promise<void> {
 		if (!originalLabel || !syncedLabel || originalLabel === syncedLabel) return;
 		const labelIsStillOurs = (await getTabLabel()) === syncedLabel;

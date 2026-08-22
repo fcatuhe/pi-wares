@@ -1,6 +1,3 @@
-// INFO: fc 30jul26 one extension per policy, so pi config toggles them one by one
-// INFO: fc 30jul26 appended at the END of the system prompt and byte-identical every turn, so it caches once per session
-
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";

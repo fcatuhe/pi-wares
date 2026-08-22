@@ -15,8 +15,7 @@ assert.equal(format(mixed), "50 tok/s");
 
 assert.equal(format([{ tokens: 419, seconds: 10 }]), "42 tok/s");
 
-// A message that streamed in a single chunk has no measurable window, and a cached or empty
-// reply has no tokens: both would push the rate to nonsense.
+// A single-chunk message has no measurable window and an empty reply no tokens: both make the rate nonsense.
 assert.deepEqual(record([], { tokens: 800, seconds: 0 }), []);
 assert.deepEqual(record([], { tokens: 0, seconds: 4 }), []);
 assert.deepEqual(record([], { tokens: 800, seconds: Number.POSITIVE_INFINITY }), []);

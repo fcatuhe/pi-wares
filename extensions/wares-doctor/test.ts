@@ -30,8 +30,7 @@ pane_scrollbars = false
 kitty_graphics = true
 `;
 
-// A user file that diverges on purpose: its own comment, its own alignment, a
-// prefix it chose itself, and no [ui] or [experimental] table at all.
+// A file that diverges on purpose: its own comment, alignment and prefix, and no [ui] or [experimental] table.
 const USER_TOML = `onboarding = false
 
 [theme]

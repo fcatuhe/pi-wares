@@ -5,9 +5,6 @@ import { CONFIG_DIR_NAME, FooterComponent, getAgentDir } from "@earendil-works/p
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
 // INFO: fc 02aug26 mirrors SettingsManager.getCompactionEnabled(): project settings over global, default true
-// INFO: fc 02aug26 a live /settings auto-compact toggle emits no extension event, so the (auto) indicator
-// reads stale until the next footer construction; cosmetic only, proper fix upstream (a settings event or
-// autoCompactEnabled on ExtensionContext)
 function autoCompactEnabled(cwd: string): boolean {
 	for (const file of [join(cwd, CONFIG_DIR_NAME, "settings.json"), join(getAgentDir(), "settings.json")]) {
 		try {

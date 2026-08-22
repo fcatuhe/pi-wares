@@ -20,8 +20,7 @@ assert.equal(namespaceFrom({ path: "/repo/packages/pi-foo/index.ts", baseDir: "/
 assert.equal(namespaceFrom({ path: "<builtin:ls>" }), "local");
 assert.equal(namespaceFrom(undefined), "local");
 
-// A candidate for every registered tool except real mcp__ ones. Whether a candidate applies is
-// decided per payload, not here.
+// A candidate for every registered tool except real mcp__ ones, whether it applies being a per-payload decision.
 const registry = [
 	{ name: "read", sourceInfo: { path: "<builtin:read>" } },
 	{ name: "spawn_agent", sourceInfo: { path: "/x/pi-codex-subagents/index.ts" } },
@@ -39,9 +38,7 @@ assert.equal(candidates.get("read"), "mcp__local__read");
 // A name the provider would reject as an alias is left without one.
 assert.equal(buildAliasCandidates([{ name: "foo.bar", sourceInfo: { path: "/x/pi-a/i.ts" } }]).size, 0);
 
-// An extension can opt out of aliasing by naming its tool as the transport spells its own: pi-ai
-// canonicalizes "websearch" to "WebSearch" before this hook, so the payload name misses the
-// candidate map keyed by registered names, and the tool goes out under the first-party name.
+// Naming a tool as the transport spells its own opts out: canonicalized to "WebSearch", it misses the candidate map.
 const firstParty = transformPayload(
 	{ tools: [{ name: "WebSearch", input_schema: {} }] },
 	buildAliasCandidates([{ name: "websearch", sourceInfo: { path: "/x/pi-wares/extensions/subscription-web-search/index.ts" } }]),
@@ -49,8 +46,7 @@ const firstParty = transformPayload(
 );
 assert.deepEqual((firstParty.tools as Array<{ name: string }>).map((tool) => tool.name), ["WebSearch"]);
 
-// Names differing only in case are separate tools in the registry, so they keep separate
-// aliases. A lowercase-keyed index dropped one of them, and it went out unaliased.
+// Names differing only in case are separate tools, and a lowercase-keyed index sent one out unaliased.
 const caseCandidates = buildAliasCandidates([
 	{ name: "Run", sourceInfo: { path: "/x/pi-alpha/index.ts" } },
 	{ name: "run", sourceInfo: { path: "/x/pi-beta/index.ts" } },
@@ -58,8 +54,7 @@ const caseCandidates = buildAliasCandidates([
 assert.equal(caseCandidates.get("Run"), "mcp__alpha__Run");
 assert.equal(caseCandidates.get("run"), "mcp__beta__run");
 
-// Over the provider's 128-char name limit the namespace is truncated, never the flat name:
-// the flat name is what routes the call back. Skipped only when it cannot fit at all.
+// Over the provider's 128-char limit the namespace is truncated, never the flat name that routes the call back.
 const longName = "a".repeat(100);
 const longAlias = buildAliasCandidates([
 	{ name: longName, sourceInfo: { path: "/x/pi-a-very-long-package-name/i.ts" } },
@@ -68,8 +63,7 @@ assert.equal(longAlias?.length, 128);
 assert.ok(longAlias?.endsWith(`__${longName}`));
 assert.equal(buildAliasCandidates([{ name: "b".repeat(125), sourceInfo: { path: "/x/pi-a/i.ts" } }]).size, 0);
 
-// Payload transform: system rewrite, tool rename with metadata preserved, canonicalized and
-// native passthrough, tool_choice and history remap.
+// Payload transform: system, tools with their metadata, canonicalized and native passthrough, tool_choice, history.
 const maps = createAliasMaps();
 const payload = {
 	system: [
@@ -80,8 +74,7 @@ const payload = {
 		},
 	],
 	tools: [
-		// The transport canonicalized the registered "read" to "Read" before this hook, which is
-		// how we know it accepts that name unaliased. "ls" came through untouched, so it needs one.
+		// "read" arriving as "Read" is how we know the transport accepts it unaliased, where "ls" needs one.
 		{ name: "Read", description: "read", input_schema: {} },
 		{ name: "ls", description: "list a directory", input_schema: {} },
 		{
@@ -114,9 +107,9 @@ const payload = {
 	],
 };
 const out = transformPayload(payload, candidates, maps);
-// System text: the "Available tools" declarations follow the wire name, since they tell the model
-// which tools exist in this payload. Prose mentioning a tool is left as the author wrote it, and
-// the declaration for a tool the transport canonicalized is untouched.
+// The "Available tools" declarations follow the wire name, since they say what this payload carries.
+
+// Prose mentioning a tool is left as the author wrote it, and a canonicalized declaration is untouched.
 assert.equal(
 	(out.system as any)[0].text,
 	"Available tools:\n- mcp__local__ls: List directory contents\n- read: Read file contents\n- mcp__codex_subagents__spawn_agent: Spawn a subagent\n\nRun ls before spawn_agent.",
@@ -152,8 +145,7 @@ assert.equal((payload.messages[0].content[0] as { name: string }).name, "spawn_a
 // Idempotency: transforming the transformed payload changes nothing.
 assert.deepEqual(transformPayload(out, candidates, maps), out);
 
-// Collision: a real tool already advertising the derived alias name blocks the mapping,
-// so the flat tool passes through and the real tool's calls are never hijacked.
+// A real tool already advertising the derived alias blocks the mapping, so its calls are never hijacked.
 const collisionMaps = createAliasMaps();
 const collisionOut = transformPayload(
 	{
@@ -177,8 +169,7 @@ assert.equal(
 	false,
 );
 
-// Unaliasing: aliased calls return to their flat names in place, foreign mcp calls and
-// canonicalized names are left alone, and wait_agent resolves from the history remap earlier.
+// Aliased calls return to their flat names in place, foreign mcp and canonicalized names are left alone.
 const assistant = {
 	role: "assistant",
 	content: [
@@ -204,8 +195,7 @@ const userMessage = {
 assert.equal(unaliasToolCalls(userMessage, maps), false);
 assert.equal(userMessage.content[0]!.name, "mcp__codex_subagents__spawn_agent");
 
-// A canonicalized name is left alone wherever it appears, including history for a tool the
-// current request no longer advertises. An untouched one is aliased from the registry there too.
+// A canonicalized name is left alone wherever it appears, history for an unadvertised tool included.
 const historyMaps = createAliasMaps();
 const historyOut = transformPayload(
 	{
@@ -259,8 +249,7 @@ assert.equal(
 	"- Always read cli .md files completely and follow links to related docs",
 );
 
-// Words that are not the product name survive: a general \bpi\b pass turned these into nonsense in
-// project instructions, and a bare phrase does the same to whatever the user writes about a Pi.
+// Words that are not the product name survive: a general \bpi\b pass turned these into nonsense.
 const unrelated = [
 	"Calculate pi to 20 digits.",
 	"See the Raspberry Pi documentation for pinout details.",

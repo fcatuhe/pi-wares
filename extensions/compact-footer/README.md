@@ -6,4 +6,6 @@ Wraps the built-in `FooterComponent`, truncates the path with an ellipsis to mak
 
 Status order is its own rather than the built-in alphabetical: `usage` then `token-rate` pinned rightmost, every other status alphabetical to their left. Unknown or renamed keys fall back into the alphabetical group.
 
+The `(auto)` compaction indicator reads project settings over global, mirroring `SettingsManager.getCompactionEnabled()`. A live `/settings` toggle emits no extension event, so it reads stale until the next footer construction. Cosmetic, and the proper fix is upstream: a settings event, or `autoCompactEnabled` on `ExtensionContext`.
+
 No config. No commands.

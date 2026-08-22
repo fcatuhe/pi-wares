@@ -19,8 +19,7 @@ assert.deepEqual(parseShortcuts('{"opus":{"provider":"anthropic","model":"claude
 	opus: { provider: "anthropic", model: "claude-opus-5", thinkingLevel: undefined },
 });
 
-// Provider and model are what make a shortcut resolvable, so an entry missing either is dropped
-// rather than registering a command that can only ever fail.
+// An entry missing provider or model is dropped, rather than registering a command that can only fail.
 assert.deepEqual(parseShortcuts('{"opus":{"provider":"anthropic"}}'), {});
 assert.deepEqual(parseShortcuts('{"opus":{"model":"claude-opus-5"}}'), {});
 assert.deepEqual(parseShortcuts('{"opus":{"provider":"  ","model":"claude-opus-5"}}'), {});
@@ -33,8 +32,7 @@ assert.deepEqual(parseShortcuts('{"o":{"provider":"a","model":"m","thinkingLevel
 	o: { provider: "a", model: "m", thinkingLevel: undefined },
 });
 
-// Names collide with the /off ... /max commands registered for thinking, so they are ignored,
-// and surrounding whitespace never reaches a slash command.
+// Names colliding with the /off ... /max thinking commands are ignored, whitespace and all.
 for (const level of LEVELS) {
 	assert.deepEqual(parseShortcuts(`{"${level}":{"provider":"a","model":"m"}}`), {});
 	assert.equal(isLevel(level), true);

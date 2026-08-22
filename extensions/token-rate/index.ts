@@ -32,8 +32,7 @@ export default function (pi: ExtensionAPI) {
 		lastChunkMs = null;
 	});
 
-	// INFO: fc 11aug26 the stream window, not the turn: clocking from turn_start would put queueing,
-	// time to first token and the whole thinking phase in the denominator
+	// INFO: fc 11aug26 the stream window, not the turn: turn_start puts queueing and thinking in the denominator
 	pi.on("message_update", (event) => {
 		if (event.message.role !== "assistant") return;
 		const now = Date.now();

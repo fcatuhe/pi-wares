@@ -3,8 +3,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 
 const PROVIDER = "anthropic";
 const TOKEN_PREFIX = "sk-ant-oat01-";
-// INFO: fc 06aug26 pi's login input submits on newline, so a token pasted with a line wrap arrives cut
-// short with its prefix intact. Length is the only check that catches that. openclaw validates the same 80.
+// INFO: fc 06aug26 pi's input submits on newline, so a wrapped paste arrives cut short with its prefix intact
 const MIN_TOKEN_LENGTH = 80;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const TOKEN_LIFETIME_DAYS = 365;
@@ -46,8 +45,7 @@ function rotationMs(date: string): number {
 export function rotationRejection(date: string, now: number = Date.now()): string | undefined {
 	if (!DATE_PATTERN.test(date)) return `Expected YYYY-MM-DD, got ${date}`;
 	const ms = rotationMs(date);
-	// INFO: fc 06aug26 Date.parse rejects month 13 but rolls 2027-02-31 into March, so only the round
-	// trip proves the day exists.
+	// INFO: fc 06aug26 Date.parse rejects month 13 but rolls 2027-02-31 into March, so only the round trip proves the day
 	if (Number.isNaN(ms)) return `No such date: ${date}`;
 	if (dateOf(ms) !== date) return `No such date: ${date}, that is ${dateOf(ms)}`;
 	if (ms <= now) return `${date} has passed, pi would retry a refresh it cannot make on every request`;
@@ -101,8 +99,7 @@ export function withTokenLogin(base: OAuthAuth): OAuthAuth {
 	return Object.defineProperty(wrapped, WRAPPED, { value: true });
 }
 
-// INFO: fc 06aug26 the marker rides on the method itself because /reload reruns this module against a
-// registry that still holds the previous registration, and wrapping a wrapper stacks a second selector.
+// INFO: fc 06aug26 /reload reruns this module against a registry that still holds the previous registration
 function isWrapped(oauth: OAuthAuth): boolean {
 	return Reflect.get(oauth, WRAPPED) === true;
 }
