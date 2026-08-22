@@ -17,6 +17,12 @@ Adding a policy: create `policy-<name>/` with a `policy.md` and an `index.ts` of
 
 Markers are searched in cwd and every directory above it, never below. A workspace holding sibling repos sees only what its own root declares, so `cd` into the repo. One consequence of walking up: if `$HOME` is itself a repo, as with dotfiles, `policy-git` loads everywhere.
 
+## Subagents
+
+`subagent-policies/` loads every `policy-*` sibling through one entry point, because a spawned subagent starts with `--no-extensions --no-skills --no-context-files` and a 107-byte system prompt of its own. Its path, and [`comment-check`](../comment-check/)'s, are named in [`config/pi/pi-codex-subagents/config.json`](../../config/pi/pi-codex-subagents/config.json), so a spawn writes code under the same rules as the session that spawned it. Nothing loads this directory in the parent: it matches neither manifest glob, so no policy is injected twice.
+
+One side effect, from the subagents extension: naming any `defaults.extensions` stops it passing the parent's tool list to the child, which then starts with pi's built-in tools instead of the inherited set.
+
 ## Injected, then enforced
 
 A policy is read once per turn and enforced by nobody. Where a rule is mechanical, a checker at the moment of the edit does what a paragraph cannot: [`comment-check`](../comment-check/) blocks a write whose new comment lines break `policy-code-comment`.

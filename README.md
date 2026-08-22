@@ -134,7 +134,7 @@ Third-party pi extensions folded in as npm `dependencies` and exposed through th
 
 Caret ranges, so unpinned. pi only re-runs `npm install` on a fresh install or when this repo's default branch gets a new commit: push a commit here, then `pi update --extensions` picks up newer releases within the major. `.npmrc` sets `legacy-peer-deps=true` for the `@earendil-works/*` and `typebox` peers pi provides at runtime.
 
-The subagents extension offers its per-spawn `model` and `thinking` arguments only when `~/.pi/agent/pi-codex-subagents/config.json` sets `"modelsFromEnabledModels": true`, which points it at pi's own list. So `/models` stays the single approval list. [`config/`](./config/README.md) ships that file, `/wares-doctor` writes it.
+The subagents extension offers its per-spawn `model` and `thinking` arguments only when `~/.pi/agent/pi-codex-subagents/config.json` sets `"modelsFromEnabledModels": true`, which points it at pi's own list. So `/models` stays the single approval list. The same file names the extensions every spawn loads, since a subagent starts with `--no-extensions` and would otherwise write code under no policy at all. [`config/`](./config/README.md) ships that file, `/wares-doctor` writes it.
 
 Templates load from `~/.pi/agent/pi-codex-subagents/agents/` only, so a template is machine state like the rest of `config/`. [`rails-review.md`](./config/pi/pi-codex-subagents/agents/rails-review.md) is the first one: `spawn_agent(agent_type: "rails-review")` gets read-only tools, the [`rails-review`](./skills/rails-review/SKILL.md) skill and a standing prompt, so a caller sends the scope and nothing else.
 

@@ -1,10 +1,9 @@
 import assert from "node:assert";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-// Marker detection runs when the extension registers, so one process covers every
-// case: chdir into a scratch tree, load the extension, read what it injects.
+// Markers are read per call, so one process covers every case: chdir, load, read what it injects.
 async function injected(name: string): Promise<string> {
   const load = (await import(`./${name}/index.ts`)).default;
   let handler: any;
@@ -55,4 +54,19 @@ for (const [which, { files, ...expected }] of Object.entries(CASES)) {
     assert.equal(prompt.startsWith("BASE\n\n"), expected[marker], `${which}: policy-${marker}`);
   }
 }
+
+// A subagent starts with --no-extensions, so this one path has to carry every policy that applies.
+const root = scratch([".git/HEAD", "config/application.rb", "index.html"]);
+const handlers: Array<(event: { systemPrompt: string }) => Promise<{ systemPrompt: string }>> = [];
+const loadAll = (await import("./subagent-policies/index.ts")).default;
+await loadAll({ on: (_: string, fn: never) => handlers.push(fn) } as never);
+
+let aggregate = "BASE";
+for (const handler of handlers) aggregate = (await handler({ systemPrompt: aggregate })).systemPrompt;
+
+for (const name of [...ALWAYS, "policy-git", "policy-frontend", "policy-rails"]) {
+  const headline = readFileSync(join(import.meta.dirname, name, "policy.md"), "utf8").split("\n")[0];
+  assert.ok(aggregate.includes(headline), `${name} never reaches a subagent`);
+}
+assert.equal(handlers.length, 6, `a policy directory was added without a subagent reaching it (${root})`);
 
