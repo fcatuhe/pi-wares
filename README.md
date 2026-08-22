@@ -93,7 +93,7 @@ Loaded on demand rather than injected, so they can be as long as they need to be
 | [`gog/`](./skills/gog/SKILL.md) | Safe [`gog`](https://github.com/openclaw/gogcli) Google Workspace automation: auth state, JSON output, scoped reads and writes. |
 | [`outline-cli/`](./skills/outline-cli/SKILL.md) | Search and manage [Outline](https://www.getoutline.com) wiki documents and collections via the [`ol`](https://github.com/Doist/outline-cli) CLI. |
 | [`agent-browser/`](./skills/agent-browser/SKILL.md) | Headed Chrome and an existing `~/.agent-browser` session for the [`agent-browser`](https://agent-browser.dev) CLI, which serves the usage guide itself. |
-| [`rails-review/`](./skills/rails-review/SKILL.md) | Review Rails code against sources rather than memory: the repo's own patterns, the guides and gem source for the version in `Gemfile.lock`, then shallow clones of Fizzy, Campfire, Writebook and the unofficial 37signals guide under `~/.cache/pi-wares/rails-review`. The `rails-review` subagent template loads it. |
+| [`rails-review/`](./skills/rails-review/SKILL.md) | Rails review that cites its sources: the repo's own patterns first, then the gem source for the version in `Gemfile.lock`, then shallow clones of Fizzy, Campfire and Writebook under `~/.cache/pi-wares/rails-review`. The `rails-review` subagent loads it. |
 
 ## Skills available
 
@@ -136,7 +136,7 @@ Caret ranges, so unpinned. pi only re-runs `npm install` on a fresh install or w
 
 The subagents extension offers its per-spawn `model` and `thinking` arguments only when `~/.pi/agent/pi-codex-subagents/config.json` sets `"modelsFromEnabledModels": true`, which points it at pi's own list. So `/models` stays the single approval list. The same file names the extensions every spawn loads, since a subagent starts with `--no-extensions` and would otherwise write code under no policy at all. [`config/`](./config/README.md) ships that file, `/wares-doctor` writes it.
 
-Templates load from `~/.pi/agent/pi-codex-subagents/agents/` only, so a template is machine state like the rest of `config/`. [`rails-review.md`](./config/pi/pi-codex-subagents/agents/rails-review.md) is the first one: `spawn_agent(agent_type: "rails-review")` gets read-only tools, the [`rails-review`](./skills/rails-review/SKILL.md) skill and a standing prompt, so a caller sends the scope and nothing else.
+Templates load from `~/.pi/agent/pi-codex-subagents/agents/` only, so a template is machine state like the rest of `config/`. [`rails-review.md`](./config/pi/pi-codex-subagents/agents/rails-review.md) is the first one: `spawn_agent(agent_type: "rails-review")` gets read-only tools, the [`rails-review`](./skills/rails-review/SKILL.md) skill and a prompt, so the caller sends a scope and nothing else.
 
 ## Layout
 
