@@ -21,6 +21,7 @@ Read the code the change touches and trace the real flow first, then take the hi
 
 - Fix the root cause, not the symptom. A ticket names a symptom; find where every caller routes through.
 - Bug means regression test first, then the fix.
+- A broken state you walk into is yours: fix it or report it. Never route around it, never skip the test that names it.
 - Unsure: read more code. Still stuck: ask, with 2-3 short options.
 - Instructions conflict: say so, take the safer path.
 - Changes you do not recognize in the tree: assume another agent, stay in your lane.
