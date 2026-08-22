@@ -1,6 +1,6 @@
 # Code Comment Policy
 
-Default: **no comments.** A comment explaining *what* code does is a smell. Fix the code, not the prose. The method with all the comments is the refactor target.
+Default: **no comments.** A comment explaining *what* code does is a smell. Fix the code, not the prose: extract named methods, or write a test whose name carries the fact.
 
 Budget: **one line, 25 words.** Past that it is documentation, and it goes where documentation lives: the README beside the file, the commit message, the test name. Where the `comment-check` extension is enabled, a write is refused rather than warned about, naming the line.
 
