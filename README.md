@@ -94,6 +94,14 @@ Loaded on demand rather than injected, so they can be as long as they need to be
 | [`agent-browser/`](./skills/agent-browser/SKILL.md) | Headed Chrome and an existing `~/.agent-browser` session for the [`agent-browser`](https://agent-browser.dev) CLI, which serves the usage guide itself. |
 | [`rails-review/`](./skills/rails-review/SKILL.md) | Rails review that cites its sources: the repo's own patterns first, then the gem source for the version in `Gemfile.lock`, then shallow clones of Fizzy, Campfire and Writebook under `~/.cache/pi-wares/rails-review`. The `rails-review` subagent loads it. |
 
+## Prompts
+
+Slash commands that expand into a prompt, no extension behind them.
+
+| Prompt | What it does |
+|---|---|
+| [`rails-review.md`](./prompts/rails-review.md) | `/rails-review [base ref or paths]` sends a resolved scope to the [`rails-review`](./config/pi/pi-codex-subagents/agents/rails-review.md) subagent, defaulting to the uncommitted changes, and reports back what it found. |
+
 ## Skills available
 
 Outside the `pi` manifest, so nothing loads them and they cost no prompt tokens. `websearch` and `webfetch` from [`subscription-web-search/`](./extensions/subscription-web-search/) cover the same ground on the subscription token already paid for, so these two wait here for the session that wants a second opinion or hits a rate limit.
@@ -135,7 +143,7 @@ Caret ranges, so unpinned. pi only re-runs `npm install` on a fresh install or w
 
 The subagents extension offers its per-spawn `model` and `thinking` arguments only when `~/.pi/agent/pi-codex-subagents/config.json` sets `"modelsFromEnabledModels": true`, which points it at pi's own list. So `/models` stays the single approval list. The same file names the extensions every spawn loads, since a subagent starts with `--no-extensions` and would otherwise write code under no policy at all. [`config/`](./config/README.md) ships that file, `/wares-doctor` writes it.
 
-Templates load from `~/.pi/agent/pi-codex-subagents/agents/` only, so a template is machine state like the rest of `config/`. [`rails-review.md`](./config/pi/pi-codex-subagents/agents/rails-review.md) is the first one: `spawn_agent(agent_type: "rails-review")` gets read-only tools, the [`rails-review`](./skills/rails-review/SKILL.md) skill and a prompt, so the caller sends a scope and nothing else.
+Templates load from `~/.pi/agent/pi-codex-subagents/agents/` only, so a template is machine state like the rest of `config/`. [`rails-review.md`](./config/pi/pi-codex-subagents/agents/rails-review.md) is the first one: `spawn_agent(agent_type: "rails-review")` gets read-only tools, the [`rails-review`](./skills/rails-review/SKILL.md) skill and a prompt, so the caller sends a scope and nothing else. The [`/rails-review`](./prompts/rails-review.md) prompt is that call, scope resolved from the arguments.
 
 ## Layout
 
@@ -150,6 +158,7 @@ pi-wares/
 │       ├── test.ts           ← `npx tsx extensions/<ware>/test.ts`, runs off the pure half
 │       │                       `npm test` runs every extensions/*/test.ts, no registration
 │       └── README.md         ← per-ware docs, co-located with code
+├── prompts/                  ← one .md per slash command, filename is the command
 ├── skills/                   ← one folder per skill, each a SKILL.md
 ├── skills-available/         ← same shape, unlisted: opt in by path in settings
 ├── herdr-app/                ← macOS app that launches herdr, not a ware
