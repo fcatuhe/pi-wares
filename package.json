@@ -35,6 +35,6 @@
   },
   "devDependencies": {
     "@types/turndown": "^5.0.6",
-    "tsx": "^4.23.11"
+    "tsx": "^4.23.12"
   }
 }
