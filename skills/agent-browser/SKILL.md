@@ -1,6 +1,6 @@
 ---
 name: agent-browser
-description: agent-browser CLI (browser automation) - drive headed Chrome on a shared logged-in profile, one pinned tab per agent. Use whenever a task needs a browser: opening a page, filling a form, clicking, screenshotting, extracting data, or any site that needs a login.
+description: "agent-browser CLI (browser automation) - drive headed Chrome on a shared logged-in profile, one pinned tab per agent. Use whenever a task needs a browser: opening a page, filling a form, clicking, screenshotting, extracting data, or any site that needs a login."
 ---
 
 # agent-browser
