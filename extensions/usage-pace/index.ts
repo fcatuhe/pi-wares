@@ -5,6 +5,7 @@ import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
 import {
 	barCells,
+	blockedNotice,
 	type Cell,
 	elapsedPercent,
 	formatReset,
@@ -123,6 +124,7 @@ function renderWindow(w: Window, theme: any, now: number, stale: boolean): strin
 export default function (pi: ExtensionAPI) {
 	const KEY = "usage";
 	const cache = new Map<Provider, { at: number; windows: Window[] }>();
+	const heldUntil = new Map<Provider, number>();
 	const STALE_MS = 2 * REFRESH_MS;
 	let active: Provider | null = null;
 	let ctxRef: any = null;
@@ -143,36 +145,45 @@ export default function (pi: ExtensionAPI) {
 
 	function paint(): void {
 		if (!live()?.hasUI) return;
+		const now = Date.now();
 		const entry = active ? cache.get(active) : undefined;
-		if (!entry?.windows.length) {
-			ctxRef.ui.setStatus(KEY, undefined);
+		const windows = entry?.windows ?? [];
+		const until = (active ? heldUntil.get(active) : 0) ?? 0;
+		const note = until > now ? ctxRef.ui.theme.fg("dim", blockedNotice(until, windows.length > 0)) : "";
+		if (!windows.length) {
+			ctxRef.ui.setStatus(KEY, note || undefined);
 			return;
 		}
-		const now = Date.now();
-		const stale = now - entry.at > STALE_MS;
-		ctxRef.ui.setStatus(KEY, entry.windows.map((w) => renderWindow(w, ctxRef.ui.theme, now, stale)).join("  "));
+		const stale = now - (entry?.at ?? 0) > STALE_MS;
+		const bars = windows.map((w) => renderWindow(w, ctxRef.ui.theme, now, stale)).join("  ");
+		ctxRef.ui.setStatus(KEY, note ? `${bars}  ${note}` : bars);
 	}
 
 	async function refresh(providerId: string | undefined): Promise<void> {
 		const provider = PROVIDERS[providerId ?? ""] ?? null;
 		active = provider;
 		const saved = provider ? readSnapshot()[provider] : undefined;
+		if (provider) heldUntil.set(provider, saved?.blockedUntil ?? 0);
 		if (provider && saved && saved.at > (cache.get(provider)?.at ?? 0))
 			cache.set(provider, { at: saved.at, windows: saved.windows.filter((w) => w.resetsAt > Date.now()) });
 		paint();
 		if (!provider) return;
 		const polledRecentlyBySomeSession = saved && Date.now() - saved.polledAt < REFRESH_MS;
-		const rateLimited = saved?.blockedUntil ? Date.now() < saved.blockedUntil : false;
+		const rateLimited = Date.now() < (heldUntil.get(provider) ?? 0);
 		if (polledRecentlyBySomeSession || rateLimited) return;
 		claimPoll(provider);
 		try {
-			const { windows, blockedUntil } = await fetchUsage(provider);
-			if (blockedUntil) patchSnapshot(provider, { blockedUntil });
+			const poll = await fetchUsage(provider);
+			if (poll.blockedUntil) {
+				patchSnapshot(provider, { blockedUntil: poll.blockedUntil });
+				heldUntil.set(provider, poll.blockedUntil);
+			}
 			const modelSwitchedMidFlight = active !== provider;
 			if (modelSwitchedMidFlight) return;
-			if (windows.length) {
-				cache.set(provider, { at: Date.now(), windows });
-				writeSnapshot(provider, windows);
+			if (poll.windows.length) {
+				cache.set(provider, { at: Date.now(), windows: poll.windows });
+				writeSnapshot(provider, poll.windows);
+				heldUntil.set(provider, 0);
 			}
 			paint();
 		} catch {}

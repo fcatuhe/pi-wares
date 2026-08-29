@@ -14,6 +14,17 @@ Footer status showing the active subscription's usage as a bar with a **pace mar
 - Trailing text = absolute usage percent + time until the window resets.
 - `~` before the label (`~5h ━━━━╵───── 42% 3h`) = the numbers are older than two poll intervals (10 min), i.e. the endpoint has been failing. The countdown stays accurate, the percent does not.
 
+## Rate-limited
+
+While the endpoint is refusing the poll (see the 429 note below), the footer says so and says when it will try again:
+
+```
+no usage data until 00:17                              nothing cached, no bar to draw
+~5h ━━━━╵───── 42% 3h  ~7d ...  no update until 00:17  the bars are the last good read
+```
+
+A clock time, not a countdown: the status is only repainted every 5 minutes, so `42m` would read minutes late, `00:17` never does. The wording keeps the subject on the reading rather than the quota, a footer saying "usage blocked" reads as a suspended account.
+
 ## Color = pace, not usage
 
 Color answers "will I run out before this window resets?", so a high absolute percent is not red by itself:
@@ -45,7 +56,8 @@ Any other provider clears the status. Tokens come from `~/.pi/agent/auth.json` a
 - Published with `ctx.ui.setStatus("usage", ...)`, so the built-in footer, [`compact-footer`](../compact-footer/) and any other footer render it without extra wiring.
 - Polls every 5 minutes, plus immediately on session start (which pi also fires on `/new`, `/resume` and `/fork`) and on model change. The countdown text therefore lags by up to 5 minutes, and a re-render on `turn_end` is the fix if that ever reads as wrong.
 - Last good snapshot per provider is written to `~/.pi/agent/usage-pace.json`, so a failed or timed-out (5s) request leaves the bar as-is instead of blanking it, and a new session shows a bar before its first poll. No auth, no status.
-- **A 429 is obeyed.** `Retry-After` (delta seconds or HTTP date) is stored as `blockedUntil` in the same shared file and no session polls again before it. Without this the 5-minute tick spends the endpoint's hourly budget as fast as it frees, and the bar never comes back: it stays empty for hours with nothing in the log to say why. The Anthropic endpoint answers with a `Retry-After` around half an hour. A 429 without the header sets nothing, and the ordinary 5-minute interval is the backoff.
+- **A 429 is obeyed.** `Retry-After` (delta seconds or HTTP date) is stored as `blockedUntil` in the same shared file and no session polls again before it. Without this the 5-minute tick spends the endpoint's hourly budget as fast as it frees, and the bar never comes back: it stays empty for hours. The Anthropic endpoint answers with a `Retry-After` around half an hour. A 429 without the header sets nothing, and the ordinary 5-minute interval is the backoff.
+- **The hold is on screen, not only in the file.** An empty footer is indistinguishable from a broken extension, and that costs an evening of guessing. A successful poll clears the hold, so the notice cannot outlive the block.
 - **One poll per 5 minutes machine-wide, not per session.** Each refresh reads the shared file, adopts it if newer than what it holds, and stakes `polledAt` before fetching, so sessions starting in the same second don't stampede. Whichever session wins the slot feeds every other one. This matters: the Anthropic endpoint answers 429 when polled hard.
 - Windows whose reset time has already passed are dropped on load rather than shown stale.
 - Both endpoints are unofficial. Failures are swallowed and hide the segment.

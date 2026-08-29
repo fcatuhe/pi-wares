@@ -80,6 +80,15 @@ export function formatReset(resetsAt: number, now: number): string {
 	return hours % 24 ? `${Math.floor(hours / 24)}d${hours % 24}h` : `${Math.floor(hours / 24)}d`;
 }
 
+function formatClock(at: number): string {
+	const d = new Date(at);
+	return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+export function blockedNotice(until: number, hasWindows: boolean): string {
+	return `${hasWindows ? "no update" : "no usage data"} until ${formatClock(until)}`;
+}
+
 const PACE_JITTER_POINTS = 2;
 export function paceColor(usedPercent: number, elapsed: number): "success" | "warning" | "error" {
 	if (usedPercent >= 90) return "error";

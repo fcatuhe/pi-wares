@@ -1,6 +1,15 @@
 /** Self-check: npx tsx extensions/usage-pace/test.ts */
 import assert from "node:assert/strict";
-import { barCells, elapsedPercent, formatReset, paceColor, parseClaude, parseCodex, retryAfterMs } from "./usage.ts";
+import {
+	barCells,
+	blockedNotice,
+	elapsedPercent,
+	formatReset,
+	paceColor,
+	parseClaude,
+	parseCodex,
+	retryAfterMs,
+} from "./usage.ts";
 
 const HOUR = 3_600_000;
 const now = Date.now();
@@ -79,6 +88,11 @@ assert.equal(retryAfterMs("-60", now), 0);
 assert.equal(retryAfterMs("soon", now), undefined);
 assert.equal(retryAfterMs(null, now), undefined);
 assert.equal(retryAfterMs("", now), undefined);
+
+// Rate-limited: say when the numbers come back, and whether the bars on screen are the old ones.
+assert.equal(blockedNotice(new Date(2026, 7, 30, 0, 17).getTime(), false), "no usage data until 00:17");
+assert.equal(blockedNotice(new Date(2026, 7, 30, 0, 17).getTime(), true), "no update until 00:17");
+assert.equal(blockedNotice(new Date(2026, 7, 30, 9, 5).getTime(), true), "no update until 09:05");
 
 // Bar: one cell per 1/width of the quota, so the default 10-wide bar steps every 10%.
 assert.equal(barCells(42, 40).length, 10);
