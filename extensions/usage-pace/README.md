@@ -38,7 +38,7 @@ Whichever of these is the current model's provider:
 
 The weekly per-model cap (`weekly_scoped`, e.g. Opus) is **not** shown, two bars are all the footer fits: a green `7d` does not promise the model you are on has weekly quota left. The sibling `five_hour` / `seven_day` objects are ignored, their float `utilization` has no distinguishable unit below 1 (`0.6` is 0.6%, not 60%).
 
-Any other provider clears the status. Tokens come from `~/.pi/agent/auth.json`, falling back to the Claude Code macOS keychain entry and `$CODEX_HOME/auth.json`.
+Any other provider clears the status. Tokens come from `~/.pi/agent/auth.json` and nowhere else: whatever pi is authenticated as is what the bar reports on, and a provider pi has no credential for shows no bar.
 
 ## Behavior
 

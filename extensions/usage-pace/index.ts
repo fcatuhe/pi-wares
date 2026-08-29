@@ -1,6 +1,4 @@
-import { execSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
@@ -33,29 +31,12 @@ function authJson(): Record<string, any> {
 }
 
 function claudeToken(): string | undefined {
-	const access = authJson().anthropic?.access;
-	if (access) return access;
-	try {
-		const raw = execSync('security find-generic-password -s "Claude Code-credentials" -w', {
-			encoding: "utf8",
-			stdio: ["pipe", "pipe", "ignore"],
-		});
-		return JSON.parse(raw.trim()).claudeAiOauth?.accessToken;
-	} catch {
-		return undefined;
-	}
+	return authJson().anthropic?.access;
 }
 
 function codexToken(): { token: string; accountId?: string } | undefined {
 	const entry = authJson()["openai-codex"];
-	if (entry?.access) return { token: entry.access, accountId: entry.accountId };
-	try {
-		const data = JSON.parse(
-			readFileSync(join(process.env.CODEX_HOME || join(homedir(), ".codex"), "auth.json"), "utf8"),
-		);
-		if (data.tokens?.access_token) return { token: data.tokens.access_token, accountId: data.tokens.account_id };
-	} catch {}
-	return undefined;
+	return entry?.access ? { token: entry.access, accountId: entry.accountId } : undefined;
 }
 
 // INFO: fc 31jul26 last writer wins, fine for a display cache, and only a truth source would need locking
