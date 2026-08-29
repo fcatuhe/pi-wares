@@ -59,6 +59,14 @@ export function parseCodex(data: any): Window[] {
 	return windows;
 }
 
+export function retryAfterMs(header: string | null | undefined, now: number): number | undefined {
+	if (!header) return undefined;
+	const seconds = Number(header.trim());
+	if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
+	const date = Date.parse(header);
+	return Number.isFinite(date) ? Math.max(0, date - now) : undefined;
+}
+
 export function elapsedPercent(w: Window, now: number): number {
 	return clamp(((w.durationMs - (w.resetsAt - now)) / w.durationMs) * 100);
 }

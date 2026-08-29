@@ -1,6 +1,6 @@
 /** Self-check: npx tsx extensions/usage-pace/test.ts */
 import assert from "node:assert/strict";
-import { barCells, elapsedPercent, formatReset, paceColor, parseClaude, parseCodex } from "./usage.ts";
+import { barCells, elapsedPercent, formatReset, paceColor, parseClaude, parseCodex, retryAfterMs } from "./usage.ts";
 
 const HOUR = 3_600_000;
 const now = Date.now();
@@ -68,6 +68,17 @@ assert.equal(formatReset(now + 45 * 60_000, now), "45m");
 assert.equal(formatReset(now + 2 * HOUR + 38 * 60_000, now), "2h38m");
 assert.equal(formatReset(now + 3 * 24 * HOUR + 2 * HOUR, now), "3d2h");
 assert.equal(formatReset(now - 1000, now), "now");
+
+// Retry-After: delta seconds, an HTTP date, or nothing to go on.
+assert.equal(retryAfterMs("1907", now), 1_907_000);
+assert.equal(retryAfterMs(" 30 ", now), 30_000);
+assert.equal(retryAfterMs("0", now), 0);
+assert.equal(retryAfterMs(new Date(now + 2 * HOUR).toUTCString(), now), 2 * HOUR - (now % 1000)); // the date header floors to the second
+assert.equal(retryAfterMs(new Date(now - HOUR).toUTCString(), now), 0);
+assert.equal(retryAfterMs("-60", now), 0);
+assert.equal(retryAfterMs("soon", now), undefined);
+assert.equal(retryAfterMs(null, now), undefined);
+assert.equal(retryAfterMs("", now), undefined);
 
 // Bar: one cell per 1/width of the quota, so the default 10-wide bar steps every 10%.
 assert.equal(barCells(42, 40).length, 10);

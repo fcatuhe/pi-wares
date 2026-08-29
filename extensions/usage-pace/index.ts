@@ -11,6 +11,7 @@ import {
 	paceColor,
 	parseClaude,
 	parseCodex,
+	retryAfterMs,
 	type Window,
 } from "./usage.ts";
 
@@ -40,7 +41,7 @@ function codexToken(): { token: string; accountId?: string } | undefined {
 }
 
 // INFO: fc 31jul26 last writer wins, fine for a display cache, and only a truth source would need locking
-type Entry = { at: number; polledAt: number; windows: Window[] };
+type Entry = { at: number; polledAt: number; blockedUntil: number; windows: Window[] };
 type Snapshot = Record<string, Entry>;
 
 function readSnapshot(): Snapshot {
@@ -54,7 +55,7 @@ function readSnapshot(): Snapshot {
 function patchSnapshot(provider: Provider, patch: Partial<Entry>): void {
 	try {
 		const all = readSnapshot();
-		const prev = all[provider] ?? { at: 0, polledAt: 0, windows: [] };
+		const prev = all[provider] ?? { at: 0, polledAt: 0, blockedUntil: 0, windows: [] };
 		writeFileSync(SNAPSHOT_FILE, JSON.stringify({ ...all, [provider]: { ...prev, ...patch } }));
 	} catch {}
 }
@@ -65,23 +66,37 @@ function claimPoll(provider: Provider): void {
 }
 
 function writeSnapshot(provider: Provider, windows: Window[]): void {
-	patchSnapshot(provider, { at: Date.now(), polledAt: Date.now(), windows });
+	patchSnapshot(provider, { at: Date.now(), polledAt: Date.now(), blockedUntil: 0, windows });
 }
 
-async function fetchUsage(provider: Provider): Promise<Window[]> {
+type Poll = { windows: Window[]; blockedUntil?: number };
+
+async function fetchUsage(provider: Provider): Promise<Poll> {
 	const signal = AbortSignal.timeout(5000);
-	if (provider === "claude") {
-		const token = claudeToken();
-		if (!token) return [];
-		const res = await fetch("https://api.anthropic.com/api/oauth/usage", {
-			headers: { Authorization: `Bearer ${token}`, "anthropic-beta": "oauth-2025-04-20" },
-			signal,
-		});
-		return res.ok ? parseClaude(await res.json()) : [];
+	const res = provider === "claude" ? await fetchClaude(signal) : await fetchCodex(signal);
+	if (!res) return { windows: [] };
+	if (res.status === 429) {
+		const now = Date.now();
+		const wait = retryAfterMs(res.headers.get("retry-after"), now);
+		return wait === undefined ? { windows: [] } : { windows: [], blockedUntil: now + wait };
 	}
+	if (!res.ok) return { windows: [] };
+	return { windows: provider === "claude" ? parseClaude(await res.json()) : parseCodex(await res.json()) };
+}
+
+function fetchClaude(signal: AbortSignal): Promise<Response> | undefined {
+	const token = claudeToken();
+	if (!token) return undefined;
+	return fetch("https://api.anthropic.com/api/oauth/usage", {
+		headers: { Authorization: `Bearer ${token}`, "anthropic-beta": "oauth-2025-04-20" },
+		signal,
+	});
+}
+
+function fetchCodex(signal: AbortSignal): Promise<Response> | undefined {
 	const creds = codexToken();
-	if (!creds) return [];
-	const res = await fetch("https://chatgpt.com/backend-api/wham/usage", {
+	if (!creds) return undefined;
+	return fetch("https://chatgpt.com/backend-api/wham/usage", {
 		headers: {
 			Authorization: `Bearer ${creds.token}`,
 			Accept: "application/json",
@@ -90,7 +105,6 @@ async function fetchUsage(provider: Provider): Promise<Window[]> {
 		},
 		signal,
 	});
-	return res.ok ? parseCodex(await res.json()) : [];
 }
 
 function renderWindow(w: Window, theme: any, now: number, stale: boolean): string {
@@ -148,10 +162,12 @@ export default function (pi: ExtensionAPI) {
 		paint();
 		if (!provider) return;
 		const polledRecentlyBySomeSession = saved && Date.now() - saved.polledAt < REFRESH_MS;
-		if (polledRecentlyBySomeSession) return;
+		const rateLimited = saved?.blockedUntil ? Date.now() < saved.blockedUntil : false;
+		if (polledRecentlyBySomeSession || rateLimited) return;
 		claimPoll(provider);
 		try {
-			const windows = await fetchUsage(provider);
+			const { windows, blockedUntil } = await fetchUsage(provider);
+			if (blockedUntil) patchSnapshot(provider, { blockedUntil });
 			const modelSwitchedMidFlight = active !== provider;
 			if (modelSwitchedMidFlight) return;
 			if (windows.length) {
