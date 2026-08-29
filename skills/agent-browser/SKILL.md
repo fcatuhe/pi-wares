@@ -11,63 +11,72 @@ agent-browser skills get core   # the snapshot / @eN ref loop, extraction, waits
 
 `core` is the reference for *what to run*. This file overrides it on *how to launch and how to quit*.
 
-Install: `npm i -g agent-browser && agent-browser install`.
-
-## One Chrome, one tab per agent
-
-Everything runs in one headed Chrome on the profile `agent-browser`, which holds the logins. Each agent works in its own tab.
-
-**1. Start the browser.** Safe to re-run: `tab list` navigates nothing, and a second call reuses the running browser.
+## Setup, once per machine
 
 ```bash
-mkdir -p ~/.agent-browser && cp ~/.pi/agent/git/github.com/fcatuhe/pi-wares/skills/agent-browser/keeper.html ~/.agent-browser/keeper.html
-
-agent-browser --session agent-browser \
-  --profile ~/.agent-browser/profiles/agent-browser \
-  --executable-path "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
-  --headed --pin-tab \
-  --args "--disable-blink-features=AutomationControlled,--test-type,--no-first-run,--no-default-browser-check,--hide-crash-restore-bubble,file://$HOME/.agent-browser/keeper.html" \
-  tab list
+mise use -g "npm:agent-browser@latest"
+~/.pi/agent/git/github.com/fcatuhe/pi-wares/skills/agent-browser/setup.sh
 ```
 
-Run the block verbatim. Re-copy `keeper.html` every time, it is cheap and keeps the installed copy current. Chrome opens on it, the tab that holds the window open once every agent has left, and that `file://` startup URL is what keeps the window at one tab. `--disable-blink-features=AutomationControlled` keeps `navigator.webdriver` false, `--test-type` drops the yellow bad-flags bar that flag earns, `--hide-crash-restore-bubble` drops the "Restore pages?" bubble after a killed profile.
+`setup.sh` writes `~/.agent-browser/config.json`: the browser binary for this OS, the profile that holds the logins, headed, pinned tabs, and the launch args. Every `agent-browser` command on the machine reads that file, which is why no agent ever passes a launch flag. It also seeds the profile's `Preferences` with the settings that silence Chrome's own interruptions: no translation offer, no password manager, no autofill. Permission prompts are denied by `--deny-permission-prompts`, which covers every permission type, where a pref covers one type each.
 
-Chrome creates the profile directory on first use, logged out of every site. Ask the user to log in in the visible window, once, it persists.
+Re-run it when the browser moves or the OS changes. It refuses to run while the browser is up, because Chrome rewrites `Preferences` on exit and the new config fingerprint relaunches Chrome under everyone. Close the browser first.
 
-**2. Attach on your own tab.** Only the first command needs `--cdp` and `--pin-tab`:
+A nag that survives is a Chrome *setting*, so it belongs in that prefs block, not in `args`. `--disable-features=Translate` is on the command line and the translate bubble appears anyway, `translate.enabled` in the prefs is what stops it. `args` is split on commas as well as newlines, so a flag carrying a comma (`--disable-features=A,B`) cannot go there at all: the tail becomes a positional argument and Chrome opens it as a URL.
+
+The profile starts logged out of every site. Ask the user to log in in the visible window, once, it persists.
+
+On Linux the binary is `/usr/bin/chromium`, which reads `~/.config/chromium-flags.conf`, so the agent browser inherits the machine's chromium defaults (on Omarchy: Wayland, keyring, the omarchy extensions). The window's `app_id` is `agent-browser`, which keeps it out of the stock browser window rules and gives a placement rule something to match. Writing that rule is an Omarchy config change, see the `omarchy` skill.
+
+## One browser, one tab per agent
+
+Everything runs in one headed browser on the profile `agent-browser`, which holds the logins. Each agent works in its own tab.
+
+**1. Get the CDP url. Cold, this launches the browser.**
 
 ```bash
 CDP=$(agent-browser --session agent-browser get cdp-url)
+```
+
+Safe to re-run: warm it prints the url of the running browser and navigates nothing. Cold it opens Chrome on `keeper.html`, the tab that holds the window open once every agent has left.
+
+**2. Work on your own tab. Every command carries `--cdp "$CDP"`.**
+
+```bash
 agent-browser --session <you> --cdp "$CDP" --pin-tab open https://example.com
-agent-browser --session <you> snapshot -i
+agent-browser --session <you> --cdp "$CDP" snapshot -i
 ```
 
 `<you>` is your own name for this task, `hire-friedbert` or `docs-review`, never one already in `session list`. **The session owns the tab**, one tab each, so two agents on one name overwrite each other.
 
-`--pin-tab` starts you on a fresh tab. Unpinned, you adopt whichever tab is there: the keeper tab, or another agent's page.
+`--pin-tab` on the first command starts you on a fresh tab. Unpinned, you adopt whichever tab is there: the keeper tab, or another agent's page.
+
+Drop `--cdp` on a later command and it does not attach, it launches: the second Chrome collides with the locked profile, exits, and leaves a stray keeper tab in the shared window.
 
 **3. Close your tab when the task ends.** Not optional, the browser is shared:
 
 ```bash
-agent-browser --session <you> tab close
-agent-browser --session <you> close
-rm -f ~/.agent-browser/<you>.config ~/.agent-browser/<you>.target
+agent-browser --session <you> --cdp "$CDP" tab close
+agent-browser --session <you> --cdp "$CDP" close
+rm -f "$XDG_RUNTIME_DIR"/agent-browser/<you>.*
 ```
 
-`close` leaves those two files behind, and a stale `.target` rebinds your next command to a dead tab.
+`close` detaches your session only, the shared browser and the other agents survive it. It leaves session state behind, and a stale `.target` rebinds your next command to a dead tab.
 
 ## Rules
 
 - Never `close --all`, never close a session or a tab you did not open, keeper tab included.
-- Never navigate with the `agent-browser` session (`open`, `click`, `fill`). It follows whichever tab was opened last even under `--pin-tab`, so it can act on another agent's page. Reading it, `tab list` or `get cdp-url`, is safe.
-- Never pass `--profile`, `--restore`, `--headed` or `--executable-path` on your own commands. A different flag set relaunches the browser under everyone.
+- Never use the `agent-browser` session for anything but step 1. It owns the browser process, `--cdp` on it hangs, and navigating with it acts on whichever tab was opened last, another agent's page included.
+- Never pass `--profile`, `--restore`, `--headed`, `--executable-path` or `--args`. They live in `config.json`, and a different flag set relaunches the browser under everyone.
 - **Never `--restore` on a profile.** Two stores of auth, and the stale one overwrites the live cookies on launch, which logs the profile out.
 - Never headless: the UA says `HeadlessChrome`, `screen` is 800x600, and a `--user-agent` override makes it worse, it empties `navigator.userAgentData.brands`, which no real Chrome does.
+- A repo that ships its own `agent-browser.json` overrides the user config for commands run from that directory. Run from elsewhere, or read it first.
 - Landing on a login page means the session expired. Ask the user to log in in the open window. Never ask for credentials, never type them.
-- Launching steals macOS focus once, later commands do not. Leave the window visible so the user can watch and take over.
+- Launching steals focus once on macOS, later commands do not. Leave the window visible so the user can watch and take over.
 
 ## When something is off
 
 - Two agents starting the browser in the same second both fail with a daemon startup error. Wait a second and retry, one of them will already have it up.
-- `tab_gone`, or a CDP connect refused: your tab or the whole window went away under you. Re-run step 1, then `agent-browser --session <you> tab new <url>` to rebind.
+- `tab_gone`, or a CDP connect refused: your tab or the whole window went away under you. Re-run step 1, then `agent-browser --session <you> --cdp "$CDP" tab new <url>` to rebind.
+- A command that hangs with no output: your session daemon is wedged. `kill $(cat "$XDG_RUNTIME_DIR"/agent-browser/<you>.pid)`, remove `"$XDG_RUNTIME_DIR"/agent-browser/<you>.*`, then redo step 2. Never kill another session's daemon.
 - `read <url>` fetches outside the browser, no profile cookies, so a logged-in site answers a login page or an error (LinkedIn: HTTP 999). Use `open` then `get text` or `snapshot`.
