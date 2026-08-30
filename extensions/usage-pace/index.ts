@@ -78,8 +78,8 @@ async function fetchUsage(provider: Provider): Promise<Poll> {
 	if (!res) return { windows: [] };
 	if (res.status === 429) {
 		const now = Date.now();
-		const wait = retryAfterMs(res.headers.get("retry-after"), now);
-		return wait === undefined ? { windows: [] } : { windows: [], blockedUntil: now + wait };
+		const wait = retryAfterMs(res.headers.get("retry-after"), now) ?? REFRESH_MS;
+		return { windows: [], blockedUntil: now + wait };
 	}
 	if (!res.ok) return { windows: [] };
 	return { windows: provider === "claude" ? parseClaude(await res.json()) : parseCodex(await res.json()) };
