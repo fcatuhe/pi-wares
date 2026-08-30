@@ -20,8 +20,10 @@ While the endpoint is refusing the poll (see the 429 note below), the footer say
 
 ```
 no usage data until 00:17                              nothing cached, no bar to draw
-~5h ━━━━╵───── 42% 3h  ~7d ...  no update until 00:17  the bars are the last good read
+no update until 00:17  ~5h ━━━━╵───── 42% 3h  ~7d ...  the bars are the last good read
 ```
+
+The notice leads, ahead of the bars: it is the reason the numbers are not moving, and a footer short on width (see [`compact-footer`](../compact-footer/)) truncates the tail, which is the one part that must not be droppable.
 
 A clock time, not a countdown: the status is only repainted every 5 minutes, so `42m` would read minutes late, `00:17` never does. The wording keeps the subject on the reading rather than the quota, a footer saying "usage blocked" reads as a suspended account.
 

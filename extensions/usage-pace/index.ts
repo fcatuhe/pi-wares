@@ -156,7 +156,7 @@ export default function (pi: ExtensionAPI) {
 		}
 		const stale = now - (entry?.at ?? 0) > STALE_MS;
 		const bars = windows.map((w) => renderWindow(w, ctxRef.ui.theme, now, stale)).join("  ");
-		ctxRef.ui.setStatus(KEY, note ? `${bars}  ${note}` : bars);
+		ctxRef.ui.setStatus(KEY, note ? `${note}  ${bars}` : bars);
 	}
 
 	async function refresh(providerId: string | undefined): Promise<void> {
