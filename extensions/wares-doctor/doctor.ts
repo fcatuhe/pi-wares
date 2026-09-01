@@ -195,12 +195,6 @@ function targets(): Target[] {
 			hint: "/reload in pi",
 		},
 		{
-			label: "markdown preview",
-			reference: "config/pi/extensions/herdr-preview.json",
-			path: join(agentDir, "extensions", "herdr-preview.json"),
-			hint: "next /preview:md picks it up",
-		},
-		{
 			label: "subagents",
 			reference: "config/pi/pi-codex-subagents/config.json",
 			path: join(agentDir, "pi-codex-subagents", "config.json"),

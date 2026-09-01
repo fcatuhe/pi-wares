@@ -56,7 +56,6 @@ Some skills drive CLIs this package does not install:
 - **`gog`**: the [`gog` CLI](https://github.com/openclaw/gogcli), install per its README. Needs your own Google Cloud OAuth "Desktop app" client: download its `credentials.json`, then `gog auth credentials set credentials.json` and `gog auth add you@example.com`.
 - **`outline-cli`**: `npm i -g @doist/outline-cli`, then `ol auth token <token>` with a personal token from Settings > API. `ol auth login` also works, but those tokens expire.
 - **`agent-browser`**: `npm i -g agent-browser && agent-browser install` (the second downloads its own Chrome).
-- **`mdcat`**: `brew install mdcat`, the renderer [`herdr-preview`](./extensions/herdr-preview/) runs in its split.
 
 ## Keys
 
@@ -75,7 +74,6 @@ Some skills drive CLIs this package does not install:
 | [`rename-quit/`](./extensions/rename-quit/) | `/rename-quit` names the session from its transcript, then exits. |
 | [`bang-zsh/`](./extensions/bang-zsh/) | Runs `!` commands in an interactive zsh, so your functions and aliases resolve. |
 | [`herdr-tab-title/`](./extensions/herdr-tab-title/) | Syncs the herdr tab label and the pi session name, both directions. |
-| [`herdr-preview/`](./extensions/herdr-preview/) | `/preview:md` previews a markdown file in a herdr split, rendered and live. |
 | [`handoff/`](./extensions/handoff/) | `/handoff <goal>` starts a new linked session with an LLM-written brief. |
 | [`policies/`](./extensions/policies/) | House rules in the system prompt, one extension per policy so `pi config` toggles them one by one. |
 | [`comment-check/`](./extensions/comment-check/) | Blocks a write or edit whose new comment lines break the code comment policy. |
