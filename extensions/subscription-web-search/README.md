@@ -63,7 +63,7 @@ What this does not cover: a library writing after the synchronous block, from a 
 
 Both tools work under any active model, including non-anthropic ones, since the worker credential is resolved independently of `ctx.model`.
 
-Neither name has an underscore, and that is load-bearing. pi-ai canonicalizes a tool whose name matches its first-party list case-insensitively, so `websearch` goes out as `WebSearch`. The subscription transport then takes it as one of its own, and the sibling `subscription-tool-alias` reads the same canonicalization as proof the transport accepted the name and leaves it unaliased. Naming them `web_search` and `web_fetch` matches nothing, and both go out as `mcp__subscription_web_search__*` instead. That still works, it is just a longer name for no gain.
+Neither name has an underscore, and that matters. pi-ai canonicalizes a tool whose name matches its first-party list case-insensitively, so `websearch` goes out as `WebSearch`. The subscription transport then takes it as one of its own, and the sibling `subscription-tool-alias` reads the same canonicalization as proof the transport accepted the name and leaves it unaliased. Naming them `web_search` and `web_fetch` matches nothing, and both go out as `mcp__subscription_web_search__*` instead. That still works, it is just a longer name for no gain.
 
 Token use and cost of every side call are reported through the tool result, so they land in pi's totals instead of being spent invisibly. The token counts are read off the response, and the money is pi's own `calculateCost`, which also applies tiered rates and the double charge on 1h cache writes.
 
