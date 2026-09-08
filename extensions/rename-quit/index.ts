@@ -1,26 +1,12 @@
 import { complete } from "@earendil-works/pi-ai/compat";
 import type { ExtensionAPI, ExtensionCommandContext, SessionEntry } from "@earendil-works/pi-coding-agent";
 
-type ContentBlock = { type?: string; text?: string; name?: string };
+import { extractText } from "../auto-tab-title/naming.ts";
 
 const MAX_CONVO_CHARS = 12_000;
 // INFO: fc 02aug26 both ends kept: the first user message tends to define the topic, the tail is where the session ended
 const HEAD_SHARE = 0.6;
 const TAIL_SHARE = 0.4;
-
-function extractText(content: unknown): string {
-	if (typeof content === "string") return content;
-	if (!Array.isArray(content)) return "";
-	const parts: string[] = [];
-	for (const p of content as ContentBlock[]) {
-		if (p && typeof p === "object" && p.type === "text" && typeof p.text === "string") {
-			parts.push(p.text);
-		} else if (p && typeof p === "object" && p.type === "toolCall" && typeof p.name === "string") {
-			parts.push(`[tool:${p.name}]`);
-		}
-	}
-	return parts.join("\n");
-}
 
 function buildConversationText(entries: SessionEntry[]): string {
 	const sections: string[] = [];
