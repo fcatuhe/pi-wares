@@ -1,12 +1,13 @@
 import net from "node:net";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
+import { borrowedLabel, endedLabel, truncateLabel } from "./labels.ts";
+
 const socketPath = process.env.HERDR_SOCKET_PATH;
 const socketEndpoint =
 	process.platform === "win32" && socketPath ? `\\\\.\\pipe\\${socketPath}` : socketPath;
 const tabId = process.env.HERDR_TAB_ID;
 
-const MAX_LABEL_CHARS = 60;
 const REQUEST_TIMEOUT_MS = 1500;
 const RECONNECT_MS = 5000;
 const EVENT_SETTLE_MS = 300;
@@ -19,10 +20,6 @@ function requestId(): string {
 	return `herdr-tab-title:${Date.now()}:${Math.random().toString(36).slice(2)}`;
 }
 
-function truncateLabel(name: string): string {
-	return Array.from(name.trim()).slice(0, MAX_LABEL_CHARS).join("");
-}
-
 export default function (pi: ExtensionAPI) {
 	if (!enabled()) return;
 
@@ -30,7 +27,7 @@ export default function (pi: ExtensionAPI) {
 	let shutdown = false;
 	let desiredLabel: string | undefined;
 	let syncedLabel: string | undefined;
-	let originalLabel: string | undefined;
+	let baselineLabel: string | undefined;
 	let chain: Promise<void> = Promise.resolve();
 	let watcher: net.Socket | undefined;
 	let settleTimer: ReturnType<typeof setTimeout> | undefined;
@@ -108,7 +105,7 @@ export default function (pi: ExtensionAPI) {
 			if (syncedLabel === undefined) {
 				// INFO: fc 02aug26 first read only baselines: herdr's default numeric labels must not name sessions
 				syncedLabel = label;
-				originalLabel = label;
+				baselineLabel = label;
 			}
 			if (label !== syncedLabel) {
 				syncedLabel = label;
@@ -201,15 +198,16 @@ export default function (pi: ExtensionAPI) {
 		clearTimeout(reconnectTimer);
 		watcher?.destroy();
 		watcher = undefined;
-		await restoreOriginalLabel();
+		await releaseLabel();
 		for (const socket of liveRequests) socket.destroy();
 		liveRequests.clear();
 	});
 
-	// INFO: fc 02aug26 the label is borrowed and returned on teardown, or a dead session's name sticks to the tab
-	async function restoreOriginalLabel(): Promise<void> {
-		if (!originalLabel || !syncedLabel || originalLabel === syncedLabel) return;
+	async function releaseLabel(): Promise<void> {
+		if (!syncedLabel || syncedLabel === baselineLabel) return;
 		const labelIsStillOurs = (await getTabLabel()) === syncedLabel;
-		if (labelIsStillOurs) await request("tab.rename", { tab_id: tabId, label: originalLabel });
+		if (!labelIsStillOurs) return;
+		const label = borrowedLabel(baselineLabel) ?? endedLabel(syncedLabel);
+		await request("tab.rename", { tab_id: tabId, label });
 	}
 }
