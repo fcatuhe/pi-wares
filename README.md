@@ -72,7 +72,7 @@ Some skills drive CLIs this package does not install:
 | [`subscription-tool-alias/`](./extensions/subscription-tool-alias/) | Renames extension tools to `mcp__*` on the wire for OAuth subscription transports, and back before they execute. |
 | [`subscription-web-search/`](./extensions/subscription-web-search/) | `websearch` and `webfetch` on the subscription token: search returns links, fetch reads one page and answers about it. |
 | [`rename-quit/`](./extensions/rename-quit/) | `/rename-quit` names the session from its transcript, then exits. |
-| [`auto-tab-title/`](./extensions/auto-tab-title/) | Names an unnamed session `two-words` with haiku after the first turn, once. |
+| [`auto-session-name/`](./extensions/auto-session-name/) | Names an unnamed session `two-words` with haiku after the first turn, once. |
 | [`bang-zsh/`](./extensions/bang-zsh/) | Runs `!` commands in an interactive zsh, so your functions and aliases resolve. |
 | [`herdr-tab-title/`](./extensions/herdr-tab-title/) | Syncs the herdr tab label and the pi session name, both directions. |
 | [`handoff/`](./extensions/handoff/) | `/handoff <goal>` starts a new linked session with an LLM-written brief. |

@@ -1,6 +1,6 @@
-/** Self-check: npx tsx extensions/auto-tab-title/test.ts */
+/** Self-check: npx tsx extensions/auto-session-name/test.ts */
 import assert from "node:assert/strict";
-import { buildExchange, MAX_CHARS, toTabTitle } from "./naming.ts";
+import { buildExchange, MAX_CHARS, toSessionName } from "./naming.ts";
 
 const user = { role: "user", content: [{ type: "text", text: "the auth token expires mid-session" }] };
 const assistant = { role: "assistant", content: [{ type: "text", text: "refreshing it before each call" }] };
@@ -17,16 +17,16 @@ assert.equal(buildExchange([user, toolOnly]), "User: the auth token expires mid-
 assert.equal(buildExchange([user, { role: "assistant", content: [{ type: "thinking", text: "hmm" }] }]), undefined);
 assert.equal(buildExchange([user, { role: "toolResult", content: "ok" }, assistant]) ? true : false, true);
 
-assert.equal(toTabTitle("tab-title"), "tab-title");
-assert.equal(toTabTitle("Token Refresh"), "token-refresh");
-assert.equal(toTabTitle('  "auth token refresh"  '), "auth-token-refresh");
-assert.equal(toTabTitle("Label: oauth-rotation"), "oauth-rotation");
+assert.equal(toSessionName("session-name"), "session-name");
+assert.equal(toSessionName("Token Refresh"), "token-refresh");
+assert.equal(toSessionName('  "auth token refresh"  '), "auth-token-refresh");
+assert.equal(toSessionName("Label: oauth-rotation"), "oauth-rotation");
 // A model that narrates puts the label last, and four words are cut to three.
-assert.equal(toTabTitle("Here is the label:\nsession-name-fix"), "session-name-fix");
-assert.equal(toTabTitle("fix the flaky payment test"), "fix-the-flaky");
-assert.equal(toTabTitle(""), "");
-assert.equal(toTabTitle("!!! ???"), "");
+assert.equal(toSessionName("Here is the label:\nsession-name-fix"), "session-name-fix");
+assert.equal(toSessionName("fix the flaky payment test"), "fix-the-flaky");
+assert.equal(toSessionName(""), "");
+assert.equal(toSessionName("!!! ???"), "");
 
 // Words drop, never characters, until one word is all that is left.
-assert.equal(toTabTitle("interoperability standardization council"), "interoperability");
-assert.ok(toTabTitle("unmaintainable-internationalization-machinery").length <= MAX_CHARS);
+assert.equal(toSessionName("interoperability standardization council"), "interoperability");
+assert.ok(toSessionName("unmaintainable-internationalization-machinery").length <= MAX_CHARS);

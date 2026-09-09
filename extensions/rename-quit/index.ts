@@ -1,7 +1,7 @@
 import { complete } from "@earendil-works/pi-ai/compat";
 import type { ExtensionAPI, ExtensionCommandContext, SessionEntry } from "@earendil-works/pi-coding-agent";
 
-import { extractText } from "../auto-tab-title/naming.ts";
+import { extractText } from "../auto-session-name/naming.ts";
 
 const MAX_CONVO_CHARS = 12_000;
 // INFO: fc 02aug26 both ends kept: the first user message tends to define the topic, the tail is where the session ended

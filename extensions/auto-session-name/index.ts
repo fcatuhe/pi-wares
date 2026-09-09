@@ -1,7 +1,7 @@
 import type { Api, Model } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
-import { buildExchange, extractText, type NamingMessage, TITLE_PROMPT, toTabTitle } from "./naming.ts";
+import { buildExchange, extractText, NAME_PROMPT, type NamingMessage, toSessionName } from "./naming.ts";
 
 const NAMER_PROVIDER = "anthropic";
 const NAMER_MODEL = "claude-haiku-4-5";
@@ -49,13 +49,13 @@ export default function (pi: ExtensionAPI) {
 				model,
 				{
 					messages: [
-						{ role: "user", content: [{ type: "text", text: TITLE_PROMPT(exchange) }], timestamp: Date.now() },
+						{ role: "user", content: [{ type: "text", text: NAME_PROMPT(exchange) }], timestamp: Date.now() },
 					],
 				},
 				{ maxTokens: MAX_REPLY_TOKENS },
 			);
-			const title = toTabTitle(extractText(reply.content));
-			if (title) pi.setSessionName(title);
+			const name = toSessionName(extractText(reply.content));
+			if (name) pi.setSessionName(name);
 		} catch {
 			pending = true;
 		}

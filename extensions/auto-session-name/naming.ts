@@ -36,13 +36,13 @@ export function buildExchange(messages: NamingMessage[]): string | undefined {
 	return sections.join("\n\n").slice(0, MAX_EXCHANGE_CHARS);
 }
 
-export const TITLE_PROMPT = (exchange: string) =>
+export const NAME_PROMPT = (exchange: string) =>
 	[
-		"Name this coding session for a terminal tab label.",
-		"Reply with the label and nothing else.",
+		"Name this coding session.",
+		"Reply with the name and nothing else.",
 		"Rules:",
 		"- two words, three only when two cannot say it",
-		"- lowercase, words joined by hyphens, like tab-title or flaky-test-fix",
+		"- lowercase, words joined by hyphens, like session-name or flaky-test-fix",
 		"- name the concrete task or subject, never the tool or the conversation",
 		"",
 		"<conversation>",
@@ -50,7 +50,7 @@ export const TITLE_PROMPT = (exchange: string) =>
 		"</conversation>",
 	].join("\n");
 
-export function toTabTitle(raw: string): string {
+export function toSessionName(raw: string): string {
 	const lastLine = raw
 		.split(/\r?\n/)
 		.map((line) => line.trim())
