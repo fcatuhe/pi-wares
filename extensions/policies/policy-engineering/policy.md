@@ -51,6 +51,11 @@ Read the code the change touches and trace the real flow first, then take the hi
 - Test behavior through the public entry point, not private internals.
 - New non-trivial logic (a branch, a loop, a parser, a money or security path) leaves one runnable check behind: the smallest thing that fails if the logic breaks. A one-liner needs none.
 
+## Running commands
+
+- Wait on the process, not the clock: foreground with a generous tool timeout, or background and block on `wait`. Never a guessed `sleep`.
+- The exit status is the result. Grepping a log for `error:` infers what `$?` already knew. CI: `gh run watch --exit-status`.
+
 ## Hygiene
 
 - Delete dead code. Git remembers.
