@@ -62,6 +62,7 @@ Any other provider clears the status. Tokens come from `~/.pi/agent/auth.json` a
 - **The hold is on screen, not only in the file.** An empty footer is indistinguishable from a broken extension, and that costs an evening of guessing. A successful poll clears the hold, so the notice cannot outlive the block.
 - **One poll per 5 minutes machine-wide, not per session.** Each refresh reads the shared file, adopts it if newer than what it holds, and stakes `polledAt` before fetching, so sessions starting in the same second don't stampede. Whichever session wins the slot feeds every other one. This matters: the Anthropic endpoint answers 429 when polled hard.
 - Windows whose reset time has already passed are dropped on load rather than shown stale.
+- **An account switch clears the numbers.** [`subscription-switch`](../subscription-switch/) emits `subscription-switch:switched` on the extension event bus, and the bars, the cached snapshot and any 429 hold are dropped and polled again at once. They belong to the account that just left, and the whole reason to switch is that its quota is the one that ran out.
 - Both endpoints are unofficial. Failures are swallowed and hide the segment.
 
 ## Check

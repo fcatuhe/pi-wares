@@ -21,6 +21,7 @@ const REFRESH_MS = 5 * 60_000;
 const GLYPH: Record<Cell, string> = { full: "━", empty: "─", mark: "╵" };
 const PROVIDERS: Record<string, Provider> = { anthropic: "claude", "openai-codex": "codex" };
 const SNAPSHOT_FILE = join(getAgentDir(), "usage-pace.json");
+const ACCOUNT_SWITCHED = "subscription-switch:switched";
 
 type Provider = "claude" | "codex";
 
@@ -159,7 +160,13 @@ export default function (pi: ExtensionAPI) {
 		ctxRef.ui.setStatus(KEY, note ? `${note}  ${bars}` : bars);
 	}
 
-	async function refresh(providerId: string | undefined): Promise<void> {
+	function forget(provider: Provider): void {
+		cache.delete(provider);
+		heldUntil.delete(provider);
+		patchSnapshot(provider, { at: 0, polledAt: 0, blockedUntil: 0, windows: [] });
+	}
+
+	async function refresh(providerId: string | undefined, force = false): Promise<void> {
 		const provider = PROVIDERS[providerId ?? ""] ?? null;
 		active = provider;
 		const saved = provider ? readSnapshot()[provider] : undefined;
@@ -170,7 +177,7 @@ export default function (pi: ExtensionAPI) {
 		if (!provider) return;
 		const polledRecentlyBySomeSession = saved && Date.now() - saved.polledAt < REFRESH_MS;
 		const rateLimited = Date.now() < (heldUntil.get(provider) ?? 0);
-		if (polledRecentlyBySomeSession || rateLimited) return;
+		if (!force && (polledRecentlyBySomeSession || rateLimited)) return;
 		claimPoll(provider);
 		try {
 			const poll = await fetchUsage(provider);
@@ -203,5 +210,9 @@ export default function (pi: ExtensionAPI) {
 	pi.on("model_select", (event, ctx) => {
 		ctxRef = ctx;
 		void refresh(event.model?.provider ?? ctx.model?.provider);
+	});
+	pi.events.on(ACCOUNT_SWITCHED, () => {
+		if (active) forget(active);
+		void refresh(live()?.model?.provider, true);
 	});
 }
