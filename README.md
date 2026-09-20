@@ -80,6 +80,7 @@ Some skills drive CLIs this package does not install:
 | [`comment-check/`](./extensions/comment-check/) | Blocks a write or edit whose new comment lines break the code comment policy. |
 | [`wares-doctor/`](./extensions/wares-doctor/) | `/wares-doctor` runs the machine setup check in-session, `/wares-doctor:apply` writes what is missing, `/wares-doctor:force` also overwrites what differs. |
 | [`subscription-token-login/`](./extensions/subscription-token-login/) | Adds a `sk-ant-oat01` token method to Anthropic's `/login`: one paste, good for a year. |
+| [`subscription-switch/`](./extensions/subscription-switch/) | `/subscription-switch` moves pi between Anthropic subscriptions, picked by email. |
 
 ## Skills
 
