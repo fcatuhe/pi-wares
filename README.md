@@ -137,12 +137,15 @@ Third-party pi extensions folded in as npm `dependencies` and exposed through th
 | Package | What it does |
 |---|---|
 | [`@ogulcancelik/pi-codex-subagents`](https://github.com/ogulcancelik/pi-extensions/tree/main/packages/pi-codex-subagents) | Codex-shaped, session-scoped subagents: templates, waits, steering, live overlay, per-spawn model routing, the last one [ours](https://github.com/ogulcancelik/pi-extensions/pull/21) and upstream since `0.3.3`. |
+| [`@ogulcancelik/pi-herdr-worktree-jump`](https://github.com/ogulcancelik/pi-extensions/tree/main/packages/pi-herdr-worktree-jump) | `herdr_worktree_jump` relocates the running session: forks it into a new herdr worktree, or back into the main checkout, starts the replacement in its own pane and closes the old one. |
 
 Caret ranges, so unpinned. pi only re-runs `npm install` on a fresh install or when this repo's default branch gets a new commit: push a commit here, then `pi update --extensions` picks up newer releases within the major. `.npmrc` sets `legacy-peer-deps=true` for the `@earendil-works/*` and `typebox` peers pi provides at runtime.
 
 The subagents extension offers its per-spawn `model` and `thinking` arguments only when `~/.pi/agent/pi-codex-subagents/config.json` sets `"modelsFromEnabledModels": true`, which points it at pi's own list. So `/models` stays the single approval list. The same file names the extensions every spawn loads, since a subagent starts with `--no-extensions` and would otherwise write code under no policy at all. [`config/`](./config/README.md) ships that file, `/wares-doctor` writes it.
 
 Templates load from `~/.pi/agent/pi-codex-subagents/agents/` only, so a template is machine state like the rest of `config/`. [`rails-review.md`](./config/pi/pi-codex-subagents/agents/rails-review.md) is the first one: `spawn_agent(agent_type: "rails-review")` gets read-only tools, the [`rails-review`](./skills/rails-review/SKILL.md) skill and a prompt, so the caller sends a scope and nothing else. The [`/rails-review`](./prompts/rails-review.md) prompt is that call, scope resolved from the arguments.
+
+The worktree jump needs herdr 0.8.0 and a pane of its own: it registers nothing outside `HERDR_ENV=1` or without a persisted session, so `-p` runs and a plain terminal never see the tool. It relocates on request and on nothing else, since a new worktree branches off `HEAD` and every uncommitted change stays behind in the checkout it was made in.
 
 ## Layout
 

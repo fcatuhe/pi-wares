@@ -9,6 +9,7 @@
   "dependencies": {
     "@mixmark-io/domino": "^2.2.0",
     "@ogulcancelik/pi-codex-subagents": "^0.3.5",
+    "@ogulcancelik/pi-herdr-worktree-jump": "^0.1.0",
     "jsonc-parser": "^3.3.1",
     "toml-eslint-parser": "^1.0.3",
     "turndown": "^7.2.2",
@@ -24,7 +25,8 @@
     "extensions": [
       "extensions",
       "extensions/policies/policy-*",
-      "node_modules/@ogulcancelik/pi-codex-subagents/index.ts"
+      "node_modules/@ogulcancelik/pi-codex-subagents/index.ts",
+      "node_modules/@ogulcancelik/pi-herdr-worktree-jump/index.ts"
     ],
     "skills": [
       "skills"
