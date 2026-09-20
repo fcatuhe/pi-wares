@@ -1,4 +1,4 @@
-/** Self-check: npx tsx extensions/anthropic-token-login/test.ts */
+/** Self-check: npx tsx extensions/subscription-token-login/test.ts */
 import assert from "node:assert";
 
 import {

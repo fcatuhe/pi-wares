@@ -1,4 +1,4 @@
-/** Self-check: npx tsx extensions/usage-pace/test.ts */
+/** Self-check: npx tsx extensions/subscription-usage-pace/test.ts */
 import assert from "node:assert/strict";
 import {
 	barCells,

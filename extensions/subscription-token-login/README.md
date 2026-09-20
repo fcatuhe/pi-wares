@@ -1,4 +1,4 @@
-# anthropic-token-login
+# subscription-token-login
 
 Adds a second method to Anthropic's `/login`: one paste, good for a year.
 
@@ -30,4 +30,4 @@ A pasted token is stripped of whitespace, then checked for the `sk-ant-oat01-` p
 
 The wrapped method carries a marker, because `/reload` reruns this file against a registry that still holds the previous registration, and wrapping a wrapper would stack a second selector.
 
-No config, no commands. Self-check: `npx tsx extensions/anthropic-token-login/test.ts`.
+No config, no commands. Self-check: `npx tsx extensions/subscription-token-login/test.ts`.

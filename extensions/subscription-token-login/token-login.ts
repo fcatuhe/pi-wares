@@ -13,7 +13,7 @@ const BROWSER_METHOD = "browser";
 const TOKEN_METHOD = "long-lived-token";
 const MINT_COMMAND = "npx -y @anthropic-ai/claude-code@latest setup-token";
 const NO_REFRESH_MESSAGE = `a long-lived token carries no refresh token: mint another with \`${MINT_COMMAND}\` and run /login again`;
-const WRAPPED = Symbol.for("pi-wares.anthropic-token-login");
+const WRAPPED = Symbol.for("pi-wares.subscription-token-login");
 
 export function normalizeToken(pasted: string): string {
 	return pasted.replaceAll(/\s+/g, "");

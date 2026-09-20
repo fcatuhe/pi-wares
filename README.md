@@ -39,7 +39,7 @@ pi loads nothing from it. One `./herdr-app/build.sh` per machine, and again only
 
 ## Login on VPS
 
-Anthropic's `/login` has a second method here, `Long-lived token (1 year, headless)`, from [`anthropic-token-login/`](./extensions/anthropic-token-login/). One paste instead of an authorization round trip, and it lasts a year. Mint the [token](https://code.claude.com/docs/en/authentication) on any machine that has Claude Code:
+Anthropic's `/login` has a second method here, `Long-lived token (1 year, headless)`, from [`subscription-token-login/`](./extensions/subscription-token-login/). One paste instead of an authorization round trip, and it lasts a year. Mint the [token](https://code.claude.com/docs/en/authentication) on any machine that has Claude Code:
 
 ```bash
 npx -y @anthropic-ai/claude-code@latest setup-token
@@ -67,7 +67,7 @@ Some skills drive CLIs this package does not install:
 |---|---|
 | [`model-shortcuts/`](./extensions/model-shortcuts/) | Slash shortcuts for model + thinking level: `/opus`, `/opus:high`, `/high`. |
 | [`compact-footer/`](./extensions/compact-footer/) | Folds pi's 3-line footer into 2 by merging statuses onto the path line. |
-| [`usage-pace/`](./extensions/usage-pace/) | Footer status: subscription usage bar, pace marker, reset countdown. |
+| [`subscription-usage-pace/`](./extensions/subscription-usage-pace/) | Footer status: subscription usage bar, pace marker, reset countdown. |
 | [`token-rate/`](./extensions/token-rate/) | Footer status: output tokens per second of streaming, over the last 5 messages. |
 | [`subscription-tool-alias/`](./extensions/subscription-tool-alias/) | Renames extension tools to `mcp__*` on the wire for OAuth subscription transports, and back before they execute. |
 | [`subscription-web-search/`](./extensions/subscription-web-search/) | `websearch` and `webfetch` on the subscription token: search returns links, fetch reads one page and answers about it. |
@@ -79,7 +79,7 @@ Some skills drive CLIs this package does not install:
 | [`policies/`](./extensions/policies/) | House rules in the system prompt, one extension per policy so `pi config` toggles them one by one. |
 | [`comment-check/`](./extensions/comment-check/) | Blocks a write or edit whose new comment lines break the code comment policy. |
 | [`wares-doctor/`](./extensions/wares-doctor/) | `/wares-doctor` runs the machine setup check in-session, `/wares-doctor:apply` writes what is missing, `/wares-doctor:force` also overwrites what differs. |
-| [`anthropic-token-login/`](./extensions/anthropic-token-login/) | Adds a `sk-ant-oat01` token method to Anthropic's `/login`: one paste, good for a year. |
+| [`subscription-token-login/`](./extensions/subscription-token-login/) | Adds a `sk-ant-oat01` token method to Anthropic's `/login`: one paste, good for a year. |
 
 ## Skills
 

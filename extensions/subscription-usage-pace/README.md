@@ -1,4 +1,4 @@
-# usage-pace
+# subscription-usage-pace
 
 Footer status showing the active subscription's usage as a bar with a **pace marker** and a reset countdown.
 
@@ -67,7 +67,7 @@ Any other provider clears the status. Tokens come from `~/.pi/agent/auth.json` a
 ## Check
 
 ```bash
-npx tsx extensions/usage-pace/test.ts
+npx tsx extensions/subscription-usage-pace/test.ts
 ```
 
 Covers the two payload parsers, pace math (including the two weekly examples above), bar cells, clamping and the countdown formatter.
