@@ -2,7 +2,7 @@ import { join } from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
-import { activate, activeCredential, type Credentials, slotFor, stash, storedAccounts } from "./accounts.ts";
+import { ACTIVE, activate, activeCredential, type Credentials, slotFor, stash, storedAccounts } from "./accounts.ts";
 import { fetchEmail } from "./profile.ts";
 import { readCredentials, updateCredentials } from "./store.ts";
 
@@ -30,6 +30,14 @@ async function identify(ctx: ExtensionCommandContext, credential: Record<string,
 	}
 	const typed = await ctx.ui.input("Name the account being stored", "francois@example.com");
 	return typed?.trim() || undefined;
+}
+
+async function resyncProvider(ctx: ExtensionCommandContext): Promise<void> {
+	try {
+		await ctx.modelRegistry.refresh({ providers: [ACTIVE], allowNetwork: false });
+	} catch (error) {
+		ctx.ui.notify(`The credential moved, but pi reads its own state as stale until /reload: ${reason(error)}`, "warning");
+	}
 }
 
 function switchTo(email: string | undefined, slot: string | undefined): (current: Credentials) => Credentials {
@@ -79,6 +87,7 @@ export default function subscriptionSwitch(pi: ExtensionAPI): void {
 				return;
 			}
 
+			await resyncProvider(ctx);
 			pi.events.emit(SWITCHED_EVENT, { email: target?.email });
 			if (target) {
 				ctx.ui.notify(email ? `Switched to ${target.email}, stored ${email}` : `Switched to ${target.email}`, "info");

@@ -39,6 +39,8 @@ The file is re-read **inside** the lock, so a token pi rotated while the picker 
 
 pi reads `auth.json` back whenever its revision changes (`dev:ino:size:mtimeNs:ctimeNs`, checked on every credential read), so the running session uses the new account on its very next request, and so does every other pane on the machine. No restart, and no reload.
 
+What pi does not re-read on its own is the snapshot of which providers hold a credential, rebuilt only when pi writes one itself. Left alone, it would answer for the account that has gone: `/login` listing anthropic as signed in, `/model` still offering its models, and a prompt waved past the preflight to fail on the wire instead of being told to log in. The switch rebuilds it with `modelRegistry.refresh({ providers: ["anthropic"] })` before it reports anything, so the menus and the error you get agree with the file. Other sessions keep their own copy until they switch or log in themselves; their requests still go out on the new account, because that part comes from the file.
+
 ## Logging in another account
 
 Putting the current account away leaves `anthropic` empty. pi then fails the next request naming the provider, and `/login` fills it: browser, or the paste from [`subscription-token-login`](../subscription-token-login/). The new credential has no email yet, and gets one the first time it is switched away from, which is the first moment its address can be read.
