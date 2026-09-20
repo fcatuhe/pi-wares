@@ -12,6 +12,7 @@ import {
 	paceColor,
 	parseClaude,
 	parseCodex,
+	pollSlotTaken,
 	retryAfterMs,
 	type Window,
 } from "./usage.ts";
@@ -175,9 +176,8 @@ export default function (pi: ExtensionAPI) {
 			cache.set(provider, { at: saved.at, windows: saved.windows.filter((w) => w.resetsAt > Date.now()) });
 		paint();
 		if (!provider) return;
-		const polledRecentlyBySomeSession = saved && Date.now() - saved.polledAt < REFRESH_MS;
 		const rateLimited = Date.now() < (heldUntil.get(provider) ?? 0);
-		if (!force && (polledRecentlyBySomeSession || rateLimited)) return;
+		if (!force && (pollSlotTaken(saved, Date.now(), REFRESH_MS) || rateLimited)) return;
 		claimPoll(provider);
 		try {
 			const poll = await fetchUsage(provider);

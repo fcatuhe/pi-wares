@@ -67,6 +67,16 @@ export function retryAfterMs(header: string | null | undefined, now: number): nu
 	return Number.isFinite(date) ? Math.max(0, date - now) : undefined;
 }
 
+// INFO: fc 20sep26 a failed poll stakes polledAt too, so an empty cache stays pollable or the next session paints nothing
+export function pollSlotTaken(
+	saved: { polledAt: number; windows: Window[] } | undefined,
+	now: number,
+	intervalMs: number,
+): boolean {
+	if (!saved?.windows.length) return false;
+	return now - saved.polledAt < intervalMs;
+}
+
 export function elapsedPercent(w: Window, now: number): number {
 	return clamp(((w.durationMs - (w.resetsAt - now)) / w.durationMs) * 100);
 }

@@ -8,6 +8,7 @@ import {
 	paceColor,
 	parseClaude,
 	parseCodex,
+	pollSlotTaken,
 	retryAfterMs,
 } from "./usage.ts";
 
@@ -110,4 +111,11 @@ assert.deepEqual(barCells(100, 100, 1), ["mark"]);
 
 // Clamps: past reset and over-100 usage stay in range.
 assert.equal(elapsedPercent({ label: "5h", usedPercent: 0, resetsAt: now - HOUR, durationMs: 5 * HOUR }, now), 100);
+
+// Poll slot: another session's fresh read holds it, an empty cache never does.
+const held = { polledAt: now - 60_000, windows: claude };
+assert.equal(pollSlotTaken(held, now, 5 * 60_000), true);
+assert.equal(pollSlotTaken({ ...held, polledAt: now - 6 * 60_000 }, now, 5 * 60_000), false);
+assert.equal(pollSlotTaken({ ...held, windows: [] }, now, 5 * 60_000), false);
+assert.equal(pollSlotTaken(undefined, now, 5 * 60_000), false);
 
