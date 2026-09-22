@@ -15,7 +15,7 @@ Output tokens per second of **streaming**, averaged over the last 5 assistant me
 - The clock runs from the first streamed chunk to the last, not from `turn_start`. Queueing, time to first token and the whole thinking phase would otherwise sit in the denominator and roughly halve the number on a reasoning model.
 - The numerator is `usage.output` from the finalized message, which already includes reasoning tokens.
 - A message that arrived in one chunk has no measurable window and is skipped, as is one with no output tokens.
-- The window resets on `session_start` (which pi also fires on `/new`, `/resume` and `/fork`) and on model change: opus and glm generate at rates that average into a number describing neither.
+- The window resets on `session_start` (which pi also fires on `/new`, `/resume` and `/fork`) and on model change: two models generate at rates that average into a number describing neither.
 
 ## Behavior
 

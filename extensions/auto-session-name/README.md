@@ -20,7 +20,7 @@ Naming needs no threshold on tokens or characters. Input tokens are dominated by
 
 ## The call
 
-`anthropic/claude-haiku-4-5`, else the first available model whose id contains `haiku`, else nothing: a session name never escalates to Opus. One `ctx.modelRegistry.complete()` of 24 output tokens on a transcript capped at 4k chars, so the whole session costs a fraction of a cent. `enabledModels` does not apply, it scopes what `/model` offers, not what the registry can find.
+`anthropic/claude-haiku-4-5`, else the first available model whose id contains `haiku`, else nothing: a session name never escalates to a frontier model. One `ctx.modelRegistry.complete()` of 24 output tokens on a transcript capped at 4k chars, so the whole session costs a fraction of a cent. `enabledModels` does not apply, it scopes what `/model` offers, not what the registry can find.
 
 The reply is read as its last non-empty line, lowercased, stripped to `[a-z0-9]` words, cut to the first three, and then words are dropped, never characters, until it fits: a truncated word is a worse name than one word fewer.
 

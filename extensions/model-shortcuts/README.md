@@ -4,23 +4,22 @@ Slash shortcuts for switching model and thinking level.
 
 ```
 /off /minimal /low /medium /high /xhigh /max     Set thinking level
-/opus  /sonnet  /glm  /kimi  ...                 Switch to a named model
-/opus:high  /glm:off  /sonnet:medium             Switch model + thinking
+/<name>                                          Switch to a named model
+/<name>:<level>                                  Switch model + thinking
 ```
 
-Type `/glm:` and autocomplete lists the thinking levels that model actually supports.
+Type `/<name>:` and autocomplete lists the thinking levels that model actually supports.
 
 ## Configure
 
-Shortcuts come from `~/.pi/agent/extensions/pi-model-shortcuts.json`. No project-local override: a repo that repointed `/opus` at a model of its choosing would be changing where your prompts go.
+Shortcuts come from `~/.pi/agent/extensions/pi-model-shortcuts.json`. No project-local override: a repo that repointed a shortcut at a model of its choosing would be changing where your prompts go.
 
 Top-level keys are the shortcut names, each value `{ provider, model, thinkingLevel? }`:
 
 ```json
 {
-  "opus": { "provider": "anthropic", "model": "claude-opus-5" },
-  "gpt": { "provider": "openai-codex", "model": "gpt-5.6-sol" },
-  "glm": { "provider": "fireworks", "model": "accounts/fireworks/models/glm-5p2", "thinkingLevel": "high" }
+  "<name>": { "provider": "<provider id>", "model": "<model id>" },
+  "<other>": { "provider": "<provider id>", "model": "<model id>", "thinkingLevel": "high" }
 }
 ```
 
@@ -35,6 +34,6 @@ The config file keeps the `pi-model-shortcuts.json` name it had before this ware
 - Loaded on every `session_start`, so `/reload` picks up edits.
 - A missing config is normal and silent. A corrupt one logs the file and the parse error, then registers nothing: half your slash commands disappearing deserves a reason on the console.
 - Parsing lives in [`shortcuts.ts`](./shortcuts.ts) with no pi imports, so [`test.ts`](./test.ts) exercises it without a session or a disk.
-- Combos come from `getSupportedThinkingLevels`, so `/glm:xhigh` is not offered when glm has no `xhigh`. A model the registry cannot resolve at `session_start` falls back to the full list, and its commands report the lookup failure when run.
+- Combos come from `getSupportedThinkingLevels`, so `/<name>:xhigh` is not offered for a model without `xhigh`. A model the registry cannot resolve at `session_start` falls back to the full list, and its commands report the lookup failure when run.
 - A thinking level the model does not support clamps to the nearest one (`pi.setThinkingLevel`), and the notification reports the level that actually took effect: `/off` on a model that always thinks says `Thinking: minimal (off unsupported)`.
 - Lookups go through `ctx.modelRegistry`, so anything registered by pi or another extension is reachable.

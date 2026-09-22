@@ -15,7 +15,7 @@ Under the file lines, each group of findings prints a headline and one indented 
 ```text
 2 to add. /wares-doctor:apply writes them.
   pi settings treeFilterMode = "no-tools"
-  pi settings enabledModels + ["openai-codex/gpt-5.6-sol"]
+  pi settings showCacheMissNotices = true
 1 kept as yours. /wares-doctor:force takes the reference instead.
   pi settings defaultThinkingLevel "low" -> "high"
 ```

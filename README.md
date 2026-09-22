@@ -65,7 +65,7 @@ Some skills drive CLIs this package does not install:
 
 | Ware | What it does |
 |---|---|
-| [`model-shortcuts/`](./extensions/model-shortcuts/) | Slash shortcuts for model + thinking level: `/opus`, `/opus:high`, `/high`. |
+| [`model-shortcuts/`](./extensions/model-shortcuts/) | Slash shortcuts for model + thinking level: `/<name>`, `/<name>:high`, `/high`. |
 | [`compact-footer/`](./extensions/compact-footer/) | Folds pi's 3-line footer into 2 by merging statuses onto the path line. |
 | [`subscription-usage-pace/`](./extensions/subscription-usage-pace/) | Footer status: subscription usage bar, pace marker, reset countdown. |
 | [`token-rate/`](./extensions/token-rate/) | Footer status: output tokens per second of streaming, over the last 5 messages. |

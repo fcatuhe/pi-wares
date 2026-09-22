@@ -12,9 +12,9 @@ The provider's own client does not do that either. Its `WebSearch` is an ordinar
 
 ## Cost
 
-Measured on `claude-haiku-4-5`, which is why it is the preferred worker: a search is around $0.010, dominated by the search results the worker has to read back. A page fetch is $0.001 for a small page and about $0.056 for a 286KB one, measured when Readability still trimmed the page, so read those as roughly a quarter less than a fetch costs now. That last number is the point of the design, not a flaw: the same page in an Opus context costs more than a dollar.
+Measured on `claude-haiku-4-5`, which is why it is the preferred worker: a search is around $0.010, dominated by the search results the worker has to read back. A page fetch is $0.001 for a small page and about $0.056 for a 286KB one, measured when Readability still trimmed the page, so read those as roughly a quarter less than a fetch costs now. That last number is the point of the design, not a flaw: the same page in a frontier model's context costs more than a dollar.
 
-When neither preferred worker is on offer, the cheapest anthropic model wins by `cost.input`, never merely the first one, because a large page summarized on Opus costs dollars. The candidate list is pi's own `getAvailable()`, which is every catalogued model of a provider that has credentials, so being in it is the auth check.
+When neither preferred worker is on offer, the cheapest anthropic model wins by `cost.input`, never merely the first one, because a large page summarized on a frontier model costs dollars. The candidate list is pi's own `getAvailable()`, which is every catalogued model of a provider that has credentials, so being in it is the auth check.
 
 ## Behaviour worth knowing
 
