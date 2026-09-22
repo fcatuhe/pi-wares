@@ -2,7 +2,7 @@
 name: rails-review
 description: Read-only Rails code review, cited against the Rails source and the 37signals apps
 provider: anthropic
-model: claude-opus-5
+model: opus
 thinking: high
 tools: read,bash,grep,find,ls
 skills: rails-review
