@@ -1,15 +1,14 @@
 # pi-wares
 
-A personal toolkit of extensions and skills for [pi-coding-agent](https://github.com/earendil-works/pi-mono), plus the pi and herdr config they run on.
+A personal toolkit of extensions and skills for [pi-coding-agent](https://github.com/earendil-works/pi), plus the pi and herdr config they run on.
 
-## Pre-requisites
+## Prerequisites
+
+Node, pi and herdr (the terminal multiplexer pi runs in) all come from the mise registry:
 
 ```bash
-curl -fsSL https://pi.dev/install.sh | sh     # pi
-curl -fsSL https://herdr.dev/install.sh | sh  # herdr, the terminal multiplexer we run pi in
+mise use -g node pi herdr
 ```
-
-Update: `pi update --all`, `herdr update`.
 
 ## Install
 
@@ -17,98 +16,102 @@ Update: `pi update --all`, `herdr update`.
 pi install git:github.com/fcatuhe/pi-wares
 ```
 
-One package, individual wares toggled in `pi config`.
-
-## Configuration
-
-[`config/`](./config/README.md) holds the pi and herdr configuration. [`/wares-doctor`](./extensions/wares-doctor/) compares this machine against it:
-
-```text
-/wares-doctor         # report what is missing
-/wares-doctor:apply   # add it
-/wares-doctor:force   # add it, and overwrite what you set differently
-```
-
-`:apply` only ever adds: a key you set differently comes back as `kept`, and every run names which ones. `:force` is the one that takes the reference over your value, key by key, leaving keys the reference never mentions alone. Edits splice into the existing text so comments and formatting survive. No backups, git holds the reference.
-
-## macOS App
-
-[`herdr-app/`](./herdr-app/) builds `~/Applications/Herdr.app`: a Ghostty bundle rebranded as Herdr, opening straight into the herdr session, with its own Dock icon and name.
-
-pi loads nothing from it. One `./herdr-app/build.sh` per machine, and again only when the launcher or the logo changes, not on Ghostty updates.
-
-## Login on VPS
-
-Anthropic's `/login` has a second method here, `Long-lived token (1 year, headless)`, from [`subscription-token-login/`](./extensions/subscription-token-login/). One paste instead of an authorization round trip, and it lasts a year. Mint the [token](https://code.claude.com/docs/en/authentication) on any machine that has Claude Code:
-
-```bash
-npx -y @anthropic-ai/claude-code@latest setup-token
-```
-
-Then `/login`, Anthropic, that method, paste, and take or edit the offered rotation date, a year less a week. pi stores it as its own OAuth credential, so the usage bar and the wire aliasing behave as they do after a browser login, and the rotation date arrives as an error naming the mint command rather than an opaque 401.
-
-One token can be pasted into as many boxes as you like, and the method works the same on a laptop.
-
-## External CLIs
+One package, each ware toggled on or off in `pi config`. Update with `mise up`, then `pi update --all`.
 
 Some skills drive CLIs this package does not install:
 
-- **`gog`**: the [`gog` CLI](https://github.com/openclaw/gogcli), install per its README. Needs your own Google Cloud OAuth "Desktop app" client: download its `credentials.json`, then `gog auth credentials set credentials.json` and `gog auth add you@example.com`.
-- **`outline-cli`**: `npm i -g @doist/outline-cli`, then `ol auth token <token>` with a personal token from Settings > API. `ol auth login` also works, but those tokens expire.
-- **`agent-browser`**: `npm i -g agent-browser && agent-browser install` (the second downloads its own Chrome).
+| CLI | Install | Then |
+|---|---|---|
+| [`agent-browser`](https://agent-browser.dev) | `mise use -g npm:agent-browser` | `~/.pi/agent/git/github.com/fcatuhe/pi-wares/skills/agent-browser/setup.sh`, which points it at the system Chrome or Chromium. |
+| [`gog`](https://github.com/openclaw/gogcli) | `mise use -g github:openclaw/gogcli` | Create a Google Cloud OAuth "Desktop app" client, download its `credentials.json`, then `gog auth credentials set credentials.json` and `gog auth add you@example.com`. |
+| [`ol`](https://github.com/Doist/outline-cli) | `mise use -g npm:@doist/outline-cli` | `ol auth token <token>` with a personal token from Outline's Settings > API. `ol auth login` works too, but its tokens expire. |
 
 ## Keys
 
-- **`brave-search`** needs `BRAVE_API_KEY` in your shell profile, if you switch that skill on at all. Free tier at [api-dashboard.search.brave.com](https://api-dashboard.search.brave.com/register): create a "Free AI" subscription (card required, not charged), then an API key.
+`brave-search`, if you switch it on, needs `npm install` in its folder once and `BRAVE_API_KEY` in your shell profile: create a "Free AI" subscription at [api-dashboard.search.brave.com](https://api-dashboard.search.brave.com/register) (card required, not charged), then an API key.
+
+## Configuration
+
+[`config/`](./config/README.md) holds the reference pi and herdr config, and [`/wares-doctor`](./extensions/wares-doctor/) compares this machine against it:
+
+```text
+/wares-doctor         # report what is missing
+/wares-doctor:apply   # add it, keeping the values you set
+/wares-doctor:force   # add it, and overwrite what you set differently
+```
+
+A ware keeps its own config and state under `~/.pi/agent/<ware>/`.
+
+## Login on a VPS
+
+On a machine with no browser, [`subscription-token-login/`](./extensions/subscription-token-login/) adds a `Long-lived token (1 year, headless)` method to Anthropic's `/login`. Mint the token with `npx -y @anthropic-ai/claude-code@latest setup-token` on any machine that has Claude Code, then paste it.
+
+## macOS app
+
+[`herdr-app/`](./herdr-app/) builds `~/Applications/Herdr.app`, a Ghostty bundle rebranded as Herdr that opens straight into the herdr session. pi loads nothing from it: run `./herdr-app/build.sh` once per Mac, and again when the launcher or the logo changes.
 
 ## Wares
 
+Each ware has a README beside its code.
+
+### Footer
+
 | Ware | What it does |
 |---|---|
-| [`model-shortcuts/`](./extensions/model-shortcuts/) | Slash shortcuts for model + thinking level: `/<name>`, `/<name>:high`, `/high`. |
 | [`compact-footer/`](./extensions/compact-footer/) | Folds pi's 3-line footer into 2 by merging statuses onto the path line. |
 | [`subscription-usage-pace/`](./extensions/subscription-usage-pace/) | Footer status: subscription usage bar, pace marker, reset countdown. |
 | [`token-rate/`](./extensions/token-rate/) | Footer status: output tokens per second of streaming, over the last 5 messages. |
+
+### Subscription
+
+| Ware | What it does |
+|---|---|
 | [`subscription-tool-alias/`](./extensions/subscription-tool-alias/) | Renames extension tools to `mcp__*` on the wire for OAuth subscription transports, and back before they execute. |
 | [`subscription-web-search/`](./extensions/subscription-web-search/) | `websearch` and `webfetch` on the subscription token: search returns links, fetch reads one page and answers about it. |
-| [`rename-quit/`](./extensions/rename-quit/) | `/rename-quit` names the session from its transcript, then exits. |
-| [`auto-session-name/`](./extensions/auto-session-name/) | Names an unnamed session `two-words` with haiku after the first turn, once. |
-| [`bang-zsh/`](./extensions/bang-zsh/) | Runs `!` commands in an interactive zsh, so your functions and aliases resolve. |
-| [`herdr-tab-title/`](./extensions/herdr-tab-title/) | Syncs the herdr tab label and the pi session name, both directions. |
-| [`radio/`](./extensions/radio/) | `radio_call` calls another agent session on this machine: the message lands in its transcript as a named peer, not as its owner typing. |
-| [`handoff/`](./extensions/handoff/) | `/handoff <goal>` starts a new linked session with an LLM-written brief. |
-| [`policies/`](./extensions/policies/) | House rules in the system prompt, one extension per policy so `pi config` toggles them one by one. |
-| [`output-style/`](./extensions/output-style/) | `/output-style` switches the writing shape, Default for code and chat, Prose for content, like Claude Code's output styles. |
-| [`comment-check/`](./extensions/comment-check/) | Blocks a write or edit whose new comment lines break the code comment policy. |
-| [`wares-doctor/`](./extensions/wares-doctor/) | `/wares-doctor` runs the machine setup check in-session, `/wares-doctor:apply` writes what is missing, `/wares-doctor:force` also overwrites what differs. |
 | [`subscription-token-login/`](./extensions/subscription-token-login/) | Adds a `sk-ant-oat01` token method to Anthropic's `/login`: one paste, good for a year. |
 | [`subscription-switch/`](./extensions/subscription-switch/) | `/subscription-switch` moves pi between Anthropic subscriptions, picked by email. |
 
+### Herdr and sessions
+
+| Ware | What it does |
+|---|---|
+| [`herdr-tab-title/`](./extensions/herdr-tab-title/) | Syncs the herdr tab label and the pi session name, both directions. |
+| [`auto-session-name/`](./extensions/auto-session-name/) | Names an unnamed session `two-words` with haiku after the first turn, once. |
+| [`radio/`](./extensions/radio/) | `radio_call` calls another agent session on this machine: the message lands in its transcript as a named peer, not as its owner typing. |
+| [`model-shortcuts/`](./extensions/model-shortcuts/) | Slash shortcuts for model and thinking level: `/<name>`, `/<name>:high`, `/high`. |
+| [`bang-zsh/`](./extensions/bang-zsh/) | Runs `!` commands in an interactive zsh, so your functions and aliases resolve. |
+
+### Policies and style
+
+| Ware | What it does |
+|---|---|
+| [`policies/`](./extensions/policies/) | House rules in the system prompt, one extension per policy so `pi config` toggles them one by one. |
+| [`output-style/`](./extensions/output-style/) | `/output-style` switches the writing shape, Default for code and chat, Prose for content. |
+| [`comment-check/`](./extensions/comment-check/) | Blocks a write or edit whose new comment lines break the code comment policy. |
+
+### Doctor
+
+| Ware | What it does |
+|---|---|
+| [`wares-doctor/`](./extensions/wares-doctor/) | `/wares-doctor` checks this machine against `config/`, `:apply` writes what is missing, `:force` also overwrites what differs. |
+
 ## Skills
 
-Loaded on demand rather than injected, so they can be as long as they need to be. The always-on policies point at them.
+Loaded on demand rather than injected, so they can be as long as they need. The policies point at them.
 
 | Skill | What it does |
 |---|---|
-| [`pr-description/`](./skills/pr-description/SKILL.md) | Section structure for a feature pull request body. Cited from `policies/policy-git/`. |
-| [`gog/`](./skills/gog/SKILL.md) | Safe [`gog`](https://github.com/openclaw/gogcli) Google Workspace automation: auth state, JSON output, scoped reads and writes. |
-| [`outline-cli/`](./skills/outline-cli/SKILL.md) | Search and manage [Outline](https://www.getoutline.com) wiki documents and collections via the [`ol`](https://github.com/Doist/outline-cli) CLI. |
-| [`agent-browser/`](./skills/agent-browser/SKILL.md) | Headed Chrome and an existing `~/.agent-browser` session for the [`agent-browser`](https://agent-browser.dev) CLI, which serves the usage guide itself. |
-| [`rails-review/`](./skills/rails-review/SKILL.md) | Rails review that cites its sources: the repo's own patterns first, then the gem source for the version in `Gemfile.lock`, then shallow clones of Fizzy, Campfire and Writebook under `~/.cache/pi-wares/rails-review`. The `rails-review` subagent loads it. |
+| [`pr-description/`](./skills/pr-description/SKILL.md) | Section structure for a feature pull request body. |
+| [`agent-browser/`](./skills/agent-browser/SKILL.md) | Headed Chrome on a shared logged-in profile, one tab per agent, for the `agent-browser` CLI. |
+| [`rails-review/`](./skills/rails-review/SKILL.md) | Rails review that cites the repo's own patterns, the gem source for the version in `Gemfile.lock`, and Fizzy, Campfire and Writebook. |
 
-## Prompts
-
-Slash commands that expand into a prompt, no extension behind them.
-
-| Prompt | What it does |
-|---|---|
-| [`rails-review.md`](./prompts/rails-review.md) | `/rails-review [base ref or paths]` sends a resolved scope to the [`rails-review`](./config/pi/pi-codex-subagents/agents/rails-review.md) subagent, defaulting to the uncommitted changes, and reports back what it found. |
+The [`/rails-review [base ref or paths]`](./prompts/rails-review.md) prompt sends a resolved scope, by default the uncommitted changes, to the [`rails-review`](./config/pi/pi-codex-subagents/agents/rails-review.md) subagent and reports what it found.
 
 ## Skills available
 
-Outside the `pi` manifest, so nothing loads them and they cost no prompt tokens. `websearch` and `webfetch` from [`subscription-web-search/`](./extensions/subscription-web-search/) cover the same ground on the subscription token already paid for, so these two wait here for the session that wants a second opinion or hits a rate limit.
+`skills-available/` sits outside the `pi` manifest, so nothing loads it. [`exa-search/`](./skills-available/exa-search/SKILL.md) (keyless Exa web search and extraction) and `brave-search/` (below) wait there as a second opinion to `subscription-web-search`, or for when it hits a rate limit.
 
-Switching one on means naming its path in settings. A `+` force-include in the package filter will not do it: filters narrow what the manifest already allows, and an unlisted folder is never collected in the first place.
+Switch one on by naming its path in settings, since a `+` force-include in the package filter cannot reach a folder the manifest never lists:
 
 ```json
 {
@@ -118,57 +121,56 @@ Switching one on means naming its path in settings. A `+` force-include in the p
 
 `pi --skill <path>` does the same for a single run.
 
-| Skill | What it does |
-|---|---|
-| [`exa-search/`](./skills-available/exa-search/SKILL.md) | Web search and content extraction via Exa's keyless MCP endpoint. No key or browser needed. |
-| [`brave-search/`](./skills-available/brave-search/SKILL.md) | Web search and page-to-markdown extraction through the Brave Search API. Needs `BRAVE_API_KEY`. |
+## Vendored
 
-## Vendored skills
+Upstream copies, so one install covers them. They drift: resync deliberately.
 
-Copies of upstream skills, so one install covers them. They drift, resync deliberately.
-
-| Skill | Upstream | Copied at |
+| Ware | What it does | Upstream, copied at |
 |---|---|---|
-| `skills-available/brave-search/` | [badlogic/pi-skills](https://github.com/badlogic/pi-skills) (MIT) | `90bb51c`, minus the `npm install` setup step |
-| `gog/` | [openclaw/gogcli](https://github.com/openclaw/gogcli) `.agents/skills/gog/` (MIT) | `v0.37.0`, verbatim. Resync when `gog --version` moves. |
-| `outline-cli/` | [Doist/outline-cli](https://github.com/Doist/outline-cli) (MIT) | `v1.10.4`, verbatim. `ol skill install pi --local` regenerates it: diff and copy. |
+| [`extensions/handoff/`](./extensions/handoff/) | `/handoff <goal>` starts a new linked session with an LLM-written brief. | pi's [`examples/extensions/handoff.ts`](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/handoff.ts), verbatim, at pi `0.87.1`. |
+| [`skills/gog/`](./skills/gog/SKILL.md) | Google Workspace automation through `gog`: auth state, JSON output, scoped reads and writes. | [openclaw/gogcli](https://github.com/openclaw/gogcli) `.agents/skills/gog/SKILL.md` (MIT), verbatim, at `v0.41.0`. Resync when `gog --version` moves. |
+| [`skills/outline-cli/`](./skills/outline-cli/SKILL.md) | Search and manage [Outline](https://www.getoutline.com) documents and collections through `ol`. | [Doist/outline-cli](https://github.com/Doist/outline-cli) `skills/outline-cli/SKILL.md` (MIT), verbatim, at `v2.1.3`. Resync when `ol --version` moves. |
+| [`skills-available/brave-search/`](./skills-available/brave-search/SKILL.md) | Web search and page-to-markdown extraction through the Brave Search API. | [badlogic/pi-skills](https://github.com/badlogic/pi-skills) `brave-search/` (MIT), verbatim, at `90bb51c`. Its own `package.json`: run `npm install` in the folder once before switching it on. |
 
 ## Bundled extensions
 
-Third-party pi extensions folded in as npm `dependencies` and exposed through the `pi` manifest, so one install covers them. They show up individually in `pi config`.
+Third-party pi extensions installed as npm `dependencies` and listed in the `pi` manifest, each toggled on its own in `pi config`.
 
 | Package | What it does |
 |---|---|
-| [`@ogulcancelik/pi-codex-subagents`](https://github.com/ogulcancelik/pi-extensions/tree/main/packages/pi-codex-subagents) | Codex-shaped, session-scoped subagents: templates, waits, steering, live overlay, per-spawn model routing, the last one [ours](https://github.com/ogulcancelik/pi-extensions/pull/21) and upstream since `0.3.3`. |
-| [`@ogulcancelik/pi-herdr-worktree-jump`](https://github.com/ogulcancelik/pi-extensions/tree/main/packages/pi-herdr-worktree-jump) | `herdr_worktree_jump` relocates the running session: forks it into a new herdr worktree, or back into the main checkout, starts the replacement in its own pane and closes the old one. |
+| [`@ogulcancelik/pi-codex-subagents`](https://github.com/ogulcancelik/pi-extensions/tree/main/packages/pi-codex-subagents) | Session-scoped subagents: templates, waits, steering, live overlay, per-spawn model routing. |
+| [`@ogulcancelik/pi-herdr-worktree-jump`](https://github.com/ogulcancelik/pi-extensions/tree/main/packages/pi-herdr-worktree-jump) | `herdr_worktree_jump` forks the session into a new herdr worktree, or back into the main checkout, in a pane of its own. |
 
-Caret ranges, so unpinned. pi only re-runs `npm install` on a fresh install or when this repo's default branch gets a new commit: push a commit here, then `pi update --extensions` picks up newer releases within the major. `.npmrc` sets `legacy-peer-deps=true` for the `@earendil-works/*` and `typebox` peers pi provides at runtime.
+Ranges are carets, and pi re-runs `npm install` only on a fresh install or a new commit on this repo's default branch: push one, then `pi update --extensions` picks up newer releases within the major.
 
-The subagents extension offers its per-spawn `model` and `thinking` arguments only when `~/.pi/agent/pi-codex-subagents/config.json` sets `"modelsFromEnabledModels": true`, which points it at pi's own list. So `/models` stays the single approval list. The same file names the extensions every spawn loads, since a subagent starts with `--no-extensions` and would otherwise write code under no policy at all. [`config/`](./config/README.md) ships that file, `/wares-doctor` writes it.
+The subagents' config and the `rails-review` template are machine state, shipped in [`config/`](./config/README.md) and written by `/wares-doctor`.
 
-Templates load from `~/.pi/agent/pi-codex-subagents/agents/` only, so a template is machine state like the rest of `config/`. [`rails-review.md`](./config/pi/pi-codex-subagents/agents/rails-review.md) is the first one: `spawn_agent(agent_type: "rails-review")` gets read-only tools, the [`rails-review`](./skills/rails-review/SKILL.md) skill and a prompt, so the caller sends a scope and nothing else. The [`/rails-review`](./prompts/rails-review.md) prompt is that call, scope resolved from the arguments.
+The worktree jump needs herdr 0.8.0, a herdr pane and a persisted session, and registers nothing otherwise. It moves only on request, since uncommitted changes stay behind in the old checkout.
 
-The worktree jump needs herdr 0.8.0 and a pane of its own: it registers nothing outside `HERDR_ENV=1` or without a persisted session, so `-p` runs and a plain terminal never see the tool. It relocates on request and on nothing else, since a new worktree branches off `HEAD` and every uncommitted change stays behind in the checkout it was made in.
+## Development
 
-## Layout
+Shared helpers live in `lib/`: pi does not load it, the wares import from it. Code is formatted by biome with 2-space indents (`npm run format`, checked in CI), and `npm test` runs every test.
 
 ```
 pi-wares/
-├── package.json              ← `pi` manifest + bundled npm dependencies
-├── config/                   ← the pi and herdr config wares-doctor compares against
-├── extensions/               ← every local ware
-│   └── model-shortcuts/
-│       ├── index.ts          ← entry point (required filename), pi API and fs live here
-│       ├── shortcuts.ts      ← the pure half: parsing and formatting, no pi imports
-│       ├── test.ts           ← `npx tsx extensions/<ware>/test.ts`, runs off the pure half
-│       │                       `npm test` runs every extensions/*/test.ts, no registration
-│       └── README.md         ← per-ware docs, co-located with code
-├── prompts/                  ← one .md per slash command, filename is the command
-├── skills/                   ← one folder per skill, each a SKILL.md
-├── skills-available/         ← same shape, unlisted: opt in by path in settings
-├── herdr-app/                ← macOS app that launches herdr, not a ware
-└── node_modules/             ← bundled external extensions (gitignored)
+  package.json          pi manifest, bundled npm dependencies, scripts
+  biome.json            formatter config
+  config/               reference config wares-doctor compares against
+  extensions/
+    model-shortcuts/
+      index.ts          entry point (required filename), pi API and fs
+      shortcuts.ts      pure logic, no pi imports
+      test.ts           self-check, run by npm test
+      README.md         the ware's docs
+  lib/                  shared helpers imported by the wares
+  prompts/              one .md per slash command, filename is the command
+  skills/               one folder per skill, each a SKILL.md
+  skills-available/     same shape, unlisted: opt in by path
+  herdr-app/            macOS app that launches herdr, not a ware
+  node_modules/         bundled external extensions (gitignored)
 ```
+
+`.npmrc` sets `legacy-peer-deps=true` because pi provides the `@earendil-works/*` and `typebox` peers at runtime.
 
 ## License
 
