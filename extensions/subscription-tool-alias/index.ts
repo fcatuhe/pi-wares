@@ -1,12 +1,13 @@
 import { basename, dirname } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
+import { usingSubscription } from "../../lib/models.ts";
+
 const PROVIDER_TOOL_NAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
 const MAX_TOOL_NAME_LENGTH = 128;
 const WRAPPER_DIRS = new Set(["extensions", "dist", "src", "build"]);
 const FALLBACK_NAMESPACE = "local";
 
-// INFO: fc 05aug26 each phrase carries enough of its stock sentence that a user's own "Raspberry Pi" cannot match it
 const CLIENT_NAME_PHRASES: Array<[string, string]> = [
   ["operating inside pi, a coding agent harness", "operating inside a coding agent harness"],
   [
@@ -46,7 +47,6 @@ export function rewritePromptText(text: string): string {
   return result;
 }
 
-// INFO: fc 05aug26 pi declares each tool as "- <name>: <snippet>", never on a block's first line, which the newline anchors to
 function rewriteToolDeclarations(text: string, renames: Array<[string, string]>): string {
   let result = text;
   for (const [flat, alias] of renames) {
@@ -82,7 +82,6 @@ export function namespaceFrom(sourceInfo?: { path?: string; baseDir?: string }):
   return FALLBACK_NAMESPACE;
 }
 
-// INFO: fc 05aug26 truncate the namespace, never the flat name: the flat name is what routes the call back.
 function aliasFor(name: string, sourceInfo?: { path?: string; baseDir?: string }): string | undefined {
   const room = MAX_TOOL_NAME_LENGTH - "mcp____".length - name.length;
   if (room < 1) return undefined;
@@ -111,7 +110,6 @@ export function transformPayload(raw: Record<string, unknown>, candidates: Map<s
     if (isPlainObject(tool)) advertised.add(lower(tool.name));
   }
 
-  // INFO: fc 05aug26 pi canonicalizes every tool this transport accepts as-is (read -> Read), so a name spelled as registered needs one
   const resolve: AliasResolver = (name) => {
     const committed = maps.aliasByFlat.get(name);
     if (committed) return committed;
@@ -175,7 +173,6 @@ function remapHistoryBlock(block: unknown, resolve: AliasResolver): unknown {
   return block;
 }
 
-// INFO: fc 02aug26 message_update has no replacement channel and the TUI binds a tool row's renderer to the streamed name, so the block pi already holds is mutated.
 export function unaliasToolCalls(message: unknown, maps: AliasMaps): boolean {
   if (!isPlainObject(message) || message.role !== "assistant" || !Array.isArray(message.content)) return false;
   let changed = false;
@@ -189,7 +186,7 @@ export function unaliasToolCalls(message: unknown, maps: AliasMaps): boolean {
   return changed;
 }
 
-export default function subscriptionToolAlias(pi: ExtensionAPI): void {
+export default function (pi: ExtensionAPI) {
   const maps = createAliasMaps();
 
   pi.on("session_start", () => {
@@ -197,13 +194,8 @@ export default function subscriptionToolAlias(pi: ExtensionAPI): void {
     maps.flatByAlias.clear();
   });
 
-  // INFO: fc 06aug26 pi has no isUsingSubscription on the extension registry, so it is composed as its own ModelRuntime does (model-runtime.js:334)
   pi.on("before_provider_request", (event, ctx) => {
-    const model = ctx.model;
-    if (!model || model.provider !== "anthropic") return undefined;
-    const subscription =
-      ctx.modelRegistry.isUsingOAuth(model) && ctx.modelRegistry.getProvider(model.provider)?.auth?.oauth?.isSubscription === true;
-    if (!subscription) return undefined;
+    if (ctx.model?.provider !== "anthropic" || !usingSubscription(ctx.modelRegistry, ctx.model)) return undefined;
     if (!isPlainObject(event.payload)) return undefined;
     return transformPayload(event.payload as Record<string, unknown>, buildAliasCandidates(pi.getAllTools()), maps);
   });
@@ -212,6 +204,5 @@ export default function subscriptionToolAlias(pi: ExtensionAPI): void {
     unaliasToolCalls(event.message, maps);
   });
 
-  // INFO: fc 02aug26 message_end runs before pi resolves which tool to execute, so the flat tool's own execute closure handles the call.
   pi.on("message_end", (event) => (unaliasToolCalls(event.message, maps) ? { message: event.message } : undefined));
 }
