@@ -4,6 +4,6 @@ argument-hint: "[base ref or paths]"
 ---
 Spawn the `rails-review` subagent (`spawn_agent` with `agent_type: "rails-review"`) on: ${@:-the uncommitted changes, staged and unstaged}.
 
-Resolve the scope yourself before spawning: settle the base ref, list the files it covers, and name both in the message. The reviewer reads the code itself, so send the scope, not a diff. Nothing to review, say so and do not spawn.
+Resolve the scope yourself before spawning: settle the base ref, list the files it covers, and name both in the message. The reviewer reads the code itself, so send the scope, not a diff. If there is nothing to review, say so and do not spawn.
 
-Then wait for it, and report its findings as it wrote them, severity first. Change nothing unless I ask for a fix.
+Wait for it, then report its findings as written, severity first. Change nothing unless I ask for a fix.

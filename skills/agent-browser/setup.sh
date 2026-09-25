@@ -8,7 +8,7 @@ config=$home_dir/config.json
 keeper=$home_dir/keeper.html
 
 command -v agent-browser >/dev/null || {
-  echo "agent-browser is not on PATH: mise use -g \"npm:agent-browser@latest\"" >&2
+  echo "agent-browser is not on PATH: mise use -g npm:agent-browser" >&2
   exit 1
 }
 

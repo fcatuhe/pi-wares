@@ -9,7 +9,7 @@ Cite a file for every finding: the repo under review, or a reference below. No c
 
 ## Source ranking
 
-Higher rank wins.
+A lower rank number wins.
 
 | Rank | Source | Where |
 |---|---|---|
@@ -22,7 +22,7 @@ Higher rank wins.
 
 ## Get the references
 
-Run once per session. It clones what is missing, fast-forwards the rest, and never touches your own checkouts.
+Once per session: it clones what is missing, fast-forwards the rest, and never touches your own checkouts.
 
 ```bash
 REFS="${XDG_CACHE_HOME:-$HOME/.cache}/pi-wares/rails-review"
@@ -82,4 +82,4 @@ spawn_agent(agent_type: "rails-review", task_name: "rails-review/cards-move",
             message: "Review app/models/card*, app/controllers/cards* against main...HEAD.")
 ```
 
-The message carries the scope. Without a base ref and paths, it asks for them.
+The message carries the scope. Without a base ref or paths, the subagent asks for them.

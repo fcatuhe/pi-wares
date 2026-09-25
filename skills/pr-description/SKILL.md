@@ -5,14 +5,14 @@ description: Structure for a feature pull request body. Use when writing or rewr
 
 # PR description
 
-Fixed core structure. Conditional sections only when they carry information. Omit empty sections, never leave a heading with "N/A" under it.
+A fixed core, plus conditional sections only when they carry information. Omit an empty section, never leave a heading with "N/A" under it.
 
-Order: **Summary -> User flow -> Behavior changes -> Visual changes -> Implementation notes -> Design decisions -> Data and rollout -> Risks and edge cases -> Tests**.
+Order: Summary, User flow, Behavior changes, Visual changes, Implementation notes, Design decisions, Data and rollout, Risks and edge cases, Tests.
 
 | Section | Include | Content |
 | --- | --- | --- |
 | Summary | Always | The user problem, the new capability, the outcome. One short paragraph. |
-| User flow | Usually | How the user enters, completes and exits the feature, including the exceptional paths. |
+| User flow | Usually | How the user enters, completes and exits the feature, exceptional paths included. |
 | Behavior changes | Always | Before and after, as a compact table. |
 | Visual changes | Unless nothing is visible | Screenshots, see below. |
 | Implementation notes | Always | The decisions behind the diff: data model, boundaries, framework mechanisms, integrations. Not a list of changed files. |
@@ -24,21 +24,19 @@ Order: **Summary -> User flow -> Behavior changes -> Visual changes -> Implement
 
 ## Screenshots
 
-Take screenshots for every PR a user can see: a screen, an email, a PDF, an error message. Skip them only when nothing visible changed (a refactor, a job, infra), and say so in one line.
+Every PR a user can see gets screenshots: a screen, an email, a PDF, an error message. Only when nothing visible changed (a refactor, a job, infra) skip them, and say so in one line.
 
-Capture what a reviewer needs to see without running the branch:
+Capture what a reviewer needs without running the branch:
 
-- A new flow: every step in order, entry to exit, plus its exceptional paths (empty, error, denied).
-- A changed screen: before and after, taken from the same data.
+- A new flow: every step in order, entry to exit, plus its exceptional paths (empty, error, denied). It has no before.
+- A changed screen: before and after, from the same data.
 - Each viewport where the layout differs, phone included.
-
-Before and after only for what existed before. A new flow has no before, show its steps.
 
 ## Where the images live
 
-On the ref `refs/assets/github`, never on a branch. `git clone` fetches only branches and tags, so the images never reach anyone's clone. The ref also stays out of the branch list and out of the PR base and compare pickers.
+On the ref `refs/assets/github`, never on a branch: `git clone` fetches only branches and tags, so the images stay out of everyone's clone, the branch list, and the PR base and compare pickers.
 
-One folder per thread that reads the files, number first so the folder is found from the thread: `pr/<number>-<branch>/` with every `/` of the branch turned into `-` (`pr/12-feat-todays-meetings-home/`), `issues/<number>-<title-slug>/`. Files numbered in display order: `01-home.png`, `02-home-phone.png`. PDFs and other files go in the same folder as the thread that links them.
+One folder per thread that reads the files, number first: `pr/<number>-<branch>/` with every `/` of the branch turned into `-` (`pr/12-feat-todays-meetings-home/`), or `issues/<number>-<title-slug>/`. Files are numbered in display order, `01-home.png`, `02-home-phone.png`. PDFs and other files go in the folder of the thread that links them.
 
 The folder needs the PR number, so open the PR first, then push the images, then `gh pr edit <number> --body-file`.
 
@@ -60,12 +58,10 @@ unset GIT_INDEX_FILE
 
 First time in a repository, create the ref: `git push origin "$(git commit-tree "$(git mktree </dev/null)" -m 'docs: assets root')":refs/assets/github`.
 
-Link each file by the commit SHA, through `/raw/`:
+Link each file through `/raw/` at the commit SHA, which pins the image to that PR: later pushes never change it, and it keeps rendering after the folder is deleted. Never link through `raw.githubusercontent.com`, which does not render in a private repository.
 
 ```
 https://github.com/<owner>/<repo>/raw/<commit>/pr/<number>-<branch>/01-home.png
 ```
-
-The SHA pins the image to that PR, so later pushes to the ref never change it. It keeps rendering even after the folder is deleted in a later commit. Do not link through `raw.githubusercontent.com`, which does not render in a private repository.
 
 Footer: `Screenshots live on refs/assets/github under pr/<number>-<branch>/.`
