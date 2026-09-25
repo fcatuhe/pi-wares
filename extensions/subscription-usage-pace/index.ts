@@ -1,7 +1,9 @@
-import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { getAgentDir } from "@earendil-works/pi-coding-agent";
+
+import { oauthHeaders } from "../../lib/anthropic.ts";
+import { readJson, writeJson } from "../../lib/files.ts";
+import { agentDir, wareDir } from "../../lib/paths.ts";
 
 import {
   barCells,
@@ -17,21 +19,18 @@ import {
   type Window,
 } from "./usage.ts";
 
+const KEY = "subscription-usage-pace";
 const REFRESH_MS = 5 * 60_000;
-// INFO: fc 04aug26 half-height, so the marker rides above the bar's centerline and never reads as fill
+const STALE_MS = 2 * REFRESH_MS;
+const REQUEST_TIMEOUT_MS = 5000;
 const GLYPH: Record<Cell, string> = { full: "━", empty: "─", mark: "╵" };
 const PROVIDERS: Record<string, Provider> = { anthropic: "claude", "openai-codex": "codex" };
-const SNAPSHOT_FILE = join(getAgentDir(), "usage-pace.json");
 const ACCOUNT_SWITCHED = "subscription-switch:switched";
 
 type Provider = "claude" | "codex";
 
 function authJson(): Record<string, any> {
-  try {
-    return JSON.parse(readFileSync(join(getAgentDir(), "auth.json"), "utf8"));
-  } catch {
-    return {};
-  }
+  return readJson<Record<string, any>>(join(agentDir(), "auth.json")) ?? {};
 }
 
 function claudeToken(): string | undefined {
@@ -43,27 +42,23 @@ function codexToken(): { token: string; accountId?: string } | undefined {
   return entry?.access ? { token: entry.access, accountId: entry.accountId } : undefined;
 }
 
-// INFO: fc 31jul26 last writer wins, fine for a display cache, and only a truth source would need locking
 type Entry = { at: number; polledAt: number; blockedUntil: number; windows: Window[] };
 type Snapshot = Record<string, Entry>;
 
+function snapshotFile(): string {
+  return join(wareDir(KEY), "snapshot.json");
+}
+
 function readSnapshot(): Snapshot {
-  try {
-    return JSON.parse(readFileSync(SNAPSHOT_FILE, "utf8"));
-  } catch {
-    return {};
-  }
+  return readJson<Snapshot>(snapshotFile()) ?? {};
 }
 
 function patchSnapshot(provider: Provider, patch: Partial<Entry>): void {
-  try {
-    const all = readSnapshot();
-    const prev = all[provider] ?? { at: 0, polledAt: 0, blockedUntil: 0, windows: [] };
-    writeFileSync(SNAPSHOT_FILE, JSON.stringify({ ...all, [provider]: { ...prev, ...patch } }));
-  } catch {}
+  const all = readSnapshot();
+  const prev = all[provider] ?? { at: 0, polledAt: 0, blockedUntil: 0, windows: [] };
+  writeJson(snapshotFile(), { ...all, [provider]: { ...prev, ...patch } });
 }
 
-// INFO: fc 02aug26 polledAt is the attempt, so a failed one holds the slot without making stale numbers look fresh
 function claimPoll(provider: Provider): void {
   patchSnapshot(provider, { polledAt: Date.now() });
 }
@@ -75,15 +70,15 @@ function writeSnapshot(provider: Provider, windows: Window[]): void {
 type Poll = { windows: Window[]; blockedUntil?: number };
 
 async function fetchUsage(provider: Provider): Promise<Poll> {
-  const signal = AbortSignal.timeout(5000);
+  const signal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
   const res = provider === "claude" ? await fetchClaude(signal) : await fetchCodex(signal);
-  if (!res) return { windows: [] };
+  if (!res) throw new Error("not logged in");
   if (res.status === 429) {
     const now = Date.now();
     const wait = retryAfterMs(res.headers.get("retry-after"), now) ?? REFRESH_MS;
     return { windows: [], blockedUntil: now + wait };
   }
-  if (!res.ok) return { windows: [] };
+  if (!res.ok) throw new Error(`endpoint answered ${res.status}`);
   return { windows: provider === "claude" ? parseClaude(await res.json()) : parseCodex(await res.json()) };
 }
 
@@ -91,7 +86,7 @@ function fetchClaude(signal: AbortSignal): Promise<Response> | undefined {
   const token = claudeToken();
   if (!token) return undefined;
   return fetch("https://api.anthropic.com/api/oauth/usage", {
-    headers: { Authorization: `Bearer ${token}`, "anthropic-beta": "oauth-2025-04-20" },
+    headers: oauthHeaders(token),
     signal,
   });
 }
@@ -124,10 +119,9 @@ function renderWindow(w: Window, theme: any, now: number, stale: boolean): strin
 }
 
 export default function (pi: ExtensionAPI) {
-  const KEY = "usage";
   const cache = new Map<Provider, { at: number; windows: Window[] }>();
   const heldUntil = new Map<Provider, number>();
-  const STALE_MS = 2 * REFRESH_MS;
+  const failures = new Map<Provider, string>();
   let active: Provider | null = null;
   let ctxRef: any = null;
   let timer: ReturnType<typeof setInterval> | null = null;
@@ -151,7 +145,9 @@ export default function (pi: ExtensionAPI) {
     const entry = active ? cache.get(active) : undefined;
     const windows = entry?.windows ?? [];
     const until = (active ? heldUntil.get(active) : 0) ?? 0;
-    const note = until > now ? ctxRef.ui.theme.fg("dim", blockedNotice(until, windows.length > 0)) : "";
+    const failure = active ? failures.get(active) : undefined;
+    const notice = until > now ? blockedNotice(until, windows.length > 0) : failure && !windows.length ? `no usage data: ${failure}` : "";
+    const note = notice ? ctxRef.ui.theme.fg("dim", notice) : "";
     if (!windows.length) {
       ctxRef.ui.setStatus(KEY, note || undefined);
       return;
@@ -164,36 +160,41 @@ export default function (pi: ExtensionAPI) {
   function forget(provider: Provider): void {
     cache.delete(provider);
     heldUntil.delete(provider);
+    failures.delete(provider);
     patchSnapshot(provider, { at: 0, polledAt: 0, blockedUntil: 0, windows: [] });
   }
 
   async function refresh(providerId: string | undefined, force = false): Promise<void> {
     const provider = PROVIDERS[providerId ?? ""] ?? null;
     active = provider;
-    const saved = provider ? readSnapshot()[provider] : undefined;
-    if (provider) heldUntil.set(provider, saved?.blockedUntil ?? 0);
-    if (provider && saved && saved.at > (cache.get(provider)?.at ?? 0))
+    if (!provider) return paint();
+    try {
+      await poll(provider, force);
+      failures.delete(provider);
+    } catch (error) {
+      failures.set(provider, error instanceof Error ? error.message : String(error));
+    }
+    if (active === provider) paint();
+  }
+
+  async function poll(provider: Provider, force: boolean): Promise<void> {
+    const saved = readSnapshot()[provider];
+    heldUntil.set(provider, saved?.blockedUntil ?? 0);
+    if (saved && saved.at > (cache.get(provider)?.at ?? 0))
       cache.set(provider, { at: saved.at, windows: saved.windows.filter((w) => w.resetsAt > Date.now()) });
     paint();
-    if (!provider) return;
     const rateLimited = Date.now() < (heldUntil.get(provider) ?? 0);
     if (!force && (pollSlotTaken(saved, Date.now(), REFRESH_MS) || rateLimited)) return;
     claimPoll(provider);
-    try {
-      const poll = await fetchUsage(provider);
-      if (poll.blockedUntil) {
-        patchSnapshot(provider, { blockedUntil: poll.blockedUntil });
-        heldUntil.set(provider, poll.blockedUntil);
-      }
-      const modelSwitchedMidFlight = active !== provider;
-      if (modelSwitchedMidFlight) return;
-      if (poll.windows.length) {
-        cache.set(provider, { at: Date.now(), windows: poll.windows });
-        writeSnapshot(provider, poll.windows);
-        heldUntil.set(provider, 0);
-      }
-      paint();
-    } catch {}
+    const result = await fetchUsage(provider);
+    if (result.blockedUntil) {
+      patchSnapshot(provider, { blockedUntil: result.blockedUntil });
+      heldUntil.set(provider, result.blockedUntil);
+    }
+    if (active !== provider || !result.windows.length) return;
+    cache.set(provider, { at: Date.now(), windows: result.windows });
+    writeSnapshot(provider, result.windows);
+    heldUntil.set(provider, 0);
   }
 
   function start(ctx: any): void {
