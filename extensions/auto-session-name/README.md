@@ -1,29 +1,14 @@
 # auto-session-name
 
-Names the session once, after the first turn, so `/resume` stops listing untitled sessions and the herdr tab stops reading `3`.
+Names the session after its first answer, so `/resume` and the herdr tab show the topic instead of a number.
 
 ```text
-session-name
 oauth-rotation
 flaky-test-fix
 ```
 
-Two words, three only when two cannot say it, lowercase, hyphen-joined, 28 characters at most. The name goes to `pi.setSessionName()`, which `/resume` and `pi -r` list, and which [`herdr-tab-title`](../herdr-tab-title/) carries to the herdr tab label.
+The name is two words, three when two cannot say it, lowercase and hyphen-joined, 28 characters at most. It goes to `pi.setSessionName()`, and [`herdr-tab-title`](../herdr-tab-title/) carries it to the tab.
 
-## When it fires
+It fires once, on the first `agent_settled` whose transcript holds both user and assistant text. It listens there rather than on `turn_end`, which fires once per tool roundtrip. A session that already has a name is left alone (`/name`, `-n`, a resume or a fork), and a name you set while the call is in flight wins over its answer. A failed call is retried on the next turn. Sessions without a UI, subagents and `-p` runs, stay unnamed.
 
-On the first `agent_settled`: one user prompt, one settled answer, tool calls and retries included. `turn_end` would fire once per LLM roundtrip, so a prompt with eight tool calls would name the session eight times.
-
-It fires once. A session that already has a name at `session_start` is left alone (`/name`, `-n`, a resumed or forked name), and a name arriving later stops it too. Nothing is fired if the turn produced no user text and no assistant text; that turn is skipped and the next one is the first. A failed call also leaves the next turn to retry, since the reason is usually the network.
-
-Naming needs no threshold on tokens or characters. Input tokens are dominated by the system prompt and tool output before you have typed anything, so they measure the harness rather than the topic, and the first request plus its answer is what states the task.
-
-## The call
-
-`anthropic/claude-haiku-4-5`, else the first available model whose id contains `haiku`, else nothing: a session name never escalates to a frontier model. One `ctx.modelRegistry.complete()` of 24 output tokens on a transcript capped at 4k chars, so the whole session costs a fraction of a cent. `enabledModels` does not apply, it scopes what `/model` offers, not what the registry can find.
-
-The reply is read as its last non-empty line, lowercased, stripped to `[a-z0-9]` words, cut to the first three, and then words are dropped, never characters, until it fits: a truncated word is a worse name than one word fewer.
-
-Inert without a UI, so subagents and `-p` runs stay unnamed.
-
-No config. No commands. Self-check: `npx tsx extensions/auto-session-name/test.ts`.
+The call goes to `anthropic/claude-haiku-4-5`, or the cheapest authenticated anthropic model by input cost when haiku is not on offer, never another provider. No anthropic credential, no name. It is one `complete()` of 24 output tokens over the first 4k characters of the transcript. `enabledModels` does not restrict it, since it scopes what `/model` offers, not what the registry finds.

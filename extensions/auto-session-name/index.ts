@@ -1,17 +1,9 @@
-import type { Api, Model } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
+import { sideCallModel } from "../../lib/models.ts";
 import { buildExchange, extractText, NAME_PROMPT, type NamingMessage, toSessionName } from "./naming.ts";
 
-const NAMER_PROVIDER = "anthropic";
-const NAMER_MODEL = "claude-haiku-4-5";
 const MAX_REPLY_TOKENS = 24;
-
-function findNamer(ctx: ExtensionContext): Model<Api> | undefined {
-  return (
-    ctx.modelRegistry.find(NAMER_PROVIDER, NAMER_MODEL) ?? ctx.modelRegistry.getAvailable().find((model) => model.id.includes("haiku"))
-  );
-}
 
 function branchMessages(ctx: ExtensionContext): NamingMessage[] {
   const messages: NamingMessage[] = [];
@@ -28,7 +20,6 @@ export default function (pi: ExtensionAPI) {
     pending = ctx.hasUI === true && !pi.getSessionName();
   });
 
-  // INFO: fc 09mar26 a name from /name, -n or an inherited fork is the user's, and ours lands here too
   pi.on("session_info_changed", (event) => {
     if (event.name) pending = false;
   });
@@ -41,7 +32,7 @@ export default function (pi: ExtensionAPI) {
       pending = true;
       return;
     }
-    const model = findNamer(ctx);
+    const model = sideCallModel(ctx.modelRegistry);
     if (!model) return;
     try {
       const reply = await ctx.modelRegistry.complete(
@@ -52,9 +43,9 @@ export default function (pi: ExtensionAPI) {
         { maxTokens: MAX_REPLY_TOKENS },
       );
       const name = toSessionName(extractText(reply.content));
-      if (name) pi.setSessionName(name);
+      if (name && !pi.getSessionName()) pi.setSessionName(name);
     } catch {
-      pending = true;
+      pending = !pi.getSessionName();
     }
   });
 }
