@@ -1,10 +1,11 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-export type Markers = { paths?: string[]; extensions?: string[] };
+export type Markers = { paths?: string[]; files?: RegExp };
 
-const SKIP_DIRS = new Set(["node_modules", ".git", "vendor", "tmp", "log", "dist", "build", "coverage"]);
+const LS_FILES_BUFFER = 256 * 1024 * 1024;
 
 export function policy(dir: string, markers?: Markers) {
   return function (pi: ExtensionAPI) {
@@ -16,9 +17,11 @@ export function policy(dir: string, markers?: Markers) {
   };
 }
 
-function triggered({ paths = [], extensions = [] }: Markers): boolean {
+function triggered({ paths = [], files }: Markers): boolean {
   if (existsHereOrAbove(paths)) return true;
-  return extensions.length > 0 && anyFileBelow(projectRoot(), extensions);
+  if (!files) return false;
+  const root = repositoryRoot();
+  return root !== undefined && repositoryFiles(root).some((file) => files.test(file));
 }
 
 function existsHereOrAbove(paths: string[]): boolean {
@@ -30,30 +33,20 @@ function existsHereOrAbove(paths: string[]): boolean {
   }
 }
 
-function projectRoot(): string {
+function repositoryRoot(): string | undefined {
   for (let dir = process.cwd(); ; ) {
     if (existsSync(join(dir, ".git"))) return dir;
     const parent = dirname(dir);
-    if (parent === dir) return process.cwd();
+    if (parent === dir) return undefined;
     dir = parent;
   }
 }
 
-function anyFileBelow(root: string, extensions: string[]): boolean {
-  const stack = [root];
-  while (stack.length) {
-    const dir = stack.pop()!;
-    let entries;
-    try {
-      entries = readdirSync(dir, { withFileTypes: true });
-    } catch {
-      continue; // INFO: fc 03aug26 an unreadable dir must not kill agent start, treat as no match
-    }
-    for (const entry of entries) {
-      if (entry.isDirectory()) {
-        if (!SKIP_DIRS.has(entry.name)) stack.push(join(dir, entry.name));
-      } else if (extensions.some((ext) => entry.name.endsWith(ext))) return true;
-    }
-  }
-  return false;
+function repositoryFiles(root: string): string[] {
+  const listing = execFileSync("git", ["ls-files", "-z", "--cached", "--others", "--exclude-standard"], {
+    cwd: root,
+    encoding: "utf8",
+    maxBuffer: LS_FILES_BUFFER,
+  });
+  return listing.split("\0");
 }

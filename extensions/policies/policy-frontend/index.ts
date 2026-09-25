@@ -1,3 +1,3 @@
 import { policy } from "../policy.ts";
 
-export default policy(import.meta.dirname, { extensions: [".html", ".erb", ".slim"] });
+export default policy(import.meta.dirname, { files: /\.(html|erb|slim)$/ });
