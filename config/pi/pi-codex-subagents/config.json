@@ -3,7 +3,8 @@
   "defaults": {
     "extensions": [
       "~/.pi/agent/git/github.com/fcatuhe/pi-wares/extensions/policies/subagent-policies",
-      "~/.pi/agent/git/github.com/fcatuhe/pi-wares/extensions/comment-check"
+      "~/.pi/agent/git/github.com/fcatuhe/pi-wares/extensions/comment-check",
+      "~/.pi/agent/git/github.com/fcatuhe/pi-wares/extensions/output-style"
     ]
   }
 }

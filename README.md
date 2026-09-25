@@ -78,6 +78,7 @@ Some skills drive CLIs this package does not install:
 | [`radio/`](./extensions/radio/) | `radio_call` calls another agent session on this machine: the message lands in its transcript as a named peer, not as its owner typing. |
 | [`handoff/`](./extensions/handoff/) | `/handoff <goal>` starts a new linked session with an LLM-written brief. |
 | [`policies/`](./extensions/policies/) | House rules in the system prompt, one extension per policy so `pi config` toggles them one by one. |
+| [`output-style/`](./extensions/output-style/) | `/output-style` switches the writing shape, Default for code and chat, Prose for content, like Claude Code's output styles. |
 | [`comment-check/`](./extensions/comment-check/) | Blocks a write or edit whose new comment lines break the code comment policy. |
 | [`wares-doctor/`](./extensions/wares-doctor/) | `/wares-doctor` runs the machine setup check in-session, `/wares-doctor:apply` writes what is missing, `/wares-doctor:force` also overwrites what differs. |
 | [`subscription-token-login/`](./extensions/subscription-token-login/) | Adds a `sk-ant-oat01` token method to Anthropic's `/login`: one paste, good for a year. |
