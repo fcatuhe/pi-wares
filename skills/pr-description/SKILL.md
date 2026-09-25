@@ -38,7 +38,7 @@ Before and after only for what existed before. A new flow has no before, show it
 
 On the ref `refs/assets/github`, never on a branch. `git clone` fetches only branches and tags, so the images never reach anyone's clone. The ref also stays out of the branch list and out of the PR base and compare pickers.
 
-One folder per thread that reads the files, number first so the folder is found from the thread: `pr/<number>-<slug>/`, `issues/<number>-<slug>/`. Files numbered in display order: `01-home.png`, `02-home-phone.png`. PDFs and other files go in the same folder as the thread that links them.
+One folder per thread that reads the files, number first so the folder is found from the thread: `pr/<number>-<branch>/` with every `/` of the branch turned into `-` (`pr/12-feat-todays-meetings-home/`), `issues/<number>-<title-slug>/`. Files numbered in display order: `01-home.png`, `02-home-phone.png`. PDFs and other files go in the same folder as the thread that links them.
 
 The folder needs the PR number, so open the PR first, then push the images, then `gh pr edit <number> --body-file`.
 
@@ -46,7 +46,7 @@ Push without touching the working tree or the index:
 
 ```sh
 ref=refs/assets/github
-dir=pr/<number>-<slug>
+dir=pr/<number>-$(git branch --show-current | tr / -)
 export GIT_INDEX_FILE=$(mktemp -d)/index
 git fetch -q origin "+$ref:$ref"
 git read-tree "$ref"
@@ -63,9 +63,9 @@ First time in a repository, create the ref: `git push origin "$(git commit-tree 
 Link each file by the commit SHA, through `/raw/`:
 
 ```
-https://github.com/<owner>/<repo>/raw/<commit>/pr/<number>-<slug>/01-home.png
+https://github.com/<owner>/<repo>/raw/<commit>/pr/<number>-<branch>/01-home.png
 ```
 
 The SHA pins the image to that PR, so later pushes to the ref never change it. It keeps rendering even after the folder is deleted in a later commit. Do not link through `raw.githubusercontent.com`, which does not render in a private repository.
 
-Footer: `Screenshots live on refs/assets/github under pr/<number>-<slug>/.`
+Footer: `Screenshots live on refs/assets/github under pr/<number>-<branch>/.`
