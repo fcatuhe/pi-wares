@@ -23,7 +23,7 @@ const scratch = (files: string[]) => {
   return dir;
 };
 
-const ALWAYS = ["policy-code-comment", "policy-engineering", "policy-writing-style"];
+const ALWAYS = ["policy-code-comment", "policy-engineering"];
 
 const CASES = {
   // A bare directory under tmpdir: no .git anywhere above it, nothing else.
@@ -68,5 +68,5 @@ for (const name of [...ALWAYS, "policy-git", "policy-frontend", "policy-rails"])
   const headline = readFileSync(join(import.meta.dirname, name, "policy.md"), "utf8").split("\n")[0];
   assert.ok(aggregate.includes(headline), `${name} never reaches a subagent`);
 }
-assert.equal(handlers.length, 6, `a policy directory was added without a subagent reaching it (${root})`);
+assert.equal(handlers.length, 5, `a policy directory was added without a subagent reaching it (${root})`);
 

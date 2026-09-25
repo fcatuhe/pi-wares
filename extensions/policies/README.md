@@ -1,14 +1,13 @@
 # policies
 
-House rules appended to the system prompt, byte-identical every turn so they cache once per session.
+House rules appended to the system prompt, byte-identical every turn so they cache once per session. How to write lives in [`output-style`](../output-style/), which switches.
 
-One policy is one extension, `policy-<name>/index.ts` plus its `policy.md`, so `pi config` enables and disables them one by one: keep the code ones, drop the writing style one, in any scope pi config offers. `policy.ts` holds the shared loader and `policies/` itself has no `index.ts`, so only the `policy-*` directories load.
+One policy is one extension, `policy-<name>/index.ts` plus its `policy.md`, so `pi config` enables and disables them one by one, in any scope pi config offers. `policy.ts` holds the shared loader and `policies/` itself has no `index.ts`, so only the `policy-*` directories load.
 
 | Policy | Loaded when |
 |---|---|
 | `policy-code-comment/` | always |
 | `policy-engineering/` | always |
-| `policy-writing-style/` | always |
 | `policy-git/` | `.git` exists |
 | `policy-frontend/` | a `.html`, `.erb` or `.slim` file exists in the project (vendored dirs excluded) |
 | `policy-rails/` | `config/application.rb` exists |
