@@ -23,7 +23,6 @@ export default function (pi: ExtensionAPI) {
   }
 
   pi.on("session_start", (_event, ctx) => reset(ctx));
-  // INFO: fc 11aug26 models generate at wildly different rates, averaging across a switch describes neither
   pi.on("model_select", (_event, ctx) => reset(ctx));
 
   pi.on("message_start", (event) => {
@@ -32,7 +31,6 @@ export default function (pi: ExtensionAPI) {
     lastChunkMs = null;
   });
 
-  // INFO: fc 11aug26 the stream window, not the turn: turn_start puts queueing and thinking in the denominator
   pi.on("message_update", (event) => {
     if (event.message.role !== "assistant") return;
     const now = Date.now();
