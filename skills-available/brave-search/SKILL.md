@@ -18,6 +18,11 @@ Requires a Brave Search API account with a free subscription. A credit card is r
    ```bash
    export BRAVE_API_KEY="your-api-key-here"
    ```
+5. Install dependencies (run once):
+   ```bash
+   cd {baseDir}
+   npm install
+   ```
 
 ## Search
 
