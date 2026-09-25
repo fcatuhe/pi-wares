@@ -1,16 +1,24 @@
 # wares-doctor
 
-`/wares-doctor` compares this machine against the reference configs in [`config/`](../../config/README.md) and prints one line per file into the transcript.
+`/wares-doctor` compares this machine against the reference files in [`config/`](../../config/README.md) and prints one line per file into the transcript.
 
 ```text
-/wares-doctor         # report what is missing
-/wares-doctor:apply   # write the missing keys
-/wares-doctor:force   # write those, and overwrite the keys that differ
+/wares-doctor         # report what differs
+/wares-doctor:apply   # write what is missing, keep what you set
+/wares-doctor:force   # write that, and overwrite what differs
 ```
 
-`:apply` only ever adds. A key you set differently comes back as `kept`, and every run, report or apply, closes with what `:force` would take instead.
+| Target | Reference in `config/` | Path | After a write |
+|---|---|---|---|
+| pi settings | `pi/settings.json` | `~/.pi/agent/settings.json` | restart pi |
+| model shortcuts | `pi/model-shortcuts/config.json` | `~/.pi/agent/model-shortcuts/config.json` | `/reload` |
+| subagents | `pi/pi-codex-subagents/config.json` | `~/.pi/agent/pi-codex-subagents/config.json` | restart pi |
+| rails-review agent | `pi/pi-codex-subagents/agents/rails-review.md` | `~/.pi/agent/pi-codex-subagents/agents/rails-review.md` | restart pi |
+| herdr | `herdr/config.toml` | `~/.config/herdr/config.toml` | `herdr server reload-config` |
 
-Under the file lines, each group of findings prints a headline and one indented line per item, so nothing is a bare count:
+`~/.pi/agent` follows `PI_CODING_AGENT_DIR` and `~/.config` follows `XDG_CONFIG_HOME`. A missing file is copied. JSON and TOML are compared key by key and edited in place, comments and order kept. The `.md` template is compared whole.
+
+`:apply` only adds. A value you set differently is `kept`, and `:force` replaces it. Keys and array members the reference does not list always stay. A reference array is members to add, so `new_tab = "ctrl+alt+t"` against `["prefix+c", "ctrl+alt+t"]` becomes `["ctrl+alt+t", "prefix+c"]`. `:force` keeps a trailing comment next to a value it replaces, which may then describe the old one.
 
 ```text
 2 to add. /wares-doctor:apply writes them.
@@ -20,18 +28,4 @@ Under the file lines, each group of findings prints a headline and one indented 
   pi settings defaultThinkingLevel "low" -> "high"
 ```
 
-`=` writes a key, `+` appends array members, `->` shows what a value would become, so a difference always names both sides. Color is the gap, not the mood: warning for a gap a command closes (`to add`, `kept as yours`, and the state of any file that is not all `ok`), error for one no command closes (`manual`, edit the file yourself). A file that matches the reference keeps its `ok 8` in plain text, so scanning the report means scanning for color. Item lines stay plain too, they are the detail of the headline above them.
-
-A row is data, not a formatted line: `Row` in [`doctor.ts`](./doctor.ts) carries the padded label, state, path and hint, and [`index.ts`](./index.ts) colors the state cell alone.
-
-JSON edits go through `jsonc-parser` and TOML edits through `toml-eslint-parser`, so comments, alignment and key order in the file survive. A TOML key with no table to live in is reported as `manual` rather than guessed at.
-
-A key the reference gives several values, a herdr binding with alternate chords for instance, is a list of members rather than one value: what you set counts as one member of it, so `new_tab = "ctrl+alt+t"` against a reference of `["prefix+c", "ctrl+alt+t"]` gains `prefix+c` and keeps your chord first. That is an addition, `+` in the report, and `:force` has nothing extra to take.
-
-`:force` adds the same keys and then replaces every `kept` one with the reference value, counted as `replaced` in the report. It is key by key, not file by file: keys the reference never mentions stay, extra array members stay (an extra enabled model is an addition, not a disagreement), and a diverged `[[keys.command]]` entry is rewritten in place rather than duplicated. Only the key and value are replaced, so a trailing comment you wrote next to the old value survives and may end up describing the new one. A key written in a form the parser cannot pin to a single node, an inline table for instance, is reported as `manual` instead of being overwritten blind.
-
-The three modes are three registered commands, `COMMANDS` in [`doctor.ts`](./doctor.ts), not one command taking an argument, so the `/` palette lists all three with their own descriptions. None of them takes an argument, and one typed anyway is refused rather than ignored.
-
-The report is a custom entry, so it renders in the transcript under the command that produced it, survives `/reload`, and is never sent to the model. A run that cannot read a reference or create a target directory notifies the error instead of drawing an empty card.
-
-Targets live in `targets()` in [`doctor.ts`](./doctor.ts), one object per file, each with the hint the report prints once it has written: `restart pi`, `/reload in pi`, or `herdr server reload-config`. Paths follow `PI_CODING_AGENT_DIR` and `XDG_CONFIG_HOME` when either is set, which is also how the self-check points them at a temp directory.
+Warning color marks what a command closes. Error color marks `manual`, a TOML key the doctor cannot place or pin down, such as an inline table, left for you to edit. A TOML table array (`[[keys.command]]`) in a reference fails the run.

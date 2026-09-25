@@ -1,11 +1,12 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, extname, join } from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 
-import { writes } from "./defaults-diff.js";
-import { reconcileJson } from "./json-defaults.js";
-import { reconcileToml } from "./toml-defaults.js";
+import { agentDir, homeRelative } from "../../lib/paths.ts";
+import { type Finding, type Reconciled, writes } from "./diff.ts";
+import { reconcileJson } from "./json.ts";
+import { reconcileToml } from "./toml.ts";
 
 export const COMMAND = "wares-doctor";
 export const APPLY = "apply";
@@ -44,19 +45,7 @@ interface Target {
   label: string;
   reference: string;
   path: string;
-  identity?: Record<string, string>;
   hint: string;
-}
-
-interface Finding {
-  kind: "value" | "members" | "entry";
-  path: string[];
-  state: "ok" | "missing" | "incomplete" | "diverged";
-  identity?: string;
-  expected?: unknown;
-  found?: unknown;
-  absent?: unknown[];
-  blocked?: string;
 }
 
 export interface Note {
@@ -143,63 +132,47 @@ function names(inspection: Inspection, keep: (finding: Finding) => boolean): str
 }
 
 function name(finding: Finding): string {
-  return [key(finding), change(finding), finding.blocked ? `(${finding.blocked})` : ""].filter(Boolean).join(" ");
-}
-
-function key(finding: Finding): string {
-  const path = finding.path.join(".");
-  if (finding.kind !== "entry" || !finding.identity) return path;
-  return `${path}[${(finding.expected as Record<string, unknown>)[finding.identity]}]`;
+  return [finding.path.join("."), change(finding), finding.blocked ? `(${finding.blocked})` : ""].filter(Boolean).join(" ");
 }
 
 function change(finding: Finding): string {
+  if (finding.kind === "file") return "differs from the reference";
   if (finding.kind === "members") return `+ [${(finding.absent ?? []).map(show).join(", ")}]`;
-  if (finding.kind === "entry") return finding.state === "diverged" ? fields(finding) : "";
   if (finding.state === "diverged") return `${show(finding.found)} -> ${show(finding.expected)}`;
   return `= ${show(finding.expected)}`;
-}
-
-function fields(finding: Finding): string {
-  const expected = finding.expected as Record<string, unknown>;
-  const found = (finding.found ?? {}) as Record<string, unknown>;
-  return Object.entries(expected)
-    .filter(([field, value]) => value !== found[field])
-    .map(([field, value]) => `${field} ${show(found[field])} -> ${show(value)}`)
-    .join(", ");
 }
 
 function show(value: unknown): string {
   return value === undefined ? "unset" : JSON.stringify(value);
 }
 
-// INFO: fc 06aug26 read per call, not at load: PI_CODING_AGENT_DIR and XDG_CONFIG_HOME are what the self-check points at a temp dir
 function targets(): Target[] {
-  const agentDir = process.env.PI_CODING_AGENT_DIR ?? join(homedir(), ".pi", "agent");
-  const configHome = process.env.XDG_CONFIG_HOME ?? join(homedir(), ".config");
+  const pi = agentDir();
+  const herdr = join(process.env.XDG_CONFIG_HOME ?? join(homedir(), ".config"), "herdr");
   return [
-    {
-      label: "pi settings",
-      reference: "config/pi/settings.json",
-      path: join(agentDir, "settings.json"),
-      hint: "restart pi",
-    },
+    { label: "pi settings", reference: "config/pi/settings.json", path: join(pi, "settings.json"), hint: "restart pi" },
     {
       label: "model shortcuts",
-      reference: "config/pi/extensions/pi-model-shortcuts.json",
-      path: join(agentDir, "extensions", "pi-model-shortcuts.json"),
+      reference: "config/pi/model-shortcuts/config.json",
+      path: join(pi, "model-shortcuts", "config.json"),
       hint: "/reload in pi",
     },
     {
       label: "subagents",
       reference: "config/pi/pi-codex-subagents/config.json",
-      path: join(agentDir, "pi-codex-subagents", "config.json"),
+      path: join(pi, "pi-codex-subagents", "config.json"),
+      hint: "restart pi",
+    },
+    {
+      label: "rails-review agent",
+      reference: "config/pi/pi-codex-subagents/agents/rails-review.md",
+      path: join(pi, "pi-codex-subagents", "agents", "rails-review.md"),
       hint: "restart pi",
     },
     {
       label: "herdr",
       reference: "config/herdr/config.toml",
-      path: join(configHome, "herdr", "config.toml"),
-      identity: { "keys.command": "key" },
+      path: join(herdr, "config.toml"),
       hint: "herdr server reload-config",
     },
   ];
@@ -207,14 +180,16 @@ function targets(): Target[] {
 
 function inspect(target: Target, force: boolean): Inspection {
   if (!existsSync(target.path)) return { target, missing: true, findings: [] };
-
-  const reconcile = target.reference.endsWith(".toml") ? reconcileToml : reconcileJson;
   const reference = readFileSync(join(ROOT, target.reference), "utf-8");
-  return {
-    target,
-    missing: false,
-    ...reconcile(readFileSync(target.path, "utf-8"), reference, target.identity, force),
-  };
+  return { target, missing: false, ...reconcile(target, readFileSync(target.path, "utf-8"), reference, force) };
+}
+
+function reconcile(target: Target, actual: string, reference: string, force: boolean): Reconciled {
+  const extension = extname(target.reference);
+  if (extension === ".json") return reconcileJson(actual, reference, force);
+  if (extension === ".toml") return reconcileToml(actual, reference, force);
+  const state = actual === reference ? "ok" : "diverged";
+  return { findings: [{ kind: "file", path: [], state }], text: reference };
 }
 
 function describe(inspections: Inspection[], apply: boolean, force: boolean): Row[] {
@@ -224,7 +199,7 @@ function describe(inspections: Inspection[], apply: boolean, force: boolean): Ro
   return inspections.map((it, index) => ({
     label: it.target.label.padEnd(labelWidth),
     state: states[index].padEnd(stateWidth),
-    path: tildify(it.target.path),
+    path: homeRelative(it.target.path),
     hint: apply && needsWrite(it, force) ? `  (${it.target.hint})` : "",
     tone: tone(it, force),
   }));
@@ -281,8 +256,4 @@ function write(inspection: Inspection): void {
     return;
   }
   writeFileSync(target.path, inspection.text!);
-}
-
-function tildify(path: string): string {
-  return path.startsWith(homedir()) ? path.replace(homedir(), "~") : path;
 }
