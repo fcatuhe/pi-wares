@@ -102,7 +102,12 @@ assert.doesNotThrow(() => parseTOML(forced.text), "the forced result is not vali
 assert.equal(reconcileToml(forced.text, REFERENCE_TOML, IDENTITY, true).text, forced.text, "forcing twice is not idempotent");
 
 // force replaces an edited table array entry in place rather than appending a second one.
-const forcedEntry = reconcileToml(`${USER_TOML}\n[[keys.command]]\nkey = "cmd+shift+i"\ncommand = 'mine'\n`, REFERENCE_TOML, IDENTITY, true);
+const forcedEntry = reconcileToml(
+  `${USER_TOML}\n[[keys.command]]\nkey = "cmd+shift+i"\ncommand = 'mine'\n`,
+  REFERENCE_TOML,
+  IDENTITY,
+  true,
+);
 assert.match(forcedEntry.text, /command = 'herdr pane run pi'/, "the edited entry was not replaced");
 assert.doesNotMatch(forcedEntry.text, /'mine'/, "the edited entry survived a force");
 assert.equal((forcedEntry.text.match(/\[\[keys\.command\]\]/g) ?? []).length, 1, "force duplicated the entry");
@@ -128,7 +133,11 @@ assert.equal(reconcileJson(json.text, reference).text, json.text, "applying twic
 const forcedJson = reconcileJson(userJson, reference, {}, true);
 const overwritten = JSON.parse(forcedJson.text);
 assert.equal(overwritten.defaultModel, "claude-opus-5", "force left the diverged value alone");
-assert.deepEqual(overwritten.enabledModels, ["anthropic/claude-opus-4-7", "anthropic/claude-opus-5"], "force dropped a model the user enabled");
+assert.deepEqual(
+  overwritten.enabledModels,
+  ["anthropic/claude-opus-4-7", "anthropic/claude-opus-5"],
+  "force dropped a model the user enabled",
+);
 assert.equal(reconcileJson(forcedJson.text, reference, {}, true).text, forcedJson.text, "forcing twice is not idempotent");
 
 // End to end on a bare machine: every target gets created, then nothing is left.
@@ -142,16 +151,14 @@ function bareMachine(): string {
 const home = bareMachine();
 const bare = report("");
 // Work waiting on the user is the warning; the items under it are plain text.
-assert.deepEqual(bare.notes.map((note) => note.tone), ["warning", "text", "text", "text", "text"], "the notes changed tone");
+assert.deepEqual(
+  bare.notes.map((note) => note.tone),
+  ["warning", "text", "text", "text", "text"],
+  "the notes changed tone",
+);
 assert.deepEqual(
   bare.notes.map((note) => note.text),
-  [
-    "4 to add. /wares-doctor:apply writes them.",
-    "  pi settings",
-    "  model shortcuts",
-    "  subagents",
-    "  herdr",
-  ],
+  ["4 to add. /wares-doctor:apply writes them.", "  pi settings", "  model shortcuts", "  subagents", "  herdr"],
   "a bare machine did not list every target it would create",
 );
 // One row per file, nothing per key, and a file with work to do is coloured, not just counted.
@@ -175,11 +182,7 @@ assert.deepEqual(
   "a machine with nothing left to do still colours its rows",
 );
 const root = join(import.meta.dirname, "..", "..");
-for (const file of [
-  "agent/settings.json",
-  "agent/extensions/pi-model-shortcuts.json",
-  "config/herdr/config.toml",
-]) {
+for (const file of ["agent/settings.json", "agent/extensions/pi-model-shortcuts.json", "config/herdr/config.toml"]) {
   const source = file.startsWith("agent/") ? `config/pi/${file.slice("agent/".length)}` : "config/herdr/config.toml";
   assert.equal(readFileSync(join(home, file), "utf-8"), readFileSync(join(root, source), "utf-8"), `${file} is not the reference`);
 }
@@ -191,13 +194,14 @@ const diverging = report("");
 const kept = diverging.notes;
 assert.deepEqual(
   kept.map((note) => note.text),
-  [
-    `1 kept as yours. /wares-doctor:${FORCE} takes the reference instead.`,
-    `  pi settings defaultThinkingLevel "low" -> "high"`,
-  ],
+  [`1 kept as yours. /wares-doctor:${FORCE} takes the reference instead.`, `  pi settings defaultThinkingLevel "low" -> "high"`],
   "the report does not say which value it kept, what would replace it, or never mentions force",
 );
-assert.deepEqual(kept.map((note) => note.tone), ["warning", "text"], "drift from the reference is a warning, its detail is not");
+assert.deepEqual(
+  kept.map((note) => note.tone),
+  ["warning", "text"],
+  "drift from the reference is a warning, its detail is not",
+);
 assert.match(diverging.rows[0].state, /^kept 1, ok /, "a diverged key is no longer reported as kept");
 assert.equal(diverging.rows[0].tone, "warning", "a file that drifted from the reference renders like one that matches");
 
@@ -228,7 +232,10 @@ assert.deepEqual(
   [
     "2 to add. /wares-doctor:apply writes them.",
     `  pi settings defaultThinkingLevel = ${JSON.stringify(wanted.defaultThinkingLevel)}`,
-    `  pi settings enabledModels + [${wanted.enabledModels.slice(1).map((model: string) => JSON.stringify(model)).join(", ")}]`,
+    `  pi settings enabledModels + [${wanted.enabledModels
+      .slice(1)
+      .map((model: string) => JSON.stringify(model))
+      .join(", ")}]`,
   ],
   "the list does not name the key, the value it would write, or the members it would append",
 );
@@ -299,4 +306,3 @@ broken.call(APPLY);
 assert.deepEqual(broken.run.entries, [], "a failed run still appended a report");
 assert.equal(broken.run.notices[0][1], "error");
 assert.match(broken.run.notices[0][0], /^wares-doctor:apply failed: /);
-

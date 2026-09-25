@@ -17,16 +17,16 @@ assert.equal(slotFor("  Francois+Pi@Instacab.com "), "anthropic-francois-pi-inst
 assert.throws(() => slotFor("@@"), /Not an account name/);
 
 const two = {
-	"openai-codex": oauth("codex"),
-	[ACTIVE]: oauth("current"),
-	"anthropic-francois-instacab-com": { ...oauth("benched"), email: INSTACAB },
-	"anthropic-old-slot": oauth("unlabelled"),
+  "openai-codex": oauth("codex"),
+  [ACTIVE]: oauth("current"),
+  "anthropic-francois-instacab-com": { ...oauth("benched"), email: INSTACAB },
+  "anthropic-old-slot": oauth("unlabelled"),
 };
 
 // The picker lists what is on the bench, by email, and never the account in use.
 assert.deepEqual(storedAccounts(two), [
-	{ slot: "anthropic-francois-instacab-com", email: INSTACAB },
-	{ slot: "anthropic-old-slot", email: "old-slot" },
+  { slot: "anthropic-francois-instacab-com", email: INSTACAB },
+  { slot: "anthropic-old-slot", email: "old-slot" },
 ]);
 assert.deepEqual(storedAccounts({ [ACTIVE]: oauth("current") }), []);
 assert.equal(activeCredential(two)?.access, "current");
@@ -60,14 +60,14 @@ assert.throws(() => emailFrom(undefined), /no account email/);
 
 const profileCalls: Array<{ url: string; headers: Record<string, string> }> = [];
 const fakeFetch = (async (url: string, init: any) => {
-	profileCalls.push({ url: String(url), headers: init.headers });
-	return { ok: true, json: async () => ({ account: { email: INSTACAB } }) };
+  profileCalls.push({ url: String(url), headers: init.headers });
+  return { ok: true, json: async () => ({ account: { email: INSTACAB } }) };
 }) as unknown as typeof fetch;
 assert.equal(await fetchEmail("sk-ant-oat01-x", fakeFetch), INSTACAB);
 assert.equal(profileCalls[0].url, "https://api.anthropic.com/api/oauth/profile");
 assert.deepEqual(profileCalls[0].headers, {
-	Authorization: "Bearer sk-ant-oat01-x",
-	"anthropic-beta": "oauth-2025-04-20",
+  Authorization: "Bearer sk-ant-oat01-x",
+  "anthropic-beta": "oauth-2025-04-20",
 });
 const refusing = (async () => ({ ok: false, status: 401 })) as unknown as typeof fetch;
 await assert.rejects(fetchEmail("sk-ant-oat01-x", refusing), /answered 401/);
@@ -90,8 +90,8 @@ const whatThePickerSaw = readCredentials(path);
 writeFileSync(path, JSON.stringify({ ...two, [ACTIVE]: oauth("rotated") }, null, 2));
 assert.equal(whatThePickerSaw[ACTIVE].access, "current");
 await updateCredentials(path, (current) => {
-	assert.equal(current[ACTIVE].access, "rotated");
-	return activate(stash(current, RIDECELL), "anthropic-francois-instacab-com");
+  assert.equal(current[ACTIVE].access, "rotated");
+  return activate(stash(current, RIDECELL), "anthropic-francois-instacab-com");
 });
 assert.equal(readCredentials(path)["anthropic-francois-ridecell-com"].access, "rotated");
 

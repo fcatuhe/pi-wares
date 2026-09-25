@@ -69,4 +69,3 @@ for (const name of [...ALWAYS, "policy-git", "policy-frontend", "policy-rails"])
   assert.ok(aggregate.includes(headline), `${name} never reaches a subagent`);
 }
 assert.equal(handlers.length, 5, `a policy directory was added without a subagent reaching it (${root})`);
-

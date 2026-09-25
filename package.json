@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "tsx --test extensions/*/test.ts"
+    "test": "tsx --test extensions/*/test.ts",
+    "format": "biome format --write ."
   },
   "dependencies": {
     "@mixmark-io/domino": "^2.2.0",
@@ -36,6 +37,7 @@
     ]
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.5.14",
     "@types/turndown": "^5.0.6",
     "tsx": "^4.23.15"
   }

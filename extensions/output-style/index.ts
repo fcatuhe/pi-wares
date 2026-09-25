@@ -63,7 +63,9 @@ function styleDirs(cwd: string): string[] {
 function loadStyles(dirs: string[]): Styles {
   const styles: Styles = new Map();
   for (const dir of dirs.filter((dir) => existsSync(dir))) {
-    for (const file of readdirSync(dir).filter((name) => name.endsWith(".md")).sort()) {
+    for (const file of readdirSync(dir)
+      .filter((name) => name.endsWith(".md"))
+      .sort()) {
       const style = parseStyle(basename(file, ".md"), readFileSync(join(dir, file), "utf8"));
       styles.set(style.name.toLowerCase(), style);
     }
@@ -79,9 +81,9 @@ function parseStyle(fileName: string, text: string): Style {
 }
 
 function activeStyle(ctx: ExtensionContext, styles: Styles, configured: string): Style {
-  const switched = ctx.sessionManager
-    .getBranch()
-    .findLast((entry) => entry.type === "custom" && entry.customType === COMMAND) as { data?: { style?: string } } | undefined;
+  const switched = ctx.sessionManager.getBranch().findLast((entry) => entry.type === "custom" && entry.customType === COMMAND) as
+    | { data?: { style?: string } }
+    | undefined;
   return styles.get(switched?.data?.style?.toLowerCase() ?? configured) ?? styles.get(configured)!;
 }
 

@@ -14,194 +14,188 @@ const SUMMARY_MAX_TOKENS = 2048;
 const REQUEST_TIMEOUT_MS = 120_000;
 
 export interface Worker {
-	model: Model<Api>;
-	apiKey: string;
-	baseUrl: string;
-	headers?: Record<string, string>;
+  model: Model<Api>;
+  apiKey: string;
+  baseUrl: string;
+  headers?: Record<string, string>;
 }
 
 export interface UsageTokens {
-	input: number;
-	output: number;
-	cacheRead: number;
-	cacheWrite: number;
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
 }
 
 export interface SearchResult {
-	title: string;
-	url: string;
-	pageAge?: string;
+  title: string;
+  url: string;
+  pageAge?: string;
 }
 
 // INFO: fc 17aug26 the query is in the call row right above, so the first line spends itself on what the row cannot show.
 export function formatResults(results: SearchResult[], elapsedMs: number): string {
-	const lines = results.map((result, index) => {
-		const age = result.pageAge ? ` (${result.pageAge})` : "";
-		return `${String(index + 1).padStart(2)}. ${result.title}${age}\n    ${result.url}`;
-	});
-	const head = `${results.length} results in ${formatDuration(elapsedMs)}`;
-	return [head, "", ...lines, "", "Titles and URLs only. Read a result with webfetch."].join("\n");
+  const lines = results.map((result, index) => {
+    const age = result.pageAge ? ` (${result.pageAge})` : "";
+    return `${String(index + 1).padStart(2)}. ${result.title}${age}\n    ${result.url}`;
+  });
+  const head = `${results.length} results in ${formatDuration(elapsedMs)}`;
+  return [head, "", ...lines, "", "Titles and URLs only. Read a result with webfetch."].join("\n");
 }
 
 // INFO: fc 17aug26 pi's own is module-private to core/tools/bash.js, so unlike formatSize it cannot be imported
 export function formatDuration(ms: number): string {
-	return `${(ms / 1000).toFixed(1)}s`;
+  return `${(ms / 1000).toFixed(1)}s`;
 }
 
 export async function resolveWorker(ctx: ExtensionContext): Promise<Worker> {
-	const registry = ctx.modelRegistry;
-	// INFO: fc 14aug26 getAvailable() is every catalog model of an authenticated provider (model-runtime.js:171), so membership is the auth check
-	const anthropic = registry.getAvailable().filter((model) => model.provider === "anthropic");
-	const model =
-		WORKER_MODEL_IDS.map((id) => anthropic.find((candidate) => candidate.id === id)).find(Boolean) ??
-		anthropic.sort((a, b) => a.cost.input - b.cost.input)[0];
-	if (!model) {
-		throw new Error("No authenticated anthropic model. Run /login anthropic.");
-	}
-	const auth = await registry.getApiKeyAndHeaders(model);
-	if (!auth.ok) {
-		throw new Error(`Anthropic auth failed: ${auth.error}`);
-	}
-	if (!auth.apiKey) {
-		throw new Error("Anthropic auth resolved no credential.");
-	}
-	return {
-		model,
-		apiKey: auth.apiKey,
-		baseUrl: auth.baseUrl ?? model.baseUrl,
-		headers: auth.headers as Record<string, string> | undefined,
-	};
+  const registry = ctx.modelRegistry;
+  // INFO: fc 14aug26 getAvailable() is every catalog model of an authenticated provider (model-runtime.js:171), so membership is the auth check
+  const anthropic = registry.getAvailable().filter((model) => model.provider === "anthropic");
+  const model =
+    WORKER_MODEL_IDS.map((id) => anthropic.find((candidate) => candidate.id === id)).find(Boolean) ??
+    anthropic.sort((a, b) => a.cost.input - b.cost.input)[0];
+  if (!model) {
+    throw new Error("No authenticated anthropic model. Run /login anthropic.");
+  }
+  const auth = await registry.getApiKeyAndHeaders(model);
+  if (!auth.ok) {
+    throw new Error(`Anthropic auth failed: ${auth.error}`);
+  }
+  if (!auth.apiKey) {
+    throw new Error("Anthropic auth resolved no credential.");
+  }
+  return {
+    model,
+    apiKey: auth.apiKey,
+    baseUrl: auth.baseUrl ?? model.baseUrl,
+    headers: auth.headers as Record<string, string> | undefined,
+  };
 }
 
 export function authHeaders(apiKey: string): Record<string, string> {
-	return apiKey.includes("sk-ant-oat")
-		? { authorization: `Bearer ${apiKey}`, "anthropic-beta": OAUTH_BETA }
-		: { "x-api-key": apiKey };
+  return apiKey.includes("sk-ant-oat") ? { authorization: `Bearer ${apiKey}`, "anthropic-beta": OAUTH_BETA } : { "x-api-key": apiKey };
 }
 
 // INFO: fc 06aug26 a server tool only runs inside a model turn, so the query is wrapped in the shortest prompt that reliably triggers exactly one search.
 export function searchRequest(model: string, query: string): Record<string, unknown> {
-	return {
-		model,
-		max_tokens: SEARCH_MAX_TOKENS,
-		messages: [
-			{
-				role: "user",
-				content: `Use the web_search tool once, with the text between the tags as the whole query.\n<query>${query}</query>\nThen reply DONE.`,
-			},
-		],
-		tools: [SEARCH_TOOL],
-	};
+  return {
+    model,
+    max_tokens: SEARCH_MAX_TOKENS,
+    messages: [
+      {
+        role: "user",
+        content: `Use the web_search tool once, with the text between the tags as the whole query.\n<query>${query}</query>\nThen reply DONE.`,
+      },
+    ],
+    tools: [SEARCH_TOOL],
+  };
 }
 
 export function summaryRequest(model: string, url: string, markdown: string, prompt: string): Record<string, unknown> {
-	return {
-		model,
-		max_tokens: SUMMARY_MAX_TOKENS,
-		system: [
-			{
-				type: "text",
-				text: "Answer the request from the page content only. Quote exact figures, versions, names and dates. State what the page does not contain rather than filling the gap.",
-			},
-		],
-		messages: [
-			{
-				role: "user",
-				content: `<page url="${url}">\n${markdown}\n</page>\n\nRequest: ${prompt}`,
-			},
-		],
-	};
+  return {
+    model,
+    max_tokens: SUMMARY_MAX_TOKENS,
+    system: [
+      {
+        type: "text",
+        text: "Answer the request from the page content only. Quote exact figures, versions, names and dates. State what the page does not contain rather than filling the gap.",
+      },
+    ],
+    messages: [
+      {
+        role: "user",
+        content: `<page url="${url}">\n${markdown}\n</page>\n\nRequest: ${prompt}`,
+      },
+    ],
+  };
 }
 
 export function parseSearchResults(response: unknown): SearchResult[] {
-	const blocks = contentBlocks(response);
-	const block = blocks.find((candidate) => candidate.type === "web_search_tool_result");
-	if (!block) {
-		if (blocks.some((candidate) => candidate.type === "server_tool_use")) {
-			throw new Error("The search was cut off before it ran. Retry with a shorter query.");
-		}
-		throw new Error("The model answered without searching. Retry with a more specific query.");
-	}
-	const content = block.content;
-	if (!Array.isArray(content)) {
-		const code = isRecord(content) ? content.error_code : undefined;
-		throw new Error(`Search failed: ${code ?? "unknown error"}`);
-	}
-	const results: SearchResult[] = [];
-	for (const item of content) {
-		if (!isRecord(item) || typeof item.title !== "string" || typeof item.url !== "string") continue;
-		results.push({
-			title: item.title.trim(),
-			url: item.url,
-			...(typeof item.page_age === "string" ? { pageAge: item.page_age } : {}),
-		});
-	}
-	if (results.length === 0) {
-		throw new Error("The search returned no results. Retry with different terms.");
-	}
-	return results;
+  const blocks = contentBlocks(response);
+  const block = blocks.find((candidate) => candidate.type === "web_search_tool_result");
+  if (!block) {
+    if (blocks.some((candidate) => candidate.type === "server_tool_use")) {
+      throw new Error("The search was cut off before it ran. Retry with a shorter query.");
+    }
+    throw new Error("The model answered without searching. Retry with a more specific query.");
+  }
+  const content = block.content;
+  if (!Array.isArray(content)) {
+    const code = isRecord(content) ? content.error_code : undefined;
+    throw new Error(`Search failed: ${code ?? "unknown error"}`);
+  }
+  const results: SearchResult[] = [];
+  for (const item of content) {
+    if (!isRecord(item) || typeof item.title !== "string" || typeof item.url !== "string") continue;
+    results.push({
+      title: item.title.trim(),
+      url: item.url,
+      ...(typeof item.page_age === "string" ? { pageAge: item.page_age } : {}),
+    });
+  }
+  if (results.length === 0) {
+    throw new Error("The search returned no results. Retry with different terms.");
+  }
+  return results;
 }
 
 export function parseText(response: unknown): string {
-	const text = contentBlocks(response)
-		.filter((block) => block.type === "text" && typeof block.text === "string")
-		.map((block) => block.text as string)
-		.join("")
-		.trim();
-	if (!text) {
-		throw new Error("The model returned no text for this page.");
-	}
-	return text;
+  const text = contentBlocks(response)
+    .filter((block) => block.type === "text" && typeof block.text === "string")
+    .map((block) => block.text as string)
+    .join("")
+    .trim();
+  if (!text) {
+    throw new Error("The model returned no text for this page.");
+  }
+  return text;
 }
 
 // INFO: fc 17aug26 the counts are ours to read off the response, the money is pi's calculateCost
 export function usageTokens(response: unknown): UsageTokens {
-	const raw = isRecord(response) && isRecord(response.usage) ? response.usage : {};
-	return {
-		input: numberOf(raw.input_tokens),
-		output: numberOf(raw.output_tokens),
-		cacheRead: numberOf(raw.cache_read_input_tokens),
-		cacheWrite: numberOf(raw.cache_creation_input_tokens),
-	};
+  const raw = isRecord(response) && isRecord(response.usage) ? response.usage : {};
+  return {
+    input: numberOf(raw.input_tokens),
+    output: numberOf(raw.output_tokens),
+    cacheRead: numberOf(raw.cache_read_input_tokens),
+    cacheWrite: numberOf(raw.cache_creation_input_tokens),
+  };
 }
 
-export async function postMessages(
-	worker: Worker,
-	body: Record<string, unknown>,
-	signal?: AbortSignal,
-): Promise<unknown> {
-	const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
-	const response = await fetch(`${worker.baseUrl.replace(/\/+$/, "")}/v1/messages`, {
-		method: "POST",
-		signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
-		headers: {
-			"content-type": "application/json",
-			"anthropic-version": ANTHROPIC_VERSION,
-			...authHeaders(worker.apiKey),
-			...worker.headers,
-		},
-		body: JSON.stringify(body),
-	});
-	const text = await response.text();
-	if (response.status === 429) {
-		// INFO: fc 06aug26 the subscription rate limits per model, so this names the model rather than inviting a retry loop
-		throw new Error(`${body.model} is rate limited on this account. Retry later.`);
-	}
-	if (!response.ok) {
-		throw new Error(`Anthropic ${response.status}: ${text.slice(0, 300)}`);
-	}
-	return JSON.parse(text);
+export async function postMessages(worker: Worker, body: Record<string, unknown>, signal?: AbortSignal): Promise<unknown> {
+  const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+  const response = await fetch(`${worker.baseUrl.replace(/\/+$/, "")}/v1/messages`, {
+    method: "POST",
+    signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+    headers: {
+      "content-type": "application/json",
+      "anthropic-version": ANTHROPIC_VERSION,
+      ...authHeaders(worker.apiKey),
+      ...worker.headers,
+    },
+    body: JSON.stringify(body),
+  });
+  const text = await response.text();
+  if (response.status === 429) {
+    // INFO: fc 06aug26 the subscription rate limits per model, so this names the model rather than inviting a retry loop
+    throw new Error(`${body.model} is rate limited on this account. Retry later.`);
+  }
+  if (!response.ok) {
+    throw new Error(`Anthropic ${response.status}: ${text.slice(0, 300)}`);
+  }
+  return JSON.parse(text);
 }
 
 function contentBlocks(response: unknown): Array<Record<string, unknown>> {
-	if (!isRecord(response) || !Array.isArray(response.content)) return [];
-	return response.content.filter(isRecord);
+  if (!isRecord(response) || !Array.isArray(response.content)) return [];
+  return response.content.filter(isRecord);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function numberOf(value: unknown): number {
-	return typeof value === "number" && Number.isFinite(value) ? value : 0;
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }

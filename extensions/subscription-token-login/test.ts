@@ -2,13 +2,13 @@
 import assert from "node:assert";
 
 import {
-	installTokenLogin,
-	normalizeToken,
-	rotationDate,
-	rotationRejection,
-	tokenCredential,
-	tokenRejection,
-	withTokenLogin,
+  installTokenLogin,
+  normalizeToken,
+  rotationDate,
+  rotationRejection,
+  tokenCredential,
+  tokenRejection,
+  withTokenLogin,
 } from "./token-login.ts";
 
 const WHOLE_TOKEN = `sk-ant-oat01-${"x".repeat(80)}`;
@@ -18,37 +18,37 @@ const DAY_MS = 86_400_000;
 const midnightUtc = (date: string) => Date.parse(`${date}T00:00:00Z`);
 
 function fakeBase(): any {
-	return {
-		name: "Anthropic (Claude Pro/Max)",
-		isSubscription: true,
-		loginCalls: 0,
-		refreshCalls: [] as unknown[],
-		async login() {
-			this.loginCalls += 1;
-			return BROWSER_CREDENTIAL;
-		},
-		async refresh(credential: unknown) {
-			this.refreshCalls.push(credential);
-			return REFRESHED_CREDENTIAL;
-		},
-		async toAuth(credential: any) {
-			return { apiKey: credential.access };
-		},
-	};
+  return {
+    name: "Anthropic (Claude Pro/Max)",
+    isSubscription: true,
+    loginCalls: 0,
+    refreshCalls: [] as unknown[],
+    async login() {
+      this.loginCalls += 1;
+      return BROWSER_CREDENTIAL;
+    },
+    async refresh(credential: unknown) {
+      this.refreshCalls.push(credential);
+      return REFRESHED_CREDENTIAL;
+    },
+    async toAuth(credential: any) {
+      return { apiKey: credential.access };
+    },
+  };
 }
 
 // Answers each prompt by its type, so a flow that asks in a new order fails loudly here.
 function fakeInteraction(answers: { select?: string; secret?: string; text?: string }): any {
-	const prompts: any[] = [];
-	return {
-		prompts,
-		notify() {},
-		signal: new AbortController().signal,
-		async prompt(prompt: any) {
-			prompts.push(prompt);
-			return answers[prompt.type as keyof typeof answers] ?? "";
-		},
-	};
+  const prompts: any[] = [];
+  return {
+    prompts,
+    notify() {},
+    signal: new AbortController().signal,
+    async prompt(prompt: any) {
+      prompts.push(prompt);
+      return answers[prompt.type as keyof typeof answers] ?? "";
+    },
+  };
 }
 
 const types = (interaction: any) => interaction.prompts.map((prompt: any) => prompt.type);
@@ -92,14 +92,14 @@ assert.equal(defaulted.expires, midnightUtc(datePrompt.placeholder));
 
 // An entered date wins, at midnight UTC so the day itself is the deadline.
 const edited = await withTokenLogin(fakeBase()).login(
-	fakeInteraction({ select: "long-lived-token", secret: WHOLE_TOKEN, text: " 2099-06-16 " }),
+  fakeInteraction({ select: "long-lived-token", secret: WHOLE_TOKEN, text: " 2099-06-16 " }),
 );
 assert.equal(edited.expires, midnightUtc("2099-06-16"));
 
 // A date pi would immediately refresh against ends the login instead of storing a doomed credential.
 await assert.rejects(
-	withTokenLogin(fakeBase()).login(fakeInteraction({ select: "long-lived-token", secret: WHOLE_TOKEN, text: "2020-01-01" })),
-	/has passed/,
+  withTokenLogin(fakeBase()).login(fakeInteraction({ select: "long-lived-token", secret: WHOLE_TOKEN, text: "2020-01-01" })),
+  /has passed/,
 );
 
 // The browser method is pi's own login, called with the same interaction and returned untouched.
@@ -139,16 +139,15 @@ assert.equal(withTokenLogin(passthrough), passthrough);
 
 // /reload reruns the extension against a registry that already holds the wrapped provider.
 function registrationsFor(oauth: unknown): unknown[] {
-	const registered: unknown[] = [];
-	const provider = { id: "anthropic", auth: { apiKey: {}, oauth } };
-	const pi: any = { registerProvider: (next: unknown) => registered.push(next) };
-	const ctx: any = { modelRegistry: { getProvider: (id: string) => (id === "anthropic" ? provider : undefined) } };
-	installTokenLogin(pi, ctx);
-	return registered;
+  const registered: unknown[] = [];
+  const provider = { id: "anthropic", auth: { apiKey: {}, oauth } };
+  const pi: any = { registerProvider: (next: unknown) => registered.push(next) };
+  const ctx: any = { modelRegistry: { getProvider: (id: string) => (id === "anthropic" ? provider : undefined) } };
+  installTokenLogin(pi, ctx);
+  return registered;
 }
 assert.equal(registrationsFor(fakeBase()).length, 1);
 assert.equal(registrationsFor(withTokenLogin(fakeBase())).length, 0);
 
 // A provider without OAuth is left alone rather than registered back half-built.
 assert.equal(registrationsFor(undefined).length, 0);
-

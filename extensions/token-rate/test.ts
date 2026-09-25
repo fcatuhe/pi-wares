@@ -7,8 +7,8 @@ assert.equal(tokensPerSecond([]), undefined);
 
 // Token-weighted across the window, not a mean of per-message rates: 1500 tokens over 30s.
 const mixed = [
-	{ tokens: 1000, seconds: 10 },
-	{ tokens: 500, seconds: 20 },
+  { tokens: 1000, seconds: 10 },
+  { tokens: 500, seconds: 20 },
 ];
 assert.equal(tokensPerSecond(mixed), 50);
 assert.equal(format(mixed), "50 tok/s");

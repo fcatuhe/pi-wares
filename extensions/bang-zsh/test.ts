@@ -7,16 +7,13 @@ import { interactiveZshCommand, loginZsh } from "./zsh.ts";
 assert.equal(interactiveZshCommand("vsc", "/bin/zsh"), "exec /bin/zsh -ic 'vsc'");
 
 // Quotes in the user's command must not end the wrapper's quoting.
-assert.equal(
-	interactiveZshCommand(`git commit -m 'it's fine'`, "/bin/zsh"),
-	`exec /bin/zsh -ic 'git commit -m '\\''it'\\''s fine'\\'''`,
-);
+assert.equal(interactiveZshCommand(`git commit -m 'it's fine'`, "/bin/zsh"), `exec /bin/zsh -ic 'git commit -m '\\''it'\\''s fine'\\'''`);
 
 // The escaping holds through a real bash -c, the layer pi wraps this in.
 const roundTrip = (command: string) =>
-	execFileSync("/bin/bash", ["-c", interactiveZshCommand(command, "/bin/zsh")], {
-		encoding: "utf-8",
-	}).trimEnd();
+  execFileSync("/bin/bash", ["-c", interactiveZshCommand(command, "/bin/zsh")], {
+    encoding: "utf-8",
+  }).trimEnd();
 assert.equal(roundTrip(`printf '%s\n' "it's here"`), "it's here");
 assert.equal(roundTrip("printf '%s' \"$ZSH_VERSION\"") !== "", true);
 
@@ -27,4 +24,3 @@ assert.equal(loginZsh("/bin/bash"), undefined);
 assert.equal(loginZsh("/usr/bin/fish"), undefined);
 // $SHELL unset, on a bare cron-like environment.
 assert.equal(loginZsh(""), undefined);
-

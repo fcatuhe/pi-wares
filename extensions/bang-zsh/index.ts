@@ -3,13 +3,13 @@ import { createLocalBashOperations, type ExtensionAPI } from "@earendil-works/pi
 import { interactiveZshCommand, loginZsh } from "./zsh.ts";
 
 export default function (pi: ExtensionAPI) {
-	const zsh = loginZsh();
-	if (!zsh) return;
+  const zsh = loginZsh();
+  if (!zsh) return;
 
-	const local = createLocalBashOperations();
-	pi.on("user_bash", () => ({
-		operations: {
-			exec: (command, cwd, options) => local.exec(interactiveZshCommand(command, zsh), cwd, options),
-		},
-	}));
+  const local = createLocalBashOperations();
+  pi.on("user_bash", () => ({
+    operations: {
+      exec: (command, cwd, options) => local.exec(interactiveZshCommand(command, zsh), cwd, options),
+    },
+  }));
 }

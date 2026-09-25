@@ -1,15 +1,15 @@
 /** Self-check: npx tsx extensions/subscription-usage-pace/test.ts */
 import assert from "node:assert/strict";
 import {
-	barCells,
-	blockedNotice,
-	elapsedPercent,
-	formatReset,
-	paceColor,
-	parseClaude,
-	parseCodex,
-	pollSlotTaken,
-	retryAfterMs,
+  barCells,
+  blockedNotice,
+  elapsedPercent,
+  formatReset,
+  paceColor,
+  parseClaude,
+  parseCodex,
+  pollSlotTaken,
+  retryAfterMs,
 } from "./usage.ts";
 
 const HOUR = 3_600_000;
@@ -17,13 +17,13 @@ const now = Date.now();
 
 // Claude: 3h left of a 5h window => 40% elapsed, 42% used => within slack.
 const claude = parseClaude({
-	five_hour: { utilization: 42.0, resets_at: new Date(now + 3 * HOUR).toISOString() },
-	seven_day: { utilization: 61.0, resets_at: new Date(now + 2 * 24 * HOUR).toISOString() },
-	limits: [
-		{ kind: "session", group: "session", percent: 42, resets_at: new Date(now + 3 * HOUR).toISOString() },
-		{ kind: "weekly_all", group: "weekly", percent: 61, resets_at: new Date(now + 2 * 24 * HOUR).toISOString() },
-		{ kind: "weekly_scoped", group: "weekly", percent: 99, resets_at: new Date(now + 2 * 24 * HOUR).toISOString() },
-	],
+  five_hour: { utilization: 42.0, resets_at: new Date(now + 3 * HOUR).toISOString() },
+  seven_day: { utilization: 61.0, resets_at: new Date(now + 2 * 24 * HOUR).toISOString() },
+  limits: [
+    { kind: "session", group: "session", percent: 42, resets_at: new Date(now + 3 * HOUR).toISOString() },
+    { kind: "weekly_all", group: "weekly", percent: 61, resets_at: new Date(now + 2 * 24 * HOUR).toISOString() },
+    { kind: "weekly_scoped", group: "weekly", percent: 99, resets_at: new Date(now + 2 * 24 * HOUR).toISOString() },
+  ],
 });
 assert.equal(claude.length, 2); // weekly_scoped is dropped, the footer only fits two bars
 assert.equal(Math.round(claude[0].usedPercent), 42);
@@ -37,10 +37,10 @@ assert.equal(Math.round(elapsedPercent(claude[1], now)), 71);
 
 // Codex: percent + epoch seconds + explicit window length.
 const codex = parseCodex({
-	rate_limit: {
-		primary_window: { used_percent: 80, reset_at: Math.floor((now + HOUR) / 1000), limit_window_seconds: 5 * 3600 },
-		secondary_window: { used_percent: 12, reset_at: Math.floor((now + 6 * 24 * HOUR) / 1000) },
-	},
+  rate_limit: {
+    primary_window: { used_percent: 80, reset_at: Math.floor((now + HOUR) / 1000), limit_window_seconds: 5 * 3600 },
+    secondary_window: { used_percent: 12, reset_at: Math.floor((now + 6 * 24 * HOUR) / 1000) },
+  },
 });
 assert.equal(codex[0].label, "5h");
 assert.equal(Math.round(elapsedPercent(codex[0], now)), 80); // 4h of 5h spent
@@ -63,9 +63,8 @@ assert.equal(paceColor(89, 95), "success");
 
 // A sub-1% window is a sub-1% window: percent is never rescaled by magnitude.
 assert.equal(
-	parseClaude({ limits: [{ kind: "session", percent: 0.6, resets_at: new Date(now + HOUR).toISOString() }] })[0]
-		.usedPercent,
-	0.6,
+  parseClaude({ limits: [{ kind: "session", percent: 0.6, resets_at: new Date(now + HOUR).toISOString() }] })[0].usedPercent,
+  0.6,
 );
 
 // Malformed / missing payloads must not throw or invent windows.
@@ -118,4 +117,3 @@ assert.equal(pollSlotTaken(held, now, 5 * 60_000), true);
 assert.equal(pollSlotTaken({ ...held, polledAt: now - 6 * 60_000 }, now, 5 * 60_000), false);
 assert.equal(pollSlotTaken({ ...held, windows: [] }, now, 5 * 60_000), false);
 assert.equal(pollSlotTaken(undefined, now, 5 * 60_000), false);
-

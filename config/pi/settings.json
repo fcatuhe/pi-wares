@@ -8,10 +8,5 @@
   "warnings": {
     "anthropicExtraUsage": false
   },
-  "enabledModels": [
-    "anthropic/claude-opus-5-5",
-    "anthropic/claude-fable-5-1",
-    "anthropic/claude-sonnet-5",
-    "openai-codex/gpt-6-sol"
-  ]
+  "enabledModels": ["anthropic/claude-opus-5-5", "anthropic/claude-fable-5-1", "anthropic/claude-sonnet-5", "openai-codex/gpt-6-sol"]
 }

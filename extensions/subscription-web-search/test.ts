@@ -3,52 +3,52 @@ import assert from "node:assert/strict";
 import type { Api, Model } from "@earendil-works/pi-ai";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
-	authHeaders,
-	formatResults,
-	parseSearchResults,
-	parseText,
-	resolveWorker,
-	searchRequest,
-	summaryRequest,
-	usageTokens,
+  authHeaders,
+  formatResults,
+  parseSearchResults,
+  parseText,
+  resolveWorker,
+  searchRequest,
+  summaryRequest,
+  usageTokens,
 } from "./anthropic.ts";
 import {
-	cachedPage,
-	cachePage,
-	capMarkdown,
-	assertFetchable,
-	clearPageCache,
-	fetchPage,
-	isSamePublisher,
-	type Page,
-	renderMarkdown,
-	transportReason,
-	validateUrl,
-	withoutTerminalOutput,
+  cachedPage,
+  cachePage,
+  capMarkdown,
+  assertFetchable,
+  clearPageCache,
+  fetchPage,
+  isSamePublisher,
+  type Page,
+  renderMarkdown,
+  transportReason,
+  validateUrl,
+  withoutTerminalOutput,
 } from "./page.ts";
 
 const searchResponse = {
-	content: [
-		{ type: "server_tool_use", id: "srvtoolu_1", name: "web_search", input: { query: "zig" } },
-		{
-			type: "web_search_tool_result",
-			tool_use_id: "srvtoolu_1",
-			content: [
-				{ type: "web_search_result", title: "  0.16.0 Released  ", url: "https://ziglang.org/news/", page_age: "1 day" },
-				{ type: "web_search_result", title: "Zig downloads", url: "https://ziglang.org/download/", page_age: null },
-				{ type: "web_search_result", url: "https://no-title.example" },
-			],
-		},
-		{ type: "text", text: "DONE" },
-	],
-	usage: { input_tokens: 9998, output_tokens: 68, cache_read_input_tokens: 12 },
+  content: [
+    { type: "server_tool_use", id: "srvtoolu_1", name: "web_search", input: { query: "zig" } },
+    {
+      type: "web_search_tool_result",
+      tool_use_id: "srvtoolu_1",
+      content: [
+        { type: "web_search_result", title: "  0.16.0 Released  ", url: "https://ziglang.org/news/", page_age: "1 day" },
+        { type: "web_search_result", title: "Zig downloads", url: "https://ziglang.org/download/", page_age: null },
+        { type: "web_search_result", url: "https://no-title.example" },
+      ],
+    },
+    { type: "text", text: "DONE" },
+  ],
+  usage: { input_tokens: 9998, output_tokens: 68, cache_read_input_tokens: 12 },
 };
 
 // Only well-formed results survive, titles are trimmed, and a null page_age is dropped rather than printed.
 const results = parseSearchResults(searchResponse);
 assert.deepEqual(results, [
-	{ title: "0.16.0 Released", url: "https://ziglang.org/news/", pageAge: "1 day" },
-	{ title: "Zig downloads", url: "https://ziglang.org/download/" },
+  { title: "0.16.0 Released", url: "https://ziglang.org/news/", pageAge: "1 day" },
+  { title: "Zig downloads", url: "https://ziglang.org/download/" },
 ]);
 
 const formatted = formatResults(results, 3210);
@@ -61,17 +61,14 @@ assert.match(formatted, /Read a result with webfetch\./);
 // A turn that never called the server tool is a failure, not an empty result set: the caller must retry.
 assert.throws(() => parseSearchResults({ content: [{ type: "text", text: "I cannot search." }] }), /without searching/);
 // A max_tokens stop mid-arguments leaves the call with no result block, and reads as a length problem, not a refusal.
-assert.throws(
-	() => parseSearchResults({ content: [{ type: "server_tool_use", name: "web_search", input: {} }] }),
-	/cut off before it ran/,
-);
+assert.throws(() => parseSearchResults({ content: [{ type: "server_tool_use", name: "web_search", input: {} }] }), /cut off before it ran/);
 // The API reports search failures inside the result block, as an object where the list belongs.
 assert.throws(
-	() =>
-		parseSearchResults({
-			content: [{ type: "web_search_tool_result", content: { type: "web_search_tool_result_error", error_code: "max_uses_exceeded" } }],
-		}),
-	/max_uses_exceeded/,
+  () =>
+    parseSearchResults({
+      content: [{ type: "web_search_tool_result", content: { type: "web_search_tool_result_error", error_code: "max_uses_exceeded" } }],
+    }),
+  /max_uses_exceeded/,
 );
 assert.throws(() => parseSearchResults({ content: [{ type: "web_search_tool_result", content: [] }] }), /no results/);
 
@@ -93,26 +90,26 @@ assert.match(JSON.stringify(summary.messages), /Request: List the prices\./);
 
 // OAuth access tokens are Bearer plus the OAuth beta, API keys go in x-api-key without it: the wrong pairing is a 401.
 assert.deepEqual(authHeaders("sk-ant-oat01-abc"), {
-	authorization: "Bearer sk-ant-oat01-abc",
-	"anthropic-beta": "oauth-2025-04-20",
+  authorization: "Bearer sk-ant-oat01-abc",
+  "anthropic-beta": "oauth-2025-04-20",
 });
 assert.deepEqual(authHeaders("sk-ant-api03-abc"), { "x-api-key": "sk-ant-api03-abc" });
 
 const anthropicModel = (id: string, input: number) =>
-	({
-		id,
-		provider: "anthropic",
-		baseUrl: "https://api.anthropic.com",
-		cost: { input, output: input * 5, cacheRead: input / 10, cacheWrite: input * 1.25 },
-	}) as Model<Api>;
+  ({
+    id,
+    provider: "anthropic",
+    baseUrl: "https://api.anthropic.com",
+    cost: { input, output: input * 5, cacheRead: input / 10, cacheWrite: input * 1.25 },
+  }) as Model<Api>;
 
 const registryWith = (available: Model<Api>[]) =>
-	({
-		modelRegistry: {
-			getAvailable: () => available,
-			getApiKeyAndHeaders: async () => ({ ok: true, apiKey: "sk-ant-oat01-x" }),
-		},
-	}) as unknown as ExtensionContext;
+  ({
+    modelRegistry: {
+      getAvailable: () => available,
+      getApiKeyAndHeaders: async () => ({ ok: true, apiKey: "sk-ant-oat01-x" }),
+    },
+  }) as unknown as ExtensionContext;
 
 const haiku = anthropicModel("claude-haiku-4-5", 1);
 const opus = anthropicModel("claude-opus-5", 15);
@@ -128,13 +125,13 @@ assert.equal((await resolveWorker(registryWith([opus, sonnet]))).model.id, "clau
 assert.equal((await resolveWorker(registryWith([gpt, opus]))).model.id, "claude-opus-5");
 await assert.rejects(resolveWorker(registryWith([gpt])), /Run \/login anthropic/);
 await assert.rejects(
-	resolveWorker({
-		modelRegistry: {
-			getAvailable: () => [haiku],
-			getApiKeyAndHeaders: async () => ({ ok: false, error: "token expired" }),
-		},
-	} as unknown as ExtensionContext),
-	/token expired/,
+  resolveWorker({
+    modelRegistry: {
+      getAvailable: () => [haiku],
+      getApiKeyAndHeaders: async () => ({ ok: false, error: "token expired" }),
+    },
+  } as unknown as ExtensionContext),
+  /token expired/,
 );
 
 // Token counts are read off the response; pi's calculateCost turns them into money, in index.ts.
@@ -162,132 +159,123 @@ assert.equal(isSamePublisher(new URL("https://a.example/x"), new URL("https://a.
 // Taking the Claude-User name means keeping its policy: a publisher who opted out is refused, not fetched under it.
 const realFetch = globalThis.fetch;
 const stub = (handler: (url: string, init?: RequestInit) => Response) => {
-	globalThis.fetch = async (input: unknown, init?: RequestInit) => handler(String(input), init);
+  globalThis.fetch = async (input: unknown, init?: RequestInit) => handler(String(input), init);
 };
 const domainInfo = (canFetch: boolean) => new Response(JSON.stringify({ can_fetch: canFetch }), { status: 200 });
 const isDomainCheck = (url: string) => url.startsWith("https://api.anthropic.com/api/web/domain_info");
 
 try {
-	// The check gets a deadline of its own, or a hung endpoint holds the tool until the user aborts the turn.
-	let checkSignal: AbortSignal | null | undefined;
-	const caller = new AbortController().signal;
-	stub((url, init) => {
-		if (isDomainCheck(url)) checkSignal = init?.signal;
-		return domainInfo(true);
-	});
-	await assertFetchable("deadline.example", caller);
-	assert.notEqual(checkSignal, caller);
+  // The check gets a deadline of its own, or a hung endpoint holds the tool until the user aborts the turn.
+  let checkSignal: AbortSignal | null | undefined;
+  const caller = new AbortController().signal;
+  stub((url, init) => {
+    if (isDomainCheck(url)) checkSignal = init?.signal;
+    return domainInfo(true);
+  });
+  await assertFetchable("deadline.example", caller);
+  assert.notEqual(checkSignal, caller);
 
-	stub((url) => (isDomainCheck(url) ? domainInfo(false) : new Response("body")));
-	await assert.rejects(assertFetchable("opted-out.example"), /opted out of being fetched by Claude/);
-	stub((url) => (isDomainCheck(url) ? new Response("nope", { status: 500 }) : new Response("body")));
-	await assert.rejects(assertFetchable("unknown.example"), /Cannot verify whether unknown\.example/);
+  stub((url) => (isDomainCheck(url) ? domainInfo(false) : new Response("body")));
+  await assert.rejects(assertFetchable("opted-out.example"), /opted out of being fetched by Claude/);
+  stub((url) => (isDomainCheck(url) ? new Response("nope", { status: 500 }) : new Response("body")));
+  await assert.rejects(assertFetchable("unknown.example"), /Cannot verify whether unknown\.example/);
 
-	// Redirects are followed by hand: counted, revalidated, and refused when they leave the publisher.
-	let hops = 0;
-	stub((url) => {
-		if (isDomainCheck(url)) return domainInfo(true);
-		hops++;
-		return new Response(null, { status: 302, headers: { location: "https://a.example/next" } });
-	});
-	await assert.rejects(fetchPage("https://a.example/start"), /More than 10 redirects/);
-	assert.equal(hops, 11);
-	stub((url) =>
-		isDomainCheck(url)
-			? domainInfo(true)
-			: new Response(null, { status: 302, headers: { location: "file:///etc/passwd" } }),
-	);
-	await assert.rejects(fetchPage("https://a.example/start"), /Only http and https/);
-	stub((url) =>
-		isDomainCheck(url)
-			? domainInfo(true)
-			: new Response(null, { status: 302, headers: { location: "https://elsewhere.example/x" } }),
-	);
-	await assert.rejects(fetchPage("https://a.example/start"), /redirects to another site\. Fetch https:\/\/elsewhere\.example\/x/);
+  // Redirects are followed by hand: counted, revalidated, and refused when they leave the publisher.
+  let hops = 0;
+  stub((url) => {
+    if (isDomainCheck(url)) return domainInfo(true);
+    hops++;
+    return new Response(null, { status: 302, headers: { location: "https://a.example/next" } });
+  });
+  await assert.rejects(fetchPage("https://a.example/start"), /More than 10 redirects/);
+  assert.equal(hops, 11);
+  stub((url) => (isDomainCheck(url) ? domainInfo(true) : new Response(null, { status: 302, headers: { location: "file:///etc/passwd" } })));
+  await assert.rejects(fetchPage("https://a.example/start"), /Only http and https/);
+  stub((url) =>
+    isDomainCheck(url) ? domainInfo(true) : new Response(null, { status: 302, headers: { location: "https://elsewhere.example/x" } }),
+  );
+  await assert.rejects(fetchPage("https://a.example/start"), /redirects to another site\. Fetch https:\/\/elsewhere\.example\/x/);
 
-	// A DNS blip reached the model as undici's bare "fetch failed" and sent it to curl to find out what broke.
-	const transportFailure = (cause: Error) => Object.assign(new TypeError("fetch failed"), { cause });
-	const enotfound = Object.assign(new Error("getaddrinfo ENOTFOUND a.example"), { code: "ENOTFOUND" });
-	let attempts = 0;
-	stub((url) => {
-		if (isDomainCheck(url)) return domainInfo(true);
-		attempts++;
-		throw transportFailure(enotfound);
-	});
-	await assert.rejects(
-		fetchPage("https://a.example/x"),
-		/Cannot reach a\.example: getaddrinfo ENOTFOUND a\.example \(ENOTFOUND\)/,
-	);
-	// A GET is idempotent and a blip usually clears: the failure the model sees is the second one.
-	assert.equal(attempts, 2);
-	attempts = 0;
-	stub((url) => {
-		if (isDomainCheck(url)) return domainInfo(true);
-		attempts++;
-		if (attempts === 1) throw transportFailure(enotfound);
-		return new Response("<html><body><p>second time</p></body></html>", { headers: { "content-type": "text/html" } });
-	});
-	assert.match((await fetchPage("https://blip.example/x")).markdown, /second time/);
-	assert.equal(attempts, 2);
-	// A deadline is not a blip, and retrying one would double the wait.
-	attempts = 0;
-	stub((url) => {
-		if (isDomainCheck(url)) return domainInfo(true);
-		attempts++;
-		throw Object.assign(new Error("The operation was aborted due to timeout"), { name: "TimeoutError" });
-	});
-	await assert.rejects(fetchPage("https://slow.example/x"), /Cannot reach slow\.example: no response within 60s/);
-	assert.equal(attempts, 1);
-	stub((url) => {
-		if (isDomainCheck(url)) throw transportFailure(enotfound);
-		return new Response("body");
-	});
-	await assert.rejects(
-		fetchPage("https://unreachable.example/x"),
-		/Cannot verify whether unreachable\.example allows fetching: getaddrinfo ENOTFOUND a\.example \(ENOTFOUND\)/,
-	);
+  // A DNS blip reached the model as undici's bare "fetch failed" and sent it to curl to find out what broke.
+  const transportFailure = (cause: Error) => Object.assign(new TypeError("fetch failed"), { cause });
+  const enotfound = Object.assign(new Error("getaddrinfo ENOTFOUND a.example"), { code: "ENOTFOUND" });
+  let attempts = 0;
+  stub((url) => {
+    if (isDomainCheck(url)) return domainInfo(true);
+    attempts++;
+    throw transportFailure(enotfound);
+  });
+  await assert.rejects(fetchPage("https://a.example/x"), /Cannot reach a\.example: getaddrinfo ENOTFOUND a\.example \(ENOTFOUND\)/);
+  // A GET is idempotent and a blip usually clears: the failure the model sees is the second one.
+  assert.equal(attempts, 2);
+  attempts = 0;
+  stub((url) => {
+    if (isDomainCheck(url)) return domainInfo(true);
+    attempts++;
+    if (attempts === 1) throw transportFailure(enotfound);
+    return new Response("<html><body><p>second time</p></body></html>", { headers: { "content-type": "text/html" } });
+  });
+  assert.match((await fetchPage("https://blip.example/x")).markdown, /second time/);
+  assert.equal(attempts, 2);
+  // A deadline is not a blip, and retrying one would double the wait.
+  attempts = 0;
+  stub((url) => {
+    if (isDomainCheck(url)) return domainInfo(true);
+    attempts++;
+    throw Object.assign(new Error("The operation was aborted due to timeout"), { name: "TimeoutError" });
+  });
+  await assert.rejects(fetchPage("https://slow.example/x"), /Cannot reach slow\.example: no response within 60s/);
+  assert.equal(attempts, 1);
+  stub((url) => {
+    if (isDomainCheck(url)) throw transportFailure(enotfound);
+    return new Response("body");
+  });
+  await assert.rejects(
+    fetchPage("https://unreachable.example/x"),
+    /Cannot verify whether unreachable\.example allows fetching: getaddrinfo ENOTFOUND a\.example \(ENOTFOUND\)/,
+  );
 
-	// Each deadline reports its own: 60s for the page, 10s for the domain check.
-	const timedOut = Object.assign(new Error("The operation was aborted due to timeout"), { name: "TimeoutError" });
-	assert.equal(transportReason(timedOut, 60_000), "no response within 60s");
-	assert.equal(transportReason(timedOut, 10_000), "no response within 10s");
-	// undici wraps a multi-address connection failure in an AggregateError, whose own message is empty.
-	const refused = Object.assign(new Error("connect ECONNREFUSED 127.0.0.1:443"), { code: "ECONNREFUSED" });
-	assert.equal(
-		transportReason(transportFailure(new AggregateError([refused])), 60_000),
-		"connect ECONNREFUSED 127.0.0.1:443 (ECONNREFUSED)",
-	);
+  // Each deadline reports its own: 60s for the page, 10s for the domain check.
+  const timedOut = Object.assign(new Error("The operation was aborted due to timeout"), { name: "TimeoutError" });
+  assert.equal(transportReason(timedOut, 60_000), "no response within 60s");
+  assert.equal(transportReason(timedOut, 10_000), "no response within 10s");
+  // undici wraps a multi-address connection failure in an AggregateError, whose own message is empty.
+  const refused = Object.assign(new Error("connect ECONNREFUSED 127.0.0.1:443"), { code: "ECONNREFUSED" });
+  assert.equal(
+    transportReason(transportFailure(new AggregateError([refused])), 60_000),
+    "connect ECONNREFUSED 127.0.0.1:443 (ECONNREFUSED)",
+  );
 
-	// An abort is the user cancelling the turn, so it passes through for pi to render as cancellation, once.
-	attempts = 0;
-	stub(() => {
-		attempts++;
-		throw Object.assign(new Error("This operation was aborted"), { name: "AbortError" });
-	});
-	await assert.rejects(fetchPage("https://a.example/x"), { name: "AbortError" });
-	assert.equal(attempts, 1);
+  // An abort is the user cancelling the turn, so it passes through for pi to render as cancellation, once.
+  attempts = 0;
+  stub(() => {
+    attempts++;
+    throw Object.assign(new Error("This operation was aborted"), { name: "AbortError" });
+  });
+  await assert.rejects(fetchPage("https://a.example/x"), { name: "AbortError" });
+  assert.equal(attempts, 1);
 } finally {
-	globalThis.fetch = realFetch;
-	clearPageCache();
+  globalThis.fetch = realFetch;
+  clearPageCache();
 }
 
 // HTML past 1MB used to be dropped inside the converter, where nothing could report it. One slice, one flag.
 stub((url) =>
-	isDomainCheck(url)
-		? new Response(JSON.stringify({ can_fetch: true }), { status: 200 })
-		: new Response(`<html><body><article><p>${"word ".repeat(300_000)}</p></article></body></html>`, {
-				headers: { "content-type": "text/html" },
-			}),
+  isDomainCheck(url)
+    ? new Response(JSON.stringify({ can_fetch: true }), { status: 200 })
+    : new Response(`<html><body><article><p>${"word ".repeat(300_000)}</p></article></body></html>`, {
+        headers: { "content-type": "text/html" },
+      }),
 );
 try {
-	const big = await fetchPage("https://big.example/page");
-	assert.equal(big.truncated, true);
-	assert.ok(big.bytes > 1_048_576);
-	// A second read of the same url is answered by the cache, and is the same page object.
-	assert.equal(await fetchPage("https://big.example/page"), big);
+  const big = await fetchPage("https://big.example/page");
+  assert.equal(big.truncated, true);
+  assert.ok(big.bytes > 1_048_576);
+  // A second read of the same url is answered by the cache, and is the same page object.
+  assert.equal(await fetchPage("https://big.example/page"), big);
 } finally {
-	globalThis.fetch = realFetch;
-	clearPageCache();
+  globalThis.fetch = realFetch;
+  clearPageCache();
 }
 
 assert.deepEqual(capMarkdown("short"), { markdown: "short", truncated: false });
@@ -314,19 +302,19 @@ const realStdout = process.stdout.write;
 const realStderr = process.stderr.write;
 
 async function heardWhile<T>(work: () => Promise<T> | T): Promise<{ heard: string[]; value: T }> {
-	const heard: string[] = [];
-	for (const method of ["log", "warn", "error", "info", "debug", "trace"] as const) {
-		console[method] = (...args: unknown[]) => heard.push(`console.${method}: ${args.join(" ")}`);
-	}
-	process.stdout.write = ((chunk: unknown) => heard.push(`stdout: ${String(chunk)}`)) as typeof process.stdout.write;
-	process.stderr.write = ((chunk: unknown) => heard.push(`stderr: ${String(chunk)}`)) as typeof process.stderr.write;
-	try {
-		return { heard, value: await work() };
-	} finally {
-		Object.assign(console, realConsole);
-		process.stdout.write = realStdout;
-		process.stderr.write = realStderr;
-	}
+  const heard: string[] = [];
+  for (const method of ["log", "warn", "error", "info", "debug", "trace"] as const) {
+    console[method] = (...args: unknown[]) => heard.push(`console.${method}: ${args.join(" ")}`);
+  }
+  process.stdout.write = ((chunk: unknown) => heard.push(`stdout: ${String(chunk)}`)) as typeof process.stdout.write;
+  process.stderr.write = ((chunk: unknown) => heard.push(`stderr: ${String(chunk)}`)) as typeof process.stderr.write;
+  try {
+    return { heard, value: await work() };
+  } finally {
+    Object.assign(console, realConsole);
+    process.stdout.write = realStdout;
+    process.stderr.write = realStderr;
+  }
 }
 
 // One page per conversion rule, each shape one a site serves, and the style attribute is the css-tree bomb.
@@ -370,8 +358,19 @@ assert.doesNotMatch(markdown, /base64|pixel\.png|image: 9|\[image: \]/);
 // An anchor emptied by its image would otherwise print as [](url).
 assert.doesNotMatch(markdown, /\[\]\(/);
 // Chrome goes by tag and by landmark role, since a page built out of divs only says nav with a role.
-for (const gone of ["home", "Sign in", "Phones", "Sponsored", "cookie banner", "screen reader trap", "Terms", "should not survive", "Buy", "Email"]) {
-	assert.doesNotMatch(markdown, new RegExp(gone), `chrome survived: ${gone}`);
+for (const gone of [
+  "home",
+  "Sign in",
+  "Phones",
+  "Sponsored",
+  "cookie banner",
+  "screen reader trap",
+  "Terms",
+  "should not survive",
+  "Buy",
+  "Email",
+]) {
+  assert.doesNotMatch(markdown, new RegExp(gone), `chrome survived: ${gone}`);
 }
 assert.doesNotMatch(markdown, /\n{3,}/);
 // Repetition is content in documentation and a link list is the content of an index page: both passes lost pages.
@@ -379,23 +378,30 @@ assert.equal(markdown.match(/asyncio\.run/g)?.length, 5);
 for (const n of [1, 2, 3]) assert.match(markdown, new RegExp(`\\[Post ${n}\\]\\(https://example\\.com/post-${n}\\)`));
 
 // A page whose text is all chrome has nothing left to summarize, and that is an error, not an empty answer.
-await assert.rejects(renderMarkdown('<html><body><nav><a href="/">home</a></nav></body></html>', "https://example.com/empty"), /No readable text/);
+await assert.rejects(
+  renderMarkdown('<html><body><nav><a href="/">home</a></nav></body></html>', "https://example.com/empty"),
+  /No readable text/,
+);
 
 // A library reaching past the console for the stream itself is held the same way.
 const direct = await heardWhile(() =>
-	withoutTerminalOutput(() => {
-		console.warn("grumble");
-		process.stdout.write("grumble");
-		return "extracted";
-	}),
+  withoutTerminalOutput(() => {
+    console.warn("grumble");
+    process.stdout.write("grumble");
+    return "extracted";
+  }),
 );
 assert.deepEqual(direct.heard, []);
 assert.equal(direct.value, "extracted");
 
 // The process is held for the extraction only, and given back even when it throws.
-assert.throws(() => withoutTerminalOutput(() => {
-	throw new Error("extraction failed");
-}), /extraction failed/);
+assert.throws(
+  () =>
+    withoutTerminalOutput(() => {
+      throw new Error("extraction failed");
+    }),
+  /extraction failed/,
+);
 assert.equal(console.warn, realConsole.warn);
 assert.equal(process.stdout.write, realStdout);
 

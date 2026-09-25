@@ -7,7 +7,9 @@ import load from "./index.ts";
 type Handler = (event: unknown, ctx: unknown) => any;
 
 const body = (name: string) =>
-  readFileSync(join(import.meta.dirname, "output-styles", `${name}.md`), "utf8").replace(/^---\n[\s\S]*?\n---\n/, "").trim();
+  readFileSync(join(import.meta.dirname, "output-styles", `${name}.md`), "utf8")
+    .replace(/^---\n[\s\S]*?\n---\n/, "")
+    .trim();
 
 function settings(dir: string, outputStyle: string) {
   mkdirSync(join(dir, ".pi"), { recursive: true });
@@ -25,7 +27,17 @@ function write(dir: string, files: Files) {
 
 const styleFile = (name: string, body: string) => `---\nname: ${name}\ndescription: ${name} for tests\n---\n\n${body}\n`;
 
-async function session({ project, user, projectFiles = {}, userFiles = {} }: { project?: string; user?: string; projectFiles?: Files; userFiles?: Files } = {}) {
+async function session({
+  project,
+  user,
+  projectFiles = {},
+  userFiles = {},
+}: {
+  project?: string;
+  user?: string;
+  projectFiles?: Files;
+  userFiles?: Files;
+} = {}) {
   const cwd = mkdtempSync(join(tmpdir(), "output-style-"));
   const agentDir = mkdtempSync(join(tmpdir(), "output-style-agent-"));
   process.env.PI_CODING_AGENT_DIR = agentDir;
