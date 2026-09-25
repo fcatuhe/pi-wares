@@ -11,7 +11,6 @@ export function endedLabel(name: string): string {
   return ENDED_LABEL.test(name) ? name : `(${truncateLabel(name, MAX_LABEL_CHARS - 2)})`;
 }
 
-// INFO: fc 09mar26 herdr recomputes its numbering from tab position and has no label clear, so a number is never ours to write back
 export function borrowedLabel(baseline: string | undefined): string | undefined {
   if (!baseline) return undefined;
   if (HERDR_NUMBERING.test(baseline) || ENDED_LABEL.test(baseline)) return undefined;

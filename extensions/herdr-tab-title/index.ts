@@ -1,26 +1,17 @@
-import net from "node:net";
+import type net from "node:net";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
+import { herdrConnect, herdrEnabled, herdrLine, herdrRequest, parseLine } from "../../lib/herdr.ts";
 import { borrowedLabel, endedLabel, truncateLabel } from "./labels.ts";
 
-const socketPath = process.env.HERDR_SOCKET_PATH;
-const socketEndpoint = process.platform === "win32" && socketPath ? `\\\\.\\pipe\\${socketPath}` : socketPath;
 const tabId = process.env.HERDR_TAB_ID;
 
 const REQUEST_TIMEOUT_MS = 1500;
 const RECONNECT_MS = 5000;
 const EVENT_SETTLE_MS = 300;
 
-function enabled(): boolean {
-  return process.env.HERDR_ENV === "1" && !!socketPath && !!tabId;
-}
-
-function requestId(): string {
-  return `herdr-tab-title:${Date.now()}:${Math.random().toString(36).slice(2)}`;
-}
-
 export default function (pi: ExtensionAPI) {
-  if (!enabled()) return;
+  if (!herdrEnabled() || !tabId) return;
 
   let started = false;
   let shutdown = false;
@@ -31,38 +22,10 @@ export default function (pi: ExtensionAPI) {
   let watcher: net.Socket | undefined;
   let settleTimer: ReturnType<typeof setTimeout> | undefined;
   let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
-  const liveRequests = new Set<net.Socket>();
+  const shutdownSignal = new AbortController();
 
-  function request(method: string, params: Record<string, unknown>): Promise<any> {
-    return new Promise((resolve) => {
-      let done = false;
-      let buffer = "";
-      const socket = net.createConnection(socketEndpoint!);
-      liveRequests.add(socket);
-      socket.unref?.();
-      const timeout = setTimeout(() => finish(), REQUEST_TIMEOUT_MS);
-      timeout.unref?.();
-      const finish = (result?: any) => {
-        if (done) return;
-        done = true;
-        clearTimeout(timeout);
-        liveRequests.delete(socket);
-        socket.destroy();
-        resolve(result);
-      };
-      socket.on("error", () => finish());
-      socket.on("close", () => finish());
-      socket.on("connect", () => socket.write(`${JSON.stringify({ id: requestId(), method, params })}\n`));
-      socket.on("data", (chunk) => {
-        buffer += chunk.toString();
-        if (!buffer.includes("\n")) return;
-        try {
-          finish(JSON.parse(buffer.split("\n", 1)[0]).result);
-        } catch {
-          finish();
-        }
-      });
-    });
+  async function request(method: string, params: Record<string, unknown>): Promise<any> {
+    return (await herdrRequest(method, params, REQUEST_TIMEOUT_MS, shutdownSignal.signal))?.result;
   }
 
   async function getTabLabel(): Promise<string | undefined> {
@@ -77,11 +40,9 @@ export default function (pi: ExtensionAPI) {
   }
 
   function enqueue(task: () => Promise<void>): void {
-    chain = chain
-      .then(async () => {
-        if (!shutdown) await task();
-      })
-      .catch(() => {});
+    chain = chain.then(async () => {
+      if (!shutdown) await task();
+    });
   }
 
   function pushToTab(name: string): void {
@@ -100,7 +61,6 @@ export default function (pi: ExtensionAPI) {
       const label = await getTabLabel();
       if (!label) return;
       if (syncedLabel === undefined) {
-        // INFO: fc 02aug26 first read only baselines: herdr's default numeric labels must not name sessions
         syncedLabel = label;
         baselineLabel = label;
       }
@@ -115,7 +75,6 @@ export default function (pi: ExtensionAPI) {
     });
   }
 
-  // INFO: fc 02aug26 herdr replays a backlog on every subscribe, so a rename notification only triggers a re-read
   function scheduleSync(): void {
     clearTimeout(settleTimer);
     settleTimer = setTimeout(pullFromTab, EVENT_SETTLE_MS);
@@ -134,9 +93,8 @@ export default function (pi: ExtensionAPI) {
   function watchTabRenames(): void {
     if (shutdown || watcher) return;
     let buffer = "";
-    const socket = net.createConnection(socketEndpoint!);
+    const socket = herdrConnect();
     watcher = socket;
-    socket.unref?.();
     const drop = () => {
       if (watcher === socket) watcher = undefined;
       socket.destroy();
@@ -145,13 +103,7 @@ export default function (pi: ExtensionAPI) {
     socket.on("error", drop);
     socket.on("close", drop);
     socket.on("connect", () => {
-      socket.write(
-        `${JSON.stringify({
-          id: requestId(),
-          method: "events.subscribe",
-          params: { subscriptions: [{ type: "tab.renamed" }] },
-        })}\n`,
-      );
+      socket.write(herdrLine("events.subscribe", { subscriptions: [{ type: "tab.renamed" }] }));
       scheduleSync();
     });
     socket.on("data", (chunk) => {
@@ -160,12 +112,8 @@ export default function (pi: ExtensionAPI) {
       buffer = lines.pop() ?? "";
       for (const line of lines) {
         if (!line.trim()) continue;
-        let msg: any;
-        try {
-          msg = JSON.parse(line);
-        } catch {
-          continue;
-        }
+        const msg = parseLine(line);
+        if (!msg) continue;
         if (msg.event === "tab_renamed" && msg.data?.tab_id === tabId) {
           scheduleSync();
         } else if (msg.id && msg.result?.type !== "subscription_started") {
@@ -196,8 +144,7 @@ export default function (pi: ExtensionAPI) {
     watcher?.destroy();
     watcher = undefined;
     await releaseLabel();
-    for (const socket of liveRequests) socket.destroy();
-    liveRequests.clear();
+    shutdownSignal.abort();
   });
 
   async function releaseLabel(): Promise<void> {
