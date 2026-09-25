@@ -1,4 +1,4 @@
-# Engineering Policy
+# Engineering policy
 
 Language and framework agnostic. Stack rules live in their own policy.
 

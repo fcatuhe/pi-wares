@@ -1,12 +1,17 @@
-# Frontend Policy
+# Frontend policy
 
 Avoid AI slop UI. Be opinionated and distinctive. Nothing here overrides a palette, font or layout the project already chose.
 
 ## Markup
 
 - Semantic HTML first. A native element beats a scripted one: `<details>`, `<dialog>`, `<input type="date">`, `<form>` over a click handler.
-- No inline `style` attributes. Classes and tokens.
+- No inline `style` attributes, no inline JS, no `<script>` blocks in templates. Classes, tokens, and script files.
 - Label every control, keep focus visible, alt text on meaningful images, contrast that passes at small sizes.
+
+## CSS and JS
+
+- Vanilla CSS and vanilla JS. No jQuery, no lodash, no Tailwind unless the project already uses it.
+- Order the cascade with `@layer`, each file wrapping its rules in one layer.
 
 ## Look
 

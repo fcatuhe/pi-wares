@@ -1,4 +1,4 @@
-# Git Policy
+# Git policy
 
 ## Never commit or push unless told to
 

@@ -1,4 +1,4 @@
-# Rails Conventions
+# Rails policy
 
 Ruby 4, Rails 8.1, Hotwire, Importmap, Propshaft, Solid Trifecta, Minitest. When in doubt, check the [Rails guides](https://guides.rubyonrails.org/) and [Code I Like](https://dev.37signals.com/series/code-i-like/).
 
@@ -17,22 +17,22 @@ Ruby 4, Rails 8.1, Hotwire, Importmap, Propshaft, Solid Trifecta, Minitest. When
 - `redirect_to` after a mutation, `render` on validation failure.
 
 ```ruby
-# ✗ Custom action
+# no: custom action
 resources :mail_accounts do
   post :verify
 end
 
-# ✓ New resource
+# yes: new resource
 resources :mail_accounts do
   resource :verification, only: :create
 end
 
-# ✓ Simple CRUD, plain Active Record
+# yes: simple CRUD, plain Active Record
 def create
   @mail_account = Current.user.mail_accounts.create!(mail_account_params)
 end
 
-# ✓ Complex behavior, the model hides it
+# yes: complex behavior, the model hides it
 def create
   @bundle.deliver
 end
@@ -93,8 +93,8 @@ end
 The caller always sees the model:
 
 ```ruby
-# ✓ mail_account.collect_now
-# ✗ MailAccountCollectionService.new(mail_account).call
+# yes: mail_account.collect_now
+# no:  MailAccountCollectionService.new(mail_account).call
 ```
 
 A thin concern can also act as an API gateway onto composed POROs:
@@ -166,7 +166,7 @@ Everything around the app is Ruby: setup, CI, one-offs, data fixes. No bash, no 
 - Partials for reuse, prefixed `_`, locals passed explicitly. No instance variables in partials.
 - View logic in helpers, not in templates and not in models.
 - Turbo Frames for partial updates, Turbo Streams for multi-target updates.
-- Stimulus for behavior. No inline JS.
+- Stimulus for behavior.
 
 ## Tests
 
@@ -191,8 +191,8 @@ Everything around the app is Ruby: setup, CI, one-offs, data fixes. No bash, no 
 - Importmap. No Node, no bundler.
 - Propshaft. No Sprockets, so no `application.css` manifest and no CSS `@import`, which fails silently.
 - `stylesheet_link_tag :app` bulk-loads `app/assets/stylesheets/`, one `<link>` per file.
-- Order with `@layer`, declared in `_global.css` (underscore sorts first). Each file wraps its rules in a layer.
-- Vanilla CSS and Stimulus. No jQuery, no Tailwind unless the project says so.
+- Declare the `@layer` order in `_global.css`, which sorts first.
+- Stimulus for behavior.
 
 ## Ruby style
 
@@ -200,11 +200,11 @@ Everything around the app is Ruby: setup, CI, one-offs, data fixes. No bash, no 
 - **Expanded conditionals over guard clauses.** Guards are hard to read once nested.
 
 ```ruby
-# ✗
+# no
 return [] unless ids
 @bucket.recordings.todos.find(ids.split(","))
 
-# ✓
+# yes
 if ids
   @bucket.recordings.todos.find(ids.split(","))
 else
@@ -221,26 +221,24 @@ end
 
 ## Common AI mistakes
 
-```
-✗ form_for / form_tag                        -> ✓ form_with
-✗ before_filter                              -> ✓ before_action
-✗ attr_accessible                            -> ✓ strong params
-✗ render text: / render nothing              -> ✓ render plain: / head :ok
-✗ find_by_id                                 -> ✓ find (raises) or find_by (nil)
-✗ update_attributes                          -> ✓ update
-✗ .where(id: x).first                        -> ✓ .find(x) or .find_by(id: x)
-✗ Sprockets / Webpacker                      -> ✓ Propshaft + Importmap
-✗ @import in CSS / application.css manifest  -> ✓ stylesheet_link_tag :app + @layer
-✗ Devise / custom auth                       -> ✓ Rails 8 authentication generator
-✗ FactoryBot / RSpec                         -> ✓ fixtures + Minitest
-✗ service objects / app/services             -> ✓ model concerns, always
-✗ puts / p for debugging                     -> ✓ Rails.logger.debug
-✗ ENV["X"] direct                            -> ✓ credentials or config
-✗ raw SQL strings                            -> ✓ Active Record query interface
-✗ bash / python / node scripts               -> ✓ Ruby in bin/ or a rake task
-✗ has_and_belongs_to_many                    -> ✓ has_many :through
-✗ resources + custom actions                 -> ✓ resources + nested resource
-✗ inline JS / <script> tags                  -> ✓ Stimulus controllers
-✗ jQuery / lodash                            -> ✓ vanilla JS + Stimulus
-✗ migration without [8.1]                    -> ✓ ActiveRecord::Migration[8.1]
-```
+| Not | But |
+|---|---|
+| `form_for` / `form_tag` | `form_with` |
+| `before_filter` | `before_action` |
+| `attr_accessible` | strong params |
+| `render text:` / `render nothing` | `render plain:` / `head :ok` |
+| `find_by_id` | `find` (raises) or `find_by` (nil) |
+| `update_attributes` | `update` |
+| `.where(id: x).first` | `.find(x)` or `.find_by(id: x)` |
+| Sprockets / Webpacker | Propshaft + Importmap |
+| CSS `@import` / `application.css` manifest | `stylesheet_link_tag :app` + `@layer` |
+| Devise / custom auth | Rails 8 authentication generator |
+| FactoryBot / RSpec | fixtures + Minitest |
+| service objects / `app/services` | model concerns |
+| `puts` / `p` for debugging | `Rails.logger.debug` |
+| `ENV["X"]` direct | credentials or config |
+| raw SQL strings | Active Record query interface |
+| bash / python / node scripts | Ruby in `bin/` or a rake task |
+| `has_and_belongs_to_many` | `has_many :through` |
+| `resources` + custom actions | `resources` + nested resource |
+| migration without `[8.1]` | `ActiveRecord::Migration[8.1]` |

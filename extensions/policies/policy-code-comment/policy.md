@@ -1,4 +1,4 @@
-# Code Comment Policy
+# Code comment policy
 
 Default: **no comments.** A comment explaining *what* code does is a smell. Fix the code, not the prose: extract named methods, or write a test whose name carries the fact.
 

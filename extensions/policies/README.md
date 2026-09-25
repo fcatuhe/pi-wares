@@ -1,37 +1,25 @@
 # policies
 
-House rules appended to the system prompt, byte-identical every turn so they cache once per session. How to write lives in [`output-style`](../output-style/), which switches.
+House rules appended to the system prompt, identical every turn so they cache once per session. How to write lives in [`output-style`](../output-style/), which can switch.
 
-One policy is one extension, `policy-<name>/index.ts` plus its `policy.md`, so `pi config` enables and disables them one by one, in any scope pi config offers. `policy.ts` holds the shared loader and `policies/` itself has no `index.ts`, so only the `policy-*` directories load.
+Each policy is its own extension, `policy-<name>/index.ts` plus its `policy.md`, so `pi config` turns them on and off one by one.
 
-| Policy | Loaded when |
-|---|---|
-| `policy-code-comment/` | always |
-| `policy-engineering/` | always |
-| `policy-git/` | `.git` exists |
-| `policy-frontend/` | a `.html`, `.erb` or `.slim` file exists in the project (vendored dirs excluded) |
-| `policy-rails/` | `config/application.rb` exists |
+| Policy | Covers | Loaded when |
+|---|---|---|
+| `policy-code-comment/` | when a comment is allowed and its shape | always |
+| `policy-engineering/` | correctness, failure handling, trust boundaries, tests, hygiene | always |
+| `policy-git/` | commit and push permission, staging, commit format | `.git` exists |
+| `policy-frontend/` | semantic markup, vanilla CSS and JS, `@layer`, tokens, no inline JS | a `.html`, `.erb` or `.slim` file is in the repository |
+| `policy-rails/` | Rails conventions | `config/application.rb` exists |
 
-Adding a policy: create `policy-<name>/` with a `policy.md` and an `index.ts` of `export default policy(import.meta.dirname)`, plus a marker argument if it is stack-specific. The `extensions/policies/policy-*` entry in the root `package.json` picks it up.
+A path marker is searched in cwd and every directory above it, never below, so a workspace of sibling repos only sees what its own root declares: `cd` into the repo. If `$HOME` is a repo, as with dotfiles, `policy-git` loads everywhere. A file-extension marker searches the git repository cwd is in, skipping `node_modules`, `vendor`, build and log directories.
 
-Markers are searched in cwd and every directory above it, never below. A workspace holding sibling repos sees only what its own root declares, so `cd` into the repo. One consequence of walking up: if `$HOME` is itself a repo, as with dotfiles, `policy-git` loads everywhere.
+To add one, create `policy-<name>/` with a `policy.md` and an `index.ts` of `export default policy(import.meta.dirname)`, plus a marker argument if it is stack-specific. The `extensions/policies/policy-*` entry in the root `package.json` picks it up. `policies/` itself has no `index.ts`, so only the `policy-*` directories load.
+
+A policy costs tokens every turn, so it holds repo-wide rules whose neglect breaks code or history. Task-shaped or bulky guidance is a skill, with a one-line pointer from the policy that covers its topic.
+
+A policy is read, not enforced. Where a rule is mechanical, a checker at edit time holds it: [`comment-check`](../comment-check/) refuses comments that break `policy-code-comment`.
 
 ## Subagents
 
-`subagent-policies/` loads every `policy-*` sibling through one entry point, because a spawned subagent starts with `--no-extensions --no-skills --no-context-files` and a 107-byte system prompt of its own. Its path, and [`comment-check`](../comment-check/)'s, are named in [`config/pi/pi-codex-subagents/config.json`](../../config/pi/pi-codex-subagents/config.json), so a spawn writes code under the same rules as the session that spawned it. Nothing loads this directory in the parent: it matches neither manifest glob, so no policy is injected twice.
-
-One side effect, from the subagents extension: naming any `defaults.extensions` stops it passing the parent's tool list to the child, which then starts with pi's built-in tools instead of the inherited set.
-
-## Injected, then enforced
-
-A policy is read once per turn and enforced by nobody. Where a rule is mechanical, a checker at the moment of the edit does what a paragraph cannot: [`comment-check`](../comment-check/) blocks a write whose new comment lines break `policy-code-comment`.
-
-## Inject or make it a skill
-
-|  | Inject here | Skill |
-|---|---|---|
-| Trigger | repo-shaped, true for every edit in this repo | task-shaped, true a few times per feature |
-| Cost of the model not reading it | silently wrong code, a force push | a mediocre draft you regenerate |
-| Size | small, it is rent paid every turn | as big as it needs to be |
-
-Anything bulky enough to be a skill gets a one-line pointer from the policy that covers its topic, which fixes skill discovery without paying for the skill.
+A spawned subagent starts with `--no-extensions`, so `subagent-policies/` loads every `policy-*` sibling through one path, named next to `comment-check` and `output-style` in [`config/pi/pi-codex-subagents/config.json`](../../config/pi/pi-codex-subagents/config.json). It matches neither manifest glob, so the parent never loads a policy twice. Naming any `defaults.extensions` there also stops the subagents extension passing the parent's tool list, so a child starts with pi's built-in tools.
