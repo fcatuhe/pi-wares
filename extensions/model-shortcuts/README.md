@@ -1,20 +1,18 @@
 # model-shortcuts
 
-Slash shortcuts for switching model and thinking level.
+Slash commands that switch the thinking level, the model, or both.
 
 ```
 /off /minimal /low /medium /high /xhigh /max     Set thinking level
 /<name>                                          Switch to a named model
-/<name>:<level>                                  Switch model + thinking
+/<name>:<level>                                  Switch model and thinking
 ```
 
-Type `/<name>:` and autocomplete lists the thinking levels that model actually supports.
+Type `/<name>:` and autocomplete lists the levels that model supports.
 
 ## Configure
 
-Shortcuts come from `~/.pi/agent/extensions/pi-model-shortcuts.json`. No project-local override: a repo that repointed a shortcut at a model of its choosing would be changing where your prompts go.
-
-Top-level keys are the shortcut names, each value `{ provider, model, thinkingLevel? }`:
+Shortcuts come from `~/.pi/agent/model-shortcuts/config.json`, read at every session start, so `/reload` picks up edits. There is no project-level file, since a repo could otherwise repoint where your prompts go. Top-level keys are the shortcut names:
 
 ```json
 {
@@ -23,17 +21,10 @@ Top-level keys are the shortcut names, each value `{ provider, model, thinkingLe
 }
 ```
 
-The set this repo runs with is [`config/pi/extensions/pi-model-shortcuts.json`](../../config/pi/extensions/pi-model-shortcuts.json), which `bin/wares-doctor` installs for you.
+The set this repo runs with is [`config/pi/model-shortcuts/config.json`](../../config/pi/model-shortcuts/config.json), installed by [`/wares-doctor`](../wares-doctor/).
 
-With `thinkingLevel` set, bare `/<name>` switches model and pins thinking. Explicit `/<name>:<level>` always wins. Names colliding with a thinking-level command (`off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`) are ignored.
-
-The config file keeps the `pi-model-shortcuts.json` name it had before this ware moved into `pi-wares`, so existing configs keep working. The filename is the config namespace, not the ware's identity.
+With `thinkingLevel`, bare `/<name>` also sets thinking, and `/<name>:<level>` always wins. A name that is a thinking level (`off` through `max`) is ignored. A missing config registers nothing, silently. A corrupt one registers nothing and logs the file and the parse error.
 
 ## Behavior
 
-- Loaded on every `session_start`, so `/reload` picks up edits.
-- A missing config is normal and silent. A corrupt one logs the file and the parse error, then registers nothing: half your slash commands disappearing deserves a reason on the console.
-- Parsing lives in [`shortcuts.ts`](./shortcuts.ts) with no pi imports, so [`test.ts`](./test.ts) exercises it without a session or a disk.
-- Combos come from `getSupportedThinkingLevels`, so `/<name>:xhigh` is not offered for a model without `xhigh`. A model the registry cannot resolve at `session_start` falls back to the full list, and its commands report the lookup failure when run.
-- A thinking level the model does not support clamps to the nearest one (`pi.setThinkingLevel`), and the notification reports the level that actually took effect: `/off` on a model that always thinks says `Thinking: minimal (off unsupported)`.
-- Lookups go through `ctx.modelRegistry`, so anything registered by pi or another extension is reachable.
+A level the model does not support is clamped to the nearest one, and the notification names what took effect: `/off` on a model that always thinks says `Thinking: minimal (off unsupported)`. Models resolve through `ctx.modelRegistry`, so models registered by other extensions work. A model the registry cannot resolve at session start gets all seven level commands, and they report the lookup failure when run.

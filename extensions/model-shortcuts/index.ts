@@ -4,14 +4,12 @@ import { join } from "node:path";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { getSupportedThinkingLevels } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
+import { wareDir } from "../../lib/paths.ts";
 import { LEVELS, parseShortcuts, type Shortcut } from "./shortcuts.ts";
 
-const CONFIG_FILENAME = "pi-model-shortcuts.json";
-
 function loadShortcuts(): Record<string, Shortcut> {
-  const file = join(getAgentDir(), "extensions", CONFIG_FILENAME);
+  const file = join(wareDir("model-shortcuts"), "config.json");
   if (!existsSync(file)) return {};
   try {
     return parseShortcuts(readFileSync(file, "utf8"));
@@ -25,7 +23,7 @@ function thinkingNotice(requested: ThinkingLevel, effective: ThinkingLevel): str
   return requested === effective ? `Thinking: ${effective}` : `Thinking: ${effective} (${requested} unsupported)`;
 }
 
-export default function modelShortcutsExtension(pi: ExtensionAPI): void {
+export default function (pi: ExtensionAPI) {
   for (const level of LEVELS) {
     pi.registerCommand(level, {
       description: `Thinking ${level}`,
