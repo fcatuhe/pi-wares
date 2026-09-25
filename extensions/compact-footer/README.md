@@ -1,11 +1,7 @@
 # compact-footer
 
-Folds pi's built-in 3-line footer into 2 by merging the status line onto the path line.
+Folds pi's 3-line footer into 2 by moving the extension statuses onto the path line, the path truncated with an ellipsis to make room.
 
-Wraps the built-in `FooterComponent`, truncates the path with an ellipsis to make room for the statuses, appends them right of it, then drops the now-empty third line. If the built-in footer ever renders fewer than 3 lines, its output passes through untouched.
+Statuses are alphabetical, except `subscription-usage-pace` then `token-rate`, pinned rightmost. If the built-in footer ever renders fewer than 3 lines, it passes through untouched.
 
-Status order is its own rather than the built-in alphabetical: `usage` then `token-rate` pinned rightmost, every other status alphabetical to their left. Unknown or renamed keys fall back into the alphabetical group.
-
-The `(auto)` compaction indicator reads project settings over global, mirroring `SettingsManager.getCompactionEnabled()`. A live `/settings` toggle emits no extension event, so it reads stale until the next footer construction. Cosmetic, and the proper fix is upstream: a settings event, or `autoCompactEnabled` on `ExtensionContext`.
-
-No config. No commands.
+The `(auto)` compaction indicator reads project settings over global ones when the footer is built, so a `/settings` toggle shows only after the next session start, because pi emits no event for it.

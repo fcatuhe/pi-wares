@@ -1,21 +1,21 @@
-import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { CONFIG_DIR_NAME, FooterComponent, getAgentDir } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { FooterComponent } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
-// INFO: fc 02aug26 mirrors SettingsManager.getCompactionEnabled(): project settings over global, default true
+import { readJson } from "../../lib/files.ts";
+import { usingSubscription } from "../../lib/models.ts";
+import { agentDir, PROJECT_DIR } from "../../lib/paths.ts";
+
+const RIGHTMOST_STATUS_KEYS = ["subscription-usage-pace", "token-rate"];
+
 function autoCompactEnabled(cwd: string): boolean {
-  for (const file of [join(cwd, CONFIG_DIR_NAME, "settings.json"), join(getAgentDir(), "settings.json")]) {
-    try {
-      const enabled = JSON.parse(readFileSync(file, "utf8"))?.compaction?.enabled;
-      if (typeof enabled === "boolean") return enabled;
-    } catch {}
+  for (const file of [join(cwd, PROJECT_DIR, "settings.json"), join(agentDir(), "settings.json")]) {
+    const enabled = readJson<{ compaction?: { enabled?: unknown } }>(file)?.compaction?.enabled;
+    if (typeof enabled === "boolean") return enabled;
   }
   return true;
 }
-
-const RIGHTMOST_STATUS_KEYS = ["usage", "token-rate"];
 
 function statusLine(statuses: ReadonlyMap<string, string>): string {
   const rank = (key: string) => RIGHTMOST_STATUS_KEYS.indexOf(key);
@@ -23,12 +23,6 @@ function statusLine(statuses: ReadonlyMap<string, string>): string {
     .sort(([a], [b]) => rank(a) - rank(b) || a.localeCompare(b))
     .map(([, text]) => text.replace(/[\r\n\t]+/g, " "))
     .join(" ");
-}
-
-function usingSubscription(ctx: ExtensionContext, provider: string): boolean {
-  const model = ctx.model;
-  if (!model || model.provider !== provider) return false;
-  return ctx.modelRegistry.isUsingOAuth(model) && ctx.modelRegistry.getProvider(provider)?.auth?.oauth?.isSubscription === true;
 }
 
 export default function (pi: ExtensionAPI) {
@@ -46,9 +40,8 @@ export default function (pi: ExtensionAPI) {
           },
           sessionManager: ctx.sessionManager,
           modelRegistry: ctx.modelRegistry,
-          // INFO: fc 06aug26 FooterComponent.render() calls modelRuntime.isUsingSubscription(providerId) for the (sub) indicator, pi >= 0.84
           modelRuntime: {
-            isUsingSubscription: (provider: string) => usingSubscription(ctx, provider),
+            isUsingSubscription: (provider: string) => ctx.model?.provider === provider && usingSubscription(ctx.modelRegistry, ctx.model),
           },
           getContextUsage: () => ctx.getContextUsage(),
         } as any,
