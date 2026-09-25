@@ -18,11 +18,11 @@ mise use -g npm:agent-browser
 ~/.pi/agent/git/github.com/fcatuhe/pi-wares/skills/agent-browser/setup.sh
 ```
 
-`setup.sh` writes `~/.agent-browser/config.json` (browser binary for this OS, the profile holding the logins, headed, pinned tabs, launch args), which every `agent-browser` command reads, so no agent passes a launch flag. It also writes `keeper.html` and seeds the profile's `Preferences` to silence translation offers, the password manager and autofill. `--deny-permission-prompts` denies every permission prompt.
+`setup.sh` writes `~/.agent-browser/config.json` (browser binary for this OS, the profile holding the logins, headed, pinned tabs, launch args), which every `agent-browser` command reads, so no agent passes a launch flag. It also writes `keeper.html` and seeds the profile's `Preferences` to silence translation offers, the password manager, leaked-password warnings and autofill. `--deny-permission-prompts` denies every permission prompt, `--propagate-iph-for-testing` without a value turns off feature-promo bubbles.
 
 Re-run it when the browser moves or the OS changes. Close the browser first: it refuses to run while the browser is up, since Chrome rewrites `Preferences` on exit and a new config relaunches Chrome under everyone.
 
-A Chrome nag that survives belongs in the prefs block of `setup.sh`, not in `args`: `--disable-features=Translate` does not stop the translate bubble, `translate.enabled` does. `args` splits on commas as well as newlines, so a flag containing a comma cannot go there: its tail opens as a URL.
+A Chrome nag that survives belongs in the prefs block of `setup.sh`, not in `args`: `--disable-features=Translate` does not stop the translate bubble, `translate.enabled` does. `args` splits on commas as well as newlines, so a flag containing a comma cannot go there: its tail opens as a URL. Never add `--disable-features` to `args`: Chrome keeps only the last one, so it replaces agent-browser's own list.
 
 The profile starts logged out everywhere. Ask the user to log in once in the visible window, it persists.
 

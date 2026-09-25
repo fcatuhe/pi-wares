@@ -75,6 +75,7 @@ const wanted = {
   credentials_enable_service: false,
   credentials_enable_autosignin: false,
   autofill: { profile_enabled: false, credit_card_enabled: false },
+  profile: { password_manager_leak_detection: false },
 }
 
 const merge = (target, source) => {
@@ -95,7 +96,7 @@ cat > "$config" <<EOF
   "pinTab": true,
   "profile": "$profile",
   "executablePath": "$executable",
-  "args": "--disable-blink-features=AutomationControlled\n--test-type\n--hide-crash-restore-bubble\n--deny-permission-prompts\n${platform_args}file://$keeper"
+  "args": "--disable-blink-features=AutomationControlled\n--test-type\n--hide-crash-restore-bubble\n--deny-permission-prompts\n--disable-search-engine-choice-screen\n--propagate-iph-for-testing\n${platform_args}file://$keeper"
 }
 EOF
 
