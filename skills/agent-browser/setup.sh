@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-skill_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 home_dir=$HOME/.agent-browser
 profile=$home_dir/profiles/agent-browser
 config=$home_dir/config.json
@@ -40,7 +39,32 @@ if pgrep -f "user-data-dir=$profile" >/dev/null; then
 fi
 
 mkdir -p "$profile/Default"
-cp "$skill_dir/keeper.html" "$keeper"
+cat > "$keeper" <<'HTML'
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>agent-browser</title>
+    <style>
+      :root { color-scheme: light dark; }
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center;
+             font: 15px/1.6 ui-sans-serif, system-ui, sans-serif; }
+      main { max-width: 34rem; padding: 2rem; }
+      h1 { font-size: 1.25rem; margin: 0 0 1rem; }
+      p { margin: 0 0 .75rem; }
+      code { font-family: ui-monospace, monospace; font-size: .9em; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>agent-browser session</h1>
+      <p>Agents drive this window, one tab each.</p>
+      <p>Keep this tab open, it holds the window.</p>
+      <p>All logins persist in the current profile:<br><code>~/.agent-browser/profiles/agent-browser</code></p>
+    </main>
+  </body>
+</html>
+HTML
 
 PREFS_PATH=$profile/Default/Preferences node <<'JS'
 const fs = require("fs")

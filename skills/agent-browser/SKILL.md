@@ -18,7 +18,7 @@ mise use -g npm:agent-browser
 ~/.pi/agent/git/github.com/fcatuhe/pi-wares/skills/agent-browser/setup.sh
 ```
 
-`setup.sh` writes `~/.agent-browser/config.json` (browser binary for this OS, the profile holding the logins, headed, pinned tabs, launch args), which every `agent-browser` command reads, so no agent passes a launch flag. It also seeds the profile's `Preferences` to silence translation offers, the password manager and autofill. `--deny-permission-prompts` denies every permission prompt.
+`setup.sh` writes `~/.agent-browser/config.json` (browser binary for this OS, the profile holding the logins, headed, pinned tabs, launch args), which every `agent-browser` command reads, so no agent passes a launch flag. It also writes `keeper.html` and seeds the profile's `Preferences` to silence translation offers, the password manager and autofill. `--deny-permission-prompts` denies every permission prompt.
 
 Re-run it when the browser moves or the OS changes. Close the browser first: it refuses to run while the browser is up, since Chrome rewrites `Preferences` on exit and a new config relaunches Chrome under everyone.
 
