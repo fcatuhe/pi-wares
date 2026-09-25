@@ -18,6 +18,16 @@ Two differences from Claude Code:
 | `/output-style` | writes the choice to `.claude/settings.local.json` | a session entry that follows the branch: `/tree` back to before it and the old style returns |
 | a custom style | drops the built-in coding instructions unless `keep-coding-instructions: true` | adds to them, every policy stays |
 
-A style is one markdown file in `output-styles/` with a `name` and a `description` in its frontmatter, the file name standing in for a missing `name`. A switch changes the system prompt, so the next request reads the conversation without the prompt cache, once.
+A style is one markdown file with a `name` and a `description` in its frontmatter, the file name standing in for a missing `name`. Three folders hold them, read at session start so an edit needs `/reload`, and a later one replaces an earlier style of the same name, built-ins included:
+
+| Folder | Styles |
+|---|---|
+| `output-styles/` here | the built-ins, read in place from the clone `pi install` makes |
+| `~/.pi/agent/output-styles/` | yours, in every project |
+| `.pi/output-styles/` | one project's |
+
+A style for every machine is a built-in here. `config/` is no place for one: [`/wares-doctor`](../wares-doctor/) reconciles JSON and TOML, not markdown.
+
+A switch changes the system prompt, so the next request reads the conversation without the prompt cache, once.
 
 Subagents load it from [`config/pi/pi-codex-subagents/config.json`](../../config/pi/pi-codex-subagents/config.json) and start in the `outputStyle` setting, never in the parent's session switch.

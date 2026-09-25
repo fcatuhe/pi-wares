@@ -7,13 +7,14 @@ const COMMAND = "output-style";
 const SETTING = "outputStyle";
 const DEFAULT_STYLE = "default";
 const FRONTMATTER = /^---\n([\s\S]*?)\n---\n/;
+const STYLES_DIR = "output-styles";
 
 type Style = { name: string; description: string; body: string };
 type Styles = Map<string, Style>;
 
 export default function (pi: ExtensionAPI) {
   const base = readFileSync(join(import.meta.dirname, "base.md"), "utf8").trim();
-  const styles = loadStyles(join(import.meta.dirname, "output-styles"));
+  let styles = loadStyles(styleDirs(process.cwd()));
   let configured = DEFAULT_STYLE;
 
   pi.registerCommand(COMMAND, {
@@ -39,6 +40,7 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("session_start", (_event, ctx) => {
+    styles = loadStyles(styleDirs(ctx.cwd));
     const setting = settingStyle(ctx.cwd);
     configured = setting && styles.has(setting.toLowerCase()) ? setting.toLowerCase() : DEFAULT_STYLE;
     if (setting && configured !== setting.toLowerCase()) {
@@ -54,13 +56,19 @@ export default function (pi: ExtensionAPI) {
   }));
 }
 
-function loadStyles(dir: string): Styles {
+function styleDirs(cwd: string): string[] {
+  return [join(import.meta.dirname, STYLES_DIR), join(agentDir(), STYLES_DIR), join(cwd, ".pi", STYLES_DIR)];
+}
+
+function loadStyles(dirs: string[]): Styles {
   const styles: Styles = new Map();
-  for (const file of readdirSync(dir).filter((name) => name.endsWith(".md")).sort()) {
-    const style = parseStyle(basename(file, ".md"), readFileSync(join(dir, file), "utf8"));
-    styles.set(style.name.toLowerCase(), style);
+  for (const dir of dirs.filter((dir) => existsSync(dir))) {
+    for (const file of readdirSync(dir).filter((name) => name.endsWith(".md")).sort()) {
+      const style = parseStyle(basename(file, ".md"), readFileSync(join(dir, file), "utf8"));
+      styles.set(style.name.toLowerCase(), style);
+    }
   }
-  if (!styles.has(DEFAULT_STYLE)) throw new Error(`${dir} has no ${DEFAULT_STYLE}.md, the default output style`);
+  if (!styles.has(DEFAULT_STYLE)) throw new Error(`no ${DEFAULT_STYLE}.md in ${dirs[0]}, the default output style`);
   return styles;
 }
 
@@ -78,13 +86,16 @@ function activeStyle(ctx: ExtensionContext, styles: Styles, configured: string):
 }
 
 function settingStyle(cwd: string): string | undefined {
-  const agentDir = process.env.PI_CODING_AGENT_DIR ?? join(homedir(), ".pi", "agent");
-  for (const file of [join(cwd, ".pi", "settings.json"), join(agentDir, "settings.json")]) {
+  for (const file of [join(cwd, ".pi", "settings.json"), join(agentDir(), "settings.json")]) {
     if (!existsSync(file)) continue;
     const value = JSON.parse(readFileSync(file, "utf8"))[SETTING];
     if (typeof value === "string") return value;
   }
   return undefined;
+}
+
+function agentDir(): string {
+  return process.env.PI_CODING_AGENT_DIR ?? join(homedir(), ".pi", "agent");
 }
 
 function names(styles: Styles): string {

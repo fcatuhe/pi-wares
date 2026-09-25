@@ -14,12 +14,25 @@ function settings(dir: string, outputStyle: string) {
   writeFileSync(join(dir, ".pi", "settings.json"), JSON.stringify({ outputStyle }));
 }
 
-async function session({ project, user }: { project?: string; user?: string } = {}) {
+type Files = Record<string, string>;
+
+function write(dir: string, files: Files) {
+  for (const [path, text] of Object.entries(files)) {
+    mkdirSync(join(dir, path, ".."), { recursive: true });
+    writeFileSync(join(dir, path), text);
+  }
+}
+
+const styleFile = (name: string, body: string) => `---\nname: ${name}\ndescription: ${name} for tests\n---\n\n${body}\n`;
+
+async function session({ project, user, projectFiles = {}, userFiles = {} }: { project?: string; user?: string; projectFiles?: Files; userFiles?: Files } = {}) {
   const cwd = mkdtempSync(join(tmpdir(), "output-style-"));
   const agentDir = mkdtempSync(join(tmpdir(), "output-style-agent-"));
   process.env.PI_CODING_AGENT_DIR = agentDir;
   if (project) settings(cwd, project);
   if (user) writeFileSync(join(agentDir, "settings.json"), JSON.stringify({ outputStyle: user }));
+  write(cwd, projectFiles);
+  write(agentDir, userFiles);
 
   const handlers: Record<string, Handler[]> = {};
   const commands: Record<string, { handler: (args: string, ctx: unknown) => Promise<void> }> = {};
@@ -75,3 +88,18 @@ assert.ok((await user.prompt()).endsWith(body("prose")), "the user setting appli
 const typo = await session({ project: "Prosse" });
 assert.match(typo.notices[0], /unknown output style "Prosse"/);
 assert.ok((await typo.prompt()).endsWith(body("default")), "a typo in the setting falls back to Default");
+
+const own = await session({ userFiles: { "output-styles/pitch.md": styleFile("Pitch", "USER PITCH") } });
+await own.switchTo("pitch");
+assert.ok((await own.prompt()).endsWith("USER PITCH"), "a style in ~/.pi/agent/output-styles is one to switch to");
+assert.equal(own.status(), "style: Pitch");
+
+const layered = await session({
+  project: "pitch",
+  userFiles: { "output-styles/pitch.md": styleFile("Pitch", "USER PITCH") },
+  projectFiles: { ".pi/output-styles/pitch.md": styleFile("Pitch", "PROJECT PITCH") },
+});
+assert.ok((await layered.prompt()).endsWith("PROJECT PITCH"), "a project style replaces the user style of the same name");
+
+const replaced = await session({ userFiles: { "output-styles/default.md": styleFile("Default", "MY DEFAULT") } });
+assert.ok((await replaced.prompt()).endsWith("MY DEFAULT"), "a user style can replace a built-in");
