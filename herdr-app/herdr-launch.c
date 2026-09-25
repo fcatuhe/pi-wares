@@ -1,4 +1,3 @@
-// INFO: fc 01aug26 main executable of Herdr.app: seeds the flags Ghostty only takes from argv, then re-execs the symlink beside it
 #include <limits.h>
 #include <mach-o/dyld.h>
 #include <stdint.h>
@@ -7,7 +6,6 @@
 #include <string.h>
 #include <unistd.h>
 
-// INFO: fc 01aug26 build.sh bakes these in with -D, so one source builds every variant app
 #ifndef APP_TITLE
 #define APP_TITLE "Herdr"
 #endif
@@ -31,7 +29,6 @@ int main(void) {
   const char *home = getenv("HOME");
   if (home == NULL) return 1;
 
-  // INFO: fc 01aug26 the login shell restores the PATH launchd withholds, and OSC 0 replaces Ghostty's ghost emoji
   char command[PATH_MAX];
   if (snprintf(command, sizeof(command),
                "--command=/bin/zsh -lc 'printf \"\\033]0;%s\\a\"; exec %s/.local/bin/herdr%s'",

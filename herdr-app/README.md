@@ -1,42 +1,34 @@
 # herdr-app
 
-Builds `~/Applications/Herdr.app`, a Ghostty bundle rebranded as Herdr that opens straight into the herdr session instead of a shell. Dock icon, menu bar and Cmd-Tab all say Herdr.
+Builds `~/Applications/Herdr.app`, a Ghostty bundle rebranded as Herdr that opens straight into the herdr session instead of a shell, with its own Dock icon, menu bar name and Cmd-Tab entry.
 
 ```bash
-./build.sh          # ~1s, needs Ghostty in /Applications and the Xcode CLT
+./build.sh          # needs Ghostty in /Applications and the Xcode CLT
 ```
 
-It also builds variants: a name plus herdr flags gives a separate app with its own bundle id, so the Dock, Cmd-Tab and single-instance behavior treat each as a distinct app.
+A name plus herdr flags builds a variant with its own bundle id, which the Dock, Cmd-Tab and single-instance behavior treat as a separate app:
 
 ```bash
 ./build.sh "Herdr Work" --session work      # ~/Applications/Herdr Work.app
 ./build.sh "Herdr Devbox" --remote devbox   # attaches over SSH
 ```
 
-All variants share the same icon, and quotes are not allowed in the name or flags (they would end the shell command the launcher bakes in).
+Variants share the icon. Quotes are not allowed in the name or flags, since they would end the shell command the launcher bakes in.
 
-Rerun it after changing the launcher or the logo. Not after a Ghostty update: everything but the `Info.plist`, the launcher and the icon is a symlink into `/Applications/Ghostty.app`, so updates flow through on the next launch. The bundle is 830 KB.
+Rerun it after changing the launcher or the logo, not after a Ghostty update: everything but `Info.plist`, the launcher and the icon is a symlink into `/Applications/Ghostty.app`.
 
-Nothing here is loaded by pi. It sits in this repo because the terminal is part of how we run pi.
+## Design constraints
 
-## Design notes
+The launcher is compiled C, because launchd refuses an interpreted main executable under the hardened runtime (spawn error 162).
 
-Each of these is the answer to something that did not work.
+It passes `--command`, not `-e`, because Ghostty started through `open --args` ignores `-e` and opens a plain login shell.
 
-**The launcher is compiled.** Ghostty takes the command to run from `argv` only, and a Finder launch passes none, so the bundle's main executable seeds the flags and re-execs the `ghostty` symlink beside it. It cannot be a shell script: launchd refuses an interpreted main executable under the hardened runtime, with a spawn error 162.
+A `printf` of OSC 0 seeds the window title, because Ghostty's `title` config would freeze it and herdr could never show session names.
 
-**`-e` is ignored, `--command` is not.** When Ghostty starts through `open --args`, `-e cmd` silently yields a plain login shell. `+new-window` is Linux only in 1.3.1.
+The icon is a Finder custom icon with the squircle mask and inset baked in, because `Contents/Resources` belongs to Ghostty and macOS draws a custom icon verbatim.
 
-**The title is seeded with OSC 0.** Ghostty titles a window with a ghost emoji until the program inside sets one. The `title` config would fix that but freezes the title forever, so herdr could never show session names. A `printf` before the `exec` fills the gap instead.
-
-**The icon is a Finder custom icon.** `Contents/Resources` belongs to Ghostty, so there is nowhere to put a `CFBundleIconFile`. macOS draws a custom icon verbatim, without the squircle mask and inset it applies to a bundle icon, so `build.sh` bakes those in: 824 points of artwork on a 1024 canvas, drawn through AppKit in `osascript` rather than an image library.
-
-**The bundle root is read only.** On startup Ghostty stamps its own icon on its bundle as a custom icon, which outranks everything else. Not through `setApplicationIconImage:` or `NSWorkspace setIcon:forFile:`, both swizzle-tested and never called, so `chmod a-w` on the bundle root is what stops it.
-
-**Second click focuses.** LaunchServices gives single instance behavior for free, since the bundle is the app rather than a stub that shells out to Ghostty.
+The bundle root is read only, because Ghostty otherwise stamps its own custom icon on its bundle at startup.
 
 ## Signature and portability
 
-Ad hoc signed, no team ID, so `spctl` rejects it. It launches anyway because Gatekeeper only assesses bundles carrying `com.apple.quarantine`, which a locally built one does not have. After the re-exec, the process runs under Ghostty's own notarized Developer ID signature.
-
-Copying the app to another Mac is possible but fragile: anything arriving by AirDrop or download is quarantined and blocked (`xattr -dr com.apple.quarantine` clears it), and the icon lives in a resource fork that `zip` and `rsync -a` drop. Run `build.sh` there instead.
+The app is ad hoc signed, so `spctl` rejects it, but it launches because Gatekeeper only assesses quarantined bundles and after the re-exec it runs under Ghostty's notarized signature. On another Mac, run `build.sh` there: a copied app arrives quarantined (`xattr -dr com.apple.quarantine` clears it), and `zip` and `rsync -a` drop the icon's resource fork.
