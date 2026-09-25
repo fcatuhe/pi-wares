@@ -1,4 +1,3 @@
-// INFO: fc 06aug26 every limit here is Claude Code 2.1.222's own, read out of its binary, so a page reads the same there
 const FETCH_TIMEOUT_MS = 60_000;
 const MAX_PAGE_BYTES = 10_485_760;
 const MAX_REDIRECTS = 10;
@@ -7,7 +6,6 @@ const MAX_SOURCE_CHARS = 1_048_576;
 const MAX_MARKDOWN_CHARS = 100_000;
 const CACHE_TTL_MS = 900_000;
 const CACHE_MAX_BYTES = 52_428_800;
-// INFO: fc 06aug26 claiming Claude Code's own agent name means keeping its policy, which assertFetchable below is
 const USER_AGENT = "Claude-User (2.1.222; +https://support.anthropic.com/)";
 const ACCEPT = "text/markdown, text/html, */*";
 const DOMAIN_INFO_URL = "https://api.anthropic.com/api/web/domain_info?domain=";
@@ -37,7 +35,6 @@ export function validateUrl(url: string): URL {
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
     throw new Error(`Only http and https are fetchable, got ${parsed.protocol}`);
   }
-  // INFO: fc 17aug26 credentials in a URL are a phishing shape, and a hostname with no dot is a local or intranet name.
   if (parsed.username || parsed.password) {
     throw new Error(`Refusing a URL carrying credentials: ${parsed.host}`);
   }
@@ -48,7 +45,6 @@ export function validateUrl(url: string): URL {
   return parsed;
 }
 
-// INFO: fc 17aug26 a redirect may not change publisher: same port, same host bar a leading www
 export function isSamePublisher(from: URL, to: URL): boolean {
   const bare = (url: URL) => url.hostname.replace(/^www\./, "");
   return from.port === to.port && bare(from) === bare(to);
@@ -72,7 +68,7 @@ export async function assertFetchable(hostname: string, signal?: AbortSignal): P
   let canFetch: unknown;
   try {
     const timeout = AbortSignal.timeout(DOMAIN_CHECK_TIMEOUT_MS);
-    const response = await fetchOnceMore(`${DOMAIN_INFO_URL}${encodeURIComponent(hostname)}`, {
+    const response = await fetchRetryingTransportFailure(`${DOMAIN_INFO_URL}${encodeURIComponent(hostname)}`, {
       signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
     });
     if (!response.ok) throw new Error(`status ${response.status}`);
@@ -86,7 +82,6 @@ export async function assertFetchable(hostname: string, signal?: AbortSignal): P
   clearedDomains.add(hostname);
 }
 
-// INFO: fc 17aug26 redirects are followed by hand so each hop is validated and counted, which fetch's own follow mode does neither of.
 async function fetchFollowing(url: URL, signal: AbortSignal): Promise<Response> {
   let target = url;
   for (let hop = 0; ; hop++) {
@@ -104,8 +99,7 @@ async function fetchFollowing(url: URL, signal: AbortSignal): Promise<Response> 
   }
 }
 
-// INFO: fc 17aug26 undici raises a TypeError for a transport failure, which a retry helps, and a DOMException for a deadline, which it does not
-async function fetchOnceMore(url: string | URL, init: RequestInit): Promise<Response> {
+async function fetchRetryingTransportFailure(url: string | URL, init: RequestInit): Promise<Response> {
   try {
     return await fetch(url, init);
   } catch (error) {
@@ -115,10 +109,9 @@ async function fetchOnceMore(url: string | URL, init: RequestInit): Promise<Resp
   }
 }
 
-// INFO: fc 17aug26 an abort is the user cancelling the turn, and pi renders it as such: only a transport failure is rewritten.
 async function reach(target: URL, signal: AbortSignal): Promise<Response> {
   try {
-    return await fetchOnceMore(target, {
+    return await fetchRetryingTransportFailure(target, {
       redirect: "manual",
       signal,
       headers: { "user-agent": USER_AGENT, accept: ACCEPT },
@@ -191,7 +184,6 @@ export async function fetchPage(url: string, signal?: AbortSignal): Promise<Page
   return page;
 }
 
-// INFO: fc 17aug26 interactive mode leaves process.stdout alone, so a library's grumble lands on the frame pi is drawing
 const CONSOLE_METHODS = ["log", "warn", "error", "info", "debug", "trace"] as const;
 const swallow = () => true;
 
@@ -211,17 +203,15 @@ export function withoutTerminalOutput<T>(work: () => T): T {
   }
 }
 
-// INFO: fc 17aug26 domino and turndown cost ~100ms to import, so they load on first fetch rather than at pi startup.
 export async function renderMarkdown(html: string, url: string): Promise<string> {
+  // INFO: fc 17aug26 domino and turndown cost ~100ms to import, so they load on first fetch, not at pi startup
   const [domino, turndown, { gfm }] = await Promise.all([import("@mixmark-io/domino"), import("turndown"), import("turndown-plugin-gfm")]);
   const markdown = withoutTerminalOutput(() => {
-    // INFO: fc 17aug26 the address is what makes element.href absolute in stripToContent, and domino honours a page's own <base href> against it.
     const document = domino.createWindow(html, url).document;
     const title = document.title.replace(/\s+/g, " ").trim();
     stripToContent(document);
     const service = new turndown.default({ headingStyle: "atx", codeBlockStyle: "fenced" });
     service.use(gfm);
-    // INFO: fc 17aug26 a rule's output escapes nothing, where the same text in a node comes out as \[image: ...\].
     service.addRule("describedImage", {
       filter: "img",
       replacement: (_content, node) => `[image: ${description(node as Element)}]`,
@@ -237,7 +227,6 @@ export async function renderMarkdown(html: string, url: string): Promise<string>
   return markdown;
 }
 
-// INFO: fc 17aug26 the landmark roles are in this list because a page built out of divs says nav with a role and nothing else.
 const CHROME = [
   "script,style,noscript,iframe,template",
   "svg,canvas,video,audio,object,embed",
@@ -247,11 +236,9 @@ const CHROME = [
   '[role="navigation"],[role="banner"],[role="contentinfo"],[role="search"],[role="complementary"]',
   '[role="menu"],[role="menubar"],[role="toolbar"],[role="tablist"]',
 ].join(",");
-// INFO: fc 17aug26 an alt of "4" or "logo" describes nothing, where a sentence describes a chart the model cannot see.
 const ALT_MIN_WORDS = 3;
 const OPAQUE_HREF = /^(?:javascript|data):/i;
 
-// INFO: fc 17aug26 domino's querySelectorAll returns an array-like NodeList with no Symbol.iterator, so Array.from, never a spread.
 const all = (document: Document, selector: string): Element[] => Array.from(document.querySelectorAll(selector));
 
 const description = (image: Element): string => {
@@ -261,14 +248,11 @@ const description = (image: Element): string => {
 
 function stripToContent(document: Document): void {
   for (const element of all(document, CHROME)) element.remove();
-  // INFO: fc 17aug26 turndown's own image rule matches before its remove list, so remove(["img"]) is silently a no-op
   for (const image of all(document, "img")) if (!description(image)) image.remove();
-  // INFO: fc 17aug26 turndown reads the href attribute rather than the resolved property, and a relative href is a dead end
   for (const link of all(document, "a[href], area[href]")) {
     if (OPAQUE_HREF.test(link.getAttribute("href") ?? "")) link.removeAttribute("href");
     else link.setAttribute("href", (link as HTMLAnchorElement).href);
   }
-  // INFO: fc 17aug26 turndown counts an anchor as meaningful when blank, so one emptied by its image prints as [](url).
   for (const link of all(document, "a")) {
     if (!link.textContent?.trim() && !link.querySelector("img")) link.remove();
   }
@@ -292,7 +276,6 @@ function plainText(contentType: string, body: string): string {
   return body.trim();
 }
 
-// INFO: fc 06aug26 content-length is absent on chunked responses, and response.text() would buffer the body before any check
 async function readCapped(response: Response): Promise<{ text: string; bytes: number }> {
   const declared = Number(response.headers.get("content-length") ?? Number.NaN);
   if (Number.isFinite(declared) && declared > MAX_PAGE_BYTES) {

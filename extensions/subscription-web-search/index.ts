@@ -29,7 +29,6 @@ const usageOf = (model: Model<Api>, response: unknown): Usage => {
   return usage;
 };
 
-// INFO: fc 06aug26 no underscore in either name: pi-ai canonicalizes a match against its first-party list (anthropic-messages.js:64), "web_search" would not
 export const websearch = defineTool({
   name: "websearch",
   label: "Web Search",
@@ -43,7 +42,6 @@ export const websearch = defineTool({
   }),
 
   async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-    // INFO: fc 17aug26 the clock covers the whole call, credential resolution included, not the request alone
     const started = performance.now();
     const worker = await resolveWorker(ctx);
     const response = await postMessages(worker, searchRequest(worker.model.id, params.query), signal);
@@ -82,7 +80,6 @@ export const webfetch = defineTool({
     const page = await fetchPage(params.url, signal);
     const request = summaryRequest(worker.model.id, page.url, page.markdown, params.prompt);
     const response = await postMessages(worker, request, signal);
-    // INFO: fc 17aug26 pi previews this text in the row, so what a reader wants belongs in its first line
     const cut = page.truncated ? ", truncated before reading" : "";
     const head = `Received ${formatSize(page.bytes)} (${page.status} ${page.statusText}${cut}) in ${formatDuration(performance.now() - started)}`;
     return {
@@ -104,7 +101,7 @@ export const webfetch = defineTool({
   },
 });
 
-export default function subscriptionWebSearch(pi: ExtensionAPI): void {
+export default function (pi: ExtensionAPI) {
   pi.registerTool(websearch);
   pi.registerTool(webfetch);
 }
