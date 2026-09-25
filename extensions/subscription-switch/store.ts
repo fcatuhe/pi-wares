@@ -1,24 +1,30 @@
-import { mkdirSync, readFileSync, rmdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmdirSync } from "node:fs";
 
-import type { Credentials } from "./accounts.ts";
+import { readJson, writeJson } from "../../lib/files.ts";
+import { type Bench, type Credentials, switchAccounts } from "./accounts.ts";
 
 const LOCK_ATTEMPTS = 25;
 const LOCK_RETRY_MS = 20;
-const AUTH_FILE_MODE = 0o600;
 
 export function readCredentials(path: string): Credentials {
-  try {
-    return JSON.parse(readFileSync(path, "utf8"));
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return {};
-    throw error;
-  }
+  return readJson<Credentials>(path) ?? {};
 }
 
-export async function updateCredentials(path: string, change: (current: Credentials) => Credentials): Promise<void> {
-  await withAuthLock(path, () => {
-    const next = change(readCredentials(path));
-    writeFileSync(path, JSON.stringify(next, null, 2), { encoding: "utf8", mode: AUTH_FILE_MODE });
+export function readBench(path: string): Bench {
+  return readJson<Bench>(path) ?? {};
+}
+
+export async function moveAccounts(
+  authPath: string,
+  benchPath: string,
+  current: string | undefined,
+  target: string | undefined,
+): Promise<void> {
+  await withAuthLock(authPath, () => {
+    const next = switchAccounts(readCredentials(authPath), readBench(benchPath), current, target);
+    writeJson(benchPath, next.staged);
+    writeJson(authPath, next.auth);
+    writeJson(benchPath, next.bench);
   });
 }
 

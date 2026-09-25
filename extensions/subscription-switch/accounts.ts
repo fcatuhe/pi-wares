@@ -1,47 +1,37 @@
 export const ACTIVE = "anthropic";
-export const SLOT_PREFIX = "anthropic-";
+const LEGACY_SLOT_PREFIX = "anthropic-";
 
-export type Credentials = Record<string, any>;
+export type Credential = Record<string, any>;
+export type Credentials = Record<string, Credential>;
+export type Bench = Record<string, Credential>;
 
-export interface Account {
-  slot: string;
-  email: string;
+export interface Switch {
+  staged: Bench;
+  auth: Credentials;
+  bench: Bench;
 }
 
-export function slotFor(email: string): string {
-  const slug = email
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  if (!slug) throw new Error(`Not an account name: "${email}"`);
-  return `${SLOT_PREFIX}${slug}`;
+export function benchedEmails(bench: Bench): string[] {
+  return Object.keys(bench).sort((left, right) => left.localeCompare(right));
 }
 
-export function storedAccounts(credentials: Credentials): Account[] {
-  return Object.entries(credentials)
-    .filter(([slot]) => slot.startsWith(SLOT_PREFIX))
-    .map(([slot, credential]) => ({
-      slot,
-      email: typeof credential?.email === "string" ? credential.email : slot.slice(SLOT_PREFIX.length),
-    }))
-    .sort((left, right) => left.email.localeCompare(right.email));
+// TODO: fc 25sep26 remove once no auth.json still holds anthropic-<email> slots from before the bench file
+function legacySlots(auth: Credentials): [string, Credential][] {
+  return Object.entries(auth).filter(([slot, credential]) => slot.startsWith(LEGACY_SLOT_PREFIX) && typeof credential?.email === "string");
 }
 
-export function activeCredential(credentials: Credentials): Record<string, any> | undefined {
-  return credentials[ACTIVE];
+export function withLegacy(auth: Credentials, bench: Bench): Bench {
+  return { ...Object.fromEntries(legacySlots(auth).map(([, credential]) => [credential.email, credential])), ...bench };
 }
 
-export function stash(credentials: Credentials, email: string): Credentials {
-  const active = credentials[ACTIVE];
-  if (!active) return credentials;
-  const { [ACTIVE]: _moved, ...rest } = credentials;
-  return { ...rest, [slotFor(email)]: { ...active, email } };
-}
+export function switchAccounts(auth: Credentials, bench: Bench, current: string | undefined, target: string | undefined): Switch {
+  const active = auth[ACTIVE];
+  if (active && !current) throw new Error("the account in use has no name to be stored under");
+  const staged = { ...withLegacy(auth, bench), ...(current && active ? { [current]: { ...active, email: current } } : {}) };
+  if (target && !staged[target]) throw new Error(`No account stored for ${target}`);
 
-export function activate(credentials: Credentials, slot: string): Credentials {
-  const stored = credentials[slot];
-  if (!stored) throw new Error(`No credential stored under ${slot}`);
-  const { [slot]: _moved, ...rest } = credentials;
-  return { ...rest, [ACTIVE]: stored };
+  const legacy = new Set(legacySlots(auth).map(([slot]) => slot));
+  const { [ACTIVE]: _leaving, ...others } = Object.fromEntries(Object.entries(auth).filter(([slot]) => !legacy.has(slot)));
+  const { [target ?? ""]: arriving, ...rest } = staged;
+  return { staged, auth: target ? { ...others, [ACTIVE]: arriving } : others, bench: target ? rest : staged };
 }
