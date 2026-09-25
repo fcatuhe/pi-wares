@@ -8,7 +8,7 @@ The pi and herdr configuration these wares assume, one reference file per target
 | [`pi/model-shortcuts/config.json`](./pi/model-shortcuts/config.json) | `~/.pi/agent/model-shortcuts/config.json` | One slash shortcut per enabled model, in the order of `enabledModels`. |
 | [`pi/pi-codex-subagents/config.json`](./pi/pi-codex-subagents/config.json) | `~/.pi/agent/pi-codex-subagents/config.json` | Without `modelsFromEnabledModels` the subagents extension silently drops its per-spawn `model` argument. Without `defaults.extensions` a spawn starts with `--no-extensions` and writes code under no house policy. |
 | [`pi/pi-codex-subagents/agents/rails-review.md`](./pi/pi-codex-subagents/agents/rails-review.md) | `~/.pi/agent/pi-codex-subagents/agents/rails-review.md` | The `rails-review` subagent: read-only tools, the `rails-review` skill, its prompt, and Opus at high thinking. `model: opus` is a pattern pi resolves to the newest undated Opus, and a caller's own `model` and `thinking` still win. |
-| [`herdr/config.toml`](./herdr/config.toml) | `~/.config/herdr/config.toml` | The keybindings every machine agrees on, omarchy's `prefix+` chords plus pane focus and resize, then `[ui]` and `kitty_graphics` so pi can draw images. |
+| [`herdr/config.toml`](./herdr/config.toml) | `~/.config/herdr/config.toml` | The keybindings every machine agrees on, omarchy's `prefix+` chords plus pane focus and resize, then two `[ui]` defaults. |
 
 JSON and TOML targets are reconciled key by key. The markdown template is one unit: copied when missing, reported when it differs, overwritten by `:force`.
 
