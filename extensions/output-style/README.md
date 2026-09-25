@@ -1,6 +1,6 @@
 # output-style
 
-Claude Code's output styles for pi: `base.md` holds the writing rules for every style (the AI tells to avoid, form, honest claims), and one file of `output-styles/` sets the shape on top of it.
+Claude Code's output styles for pi: `base.md` holds the writing rules every style shares, and one file of `styles/` sets the shape on top of it.
 
 | Style | For |
 |---|---|
@@ -9,7 +9,7 @@ Claude Code's output styles for pi: `base.md` holds the writing rules for every 
 
 `/output-style` opens a picker, `/output-style prose` switches directly, case-insensitive. The footer shows `style: <name>` whenever the style is not Default.
 
-`outputStyle` sets the style a session starts in, in `.pi/settings.json` for a project and `~/.pi/agent/settings.json` for every project, the project winning. A name that matches no style is reported at session start and Default applies.
+`~/.pi/agent/output-style/config.json` sets the style a session starts in, `{ "style": "Prose" }`. An unknown name is reported at session start and Default applies. A project cannot change the style.
 
 Two differences from Claude Code:
 
@@ -18,16 +18,8 @@ Two differences from Claude Code:
 | `/output-style` | writes the choice to `.claude/settings.local.json` | a session entry that follows the branch: `/tree` back to before it and the old style returns |
 | a custom style | drops the built-in coding instructions unless `keep-coding-instructions: true` | adds to them, every policy stays |
 
-A style is one markdown file with a `name` and a `description` in its frontmatter, the file name standing in for a missing `name`. Three folders hold them, read at session start so an edit needs `/reload`, and a later one replaces an earlier style of the same name, built-ins included:
+A style is a markdown file with `name` and `description` in its frontmatter, the file name standing in for a missing `name`. Yours go in `~/.pi/agent/output-style/styles/`, where one named like a built-in replaces it. Styles load at session start, so an edit needs `/reload`.
 
-| Folder | Styles |
-|---|---|
-| `output-styles/` here | the built-ins, read in place from the clone `pi install` makes |
-| `~/.pi/agent/output-styles/` | yours, in every project |
-| `.pi/output-styles/` | one project's |
+A switch changes the system prompt, so the next request misses the prompt cache once.
 
-A style for every machine is a built-in here. `config/` is no place for one: [`/wares-doctor`](../wares-doctor/) reconciles JSON and TOML, not markdown.
-
-A switch changes the system prompt, so the next request reads the conversation without the prompt cache, once.
-
-Subagents load it from [`config/pi/pi-codex-subagents/config.json`](../../config/pi/pi-codex-subagents/config.json) and start in the `outputStyle` setting, never in the parent's session switch.
+Subagents load this ware through [`config/pi/pi-codex-subagents/config.json`](../../config/pi/pi-codex-subagents/config.json) and start in the configured style, never in the parent's switched style.

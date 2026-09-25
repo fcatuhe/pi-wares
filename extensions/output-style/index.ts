@@ -1,20 +1,21 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
+import { readJson } from "../../lib/files.ts";
+import { wareDir } from "../../lib/paths.ts";
+
 const COMMAND = "output-style";
-const SETTING = "outputStyle";
 const DEFAULT_STYLE = "default";
 const FRONTMATTER = /^---\n([\s\S]*?)\n---\n/;
-const STYLES_DIR = "output-styles";
+const STYLES_DIR = "styles";
 
 type Style = { name: string; description: string; body: string };
 type Styles = Map<string, Style>;
 
 export default function (pi: ExtensionAPI) {
   const base = readFileSync(join(import.meta.dirname, "base.md"), "utf8").trim();
-  let styles = loadStyles(styleDirs(process.cwd()));
+  let styles = loadStyles(styleDirs());
   let configured = DEFAULT_STYLE;
 
   pi.registerCommand(COMMAND, {
@@ -40,11 +41,11 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("session_start", (_event, ctx) => {
-    styles = loadStyles(styleDirs(ctx.cwd));
-    const setting = settingStyle(ctx.cwd);
+    styles = loadStyles(styleDirs());
+    const setting = configuredStyle();
     configured = setting && styles.has(setting.toLowerCase()) ? setting.toLowerCase() : DEFAULT_STYLE;
     if (setting && configured !== setting.toLowerCase()) {
-      ctx.ui.notify(`${SETTING} names an unknown output style "${setting}", using ${styles.get(DEFAULT_STYLE)!.name}`, "error");
+      ctx.ui.notify(`${configFile()} names an unknown output style "${setting}", using ${styles.get(DEFAULT_STYLE)!.name}`, "error");
     }
     showStatus(ctx, activeStyle(ctx, styles, configured));
   });
@@ -56,8 +57,17 @@ export default function (pi: ExtensionAPI) {
   }));
 }
 
-function styleDirs(cwd: string): string[] {
-  return [join(import.meta.dirname, STYLES_DIR), join(agentDir(), STYLES_DIR), join(cwd, ".pi", STYLES_DIR)];
+function styleDirs(): string[] {
+  return [join(import.meta.dirname, STYLES_DIR), join(wareDir(COMMAND), STYLES_DIR)];
+}
+
+function configFile(): string {
+  return join(wareDir(COMMAND), "config.json");
+}
+
+function configuredStyle(): string | undefined {
+  const style = readJson<{ style?: unknown }>(configFile())?.style;
+  return typeof style === "string" ? style : undefined;
 }
 
 function loadStyles(dirs: string[]): Styles {
@@ -85,19 +95,6 @@ function activeStyle(ctx: ExtensionContext, styles: Styles, configured: string):
     | { data?: { style?: string } }
     | undefined;
   return styles.get(switched?.data?.style?.toLowerCase() ?? configured) ?? styles.get(configured)!;
-}
-
-function settingStyle(cwd: string): string | undefined {
-  for (const file of [join(cwd, ".pi", "settings.json"), join(agentDir(), "settings.json")]) {
-    if (!existsSync(file)) continue;
-    const value = JSON.parse(readFileSync(file, "utf8"))[SETTING];
-    if (typeof value === "string") return value;
-  }
-  return undefined;
-}
-
-function agentDir(): string {
-  return process.env.PI_CODING_AGENT_DIR ?? join(homedir(), ".pi", "agent");
 }
 
 function names(styles: Styles): string {
