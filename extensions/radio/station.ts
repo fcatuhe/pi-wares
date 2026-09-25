@@ -1,8 +1,9 @@
-import { mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
+import { existsSync, mkdirSync, readdirSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-import { type AckStatus, type Envelope, PROTOCOL, randomId, validEnvelope } from "./envelope.ts";
+import { readJson, writeAtomic } from "../../lib/files.ts";
+import { wareDir } from "../../lib/paths.ts";
+import { type AckStatus, type Envelope, PROTOCOL, validEnvelope } from "./envelope.ts";
 
 export interface Station {
   v: number;
@@ -23,12 +24,8 @@ export interface Ack {
 
 const ACK_KEEP_MS = 5 * 60_000;
 
-export function agentDir(): string {
-  return process.env.PI_CODING_AGENT_DIR || join(homedir(), ".pi", "agent");
-}
-
-export function radioRoot(dir = agentDir()): string {
-  return join(dir, "radio");
+export function radioRoot(): string {
+  return wareDir("radio");
 }
 
 export function stationDir(root: string, sessionId: string): string {
@@ -43,17 +40,28 @@ function ackDir(root: string, sessionId: string): string {
   return join(stationDir(root, sessionId), "ack");
 }
 
-function writeAtomic(path: string, value: unknown): void {
-  const temporary = `${path}.${randomId("w")}`;
-  writeFileSync(temporary, JSON.stringify(value), { mode: 0o600 });
-  renameSync(temporary, path);
+function writeFile(path: string, value: unknown): void {
+  writeAtomic(path, JSON.stringify(value));
 }
 
-function readJson<T>(path: string): T | undefined {
+function readPeerFile<T>(path: string): T | undefined {
   try {
-    return JSON.parse(readFileSync(path, "utf8")) as T;
-  } catch {
+    return readJson<T>(path);
+  } catch (error) {
+    if (!(error instanceof SyntaxError)) throw error;
+    rmSync(path, { force: true });
     return undefined;
+  }
+}
+
+function listDir(path: string, { directories = false } = {}): string[] {
+  try {
+    return readdirSync(path, { withFileTypes: true })
+      .filter((entry) => !directories || entry.isDirectory())
+      .map((entry) => entry.name);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw error;
   }
 }
 
@@ -69,7 +77,7 @@ function alive(pid: number): boolean {
 export function register(root: string, station: Station): void {
   mkdirSync(inboxDir(root, station.session_id), { recursive: true, mode: 0o700 });
   mkdirSync(ackDir(root, station.session_id), { recursive: true, mode: 0o700 });
-  writeAtomic(join(stationDir(root, station.session_id), "station.json"), station);
+  writeFile(join(stationDir(root, station.session_id), "station.json"), station);
 }
 
 export function deregister(root: string, sessionId: string): void {
@@ -81,15 +89,9 @@ export function inbox(root: string, sessionId: string): string {
 }
 
 export function stations(root: string): Station[] {
-  let entries: string[] = [];
-  try {
-    entries = readdirSync(root);
-  } catch {
-    return [];
-  }
   const live: Station[] = [];
-  for (const entry of entries) {
-    const station = readJson<Station>(join(root, entry, "station.json"));
+  for (const entry of listDir(root, { directories: true })) {
+    const station = readPeerFile<Station>(join(root, entry, "station.json"));
     if (!station || station.v !== PROTOCOL || !station.session_id) continue;
     if (!alive(station.pid)) {
       rmSync(join(root, entry), { recursive: true, force: true });
@@ -103,56 +105,46 @@ export function stations(root: string): Station[] {
 export function deliver(root: string, sessionId: string, envelope: Envelope): void {
   const target = inboxDir(root, sessionId);
   statSync(target);
-  writeAtomic(join(target, `${envelope.id}.json`), envelope);
+  writeFile(join(target, `${envelope.id}.json`), envelope);
 }
 
 export function collect(root: string, sessionId: string): Envelope[] {
   const target = inboxDir(root, sessionId);
-  let names: string[] = [];
-  try {
-    names = readdirSync(target).filter((name) => name.endsWith(".json"));
-  } catch {
-    return [];
-  }
   const envelopes: Envelope[] = [];
-  for (const name of names.sort()) {
+  for (const name of listDir(target)
+    .filter((name) => name.endsWith(".json"))
+    .sort()) {
     const path = join(target, name);
-    const envelope = readJson<Envelope>(path);
-    rmSync(path, { force: true });
+    const envelope = readPeerFile<Envelope>(path);
     if (validEnvelope(envelope)) envelopes.push(envelope);
+    else rmSync(path, { force: true });
   }
   return envelopes;
 }
 
+export function discard(root: string, sessionId: string, envelope: Envelope): void {
+  rmSync(join(inboxDir(root, sessionId), `${envelope.id}.json`), { force: true });
+}
+
 export function acknowledge(root: string, envelope: Envelope, status: AckStatus): void {
   const target = ackDir(root, envelope.from.session_id);
-  try {
-    statSync(target);
-  } catch {
-    return;
-  }
+  if (!existsSync(target)) return;
   const ack: Ack = { msg: envelope.id, status, at: new Date().toISOString() };
-  writeAtomic(join(target, `${envelope.id}.json`), ack);
+  writeFile(join(target, `${envelope.id}.json`), ack);
 }
 
 export function takeAck(root: string, sessionId: string, msgId: string): Ack | undefined {
   const path = join(ackDir(root, sessionId), `${msgId}.json`);
-  const ack = readJson<Ack>(path);
+  const ack = readPeerFile<Ack>(path);
   if (ack) rmSync(path, { force: true });
   return ack;
 }
 
 export function pruneAcks(root: string, sessionId: string, now = Date.now()): void {
   const target = ackDir(root, sessionId);
-  let names: string[] = [];
-  try {
-    names = readdirSync(target);
-  } catch {
-    return;
-  }
-  for (const name of names) {
+  for (const name of listDir(target)) {
     const path = join(target, name);
-    const ack = readJson<Ack>(path);
+    const ack = readPeerFile<Ack>(path);
     if (!ack || now - Date.parse(ack.at) > ACK_KEEP_MS) rmSync(path, { force: true });
   }
 }

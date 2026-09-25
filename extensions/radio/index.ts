@@ -1,10 +1,12 @@
-import { type FSWatcher, readFileSync, watch } from "node:fs";
-import { homedir } from "node:os";
+import { type FSWatcher, watch } from "node:fs";
 import { basename, join } from "node:path";
 
 import { StringEnum, Type } from "@earendil-works/pi-ai";
 import { defineTool, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
+
+import { readJson } from "../../lib/files.ts";
+import { homeRelative } from "../../lib/paths.ts";
 
 import { herdrAgents, type Peer, peers, resolvePeer, typeIntoPane } from "./directory.ts";
 import {
@@ -16,7 +18,6 @@ import {
   type Envelope,
   expired,
   fillPreset,
-  homeRelative,
   MAX_TEXT_CHARS,
   newEnvelope,
   type Placed,
@@ -29,10 +30,10 @@ import {
 } from "./envelope.ts";
 import {
   acknowledge,
-  agentDir,
   collect,
   deliver,
   deregister,
+  discard,
   inbox,
   pruneAcks,
   radioRoot,
@@ -52,20 +53,14 @@ interface Config {
   presets: Record<string, string>;
 }
 
-function config(): Config {
-  const defaults: Config = { incoming: "open", presets: DEFAULT_PRESETS };
-  try {
-    const file = JSON.parse(readFileSync(join(agentDir(), "radio.json"), "utf8"));
-    const incoming = file?.incoming === "gated" || file?.incoming === "off" ? file.incoming : "open";
-    return { incoming, presets: { ...DEFAULT_PRESETS, ...(file?.presets ?? {}) } };
-  } catch {
-    return defaults;
-  }
+function config(root: string): Config {
+  const file = readJson<Partial<Config>>(join(root, "config.json")) ?? {};
+  const incoming = file.incoming === "gated" || file.incoming === "off" ? file.incoming : "open";
+  return { incoming, presets: { ...DEFAULT_PRESETS, ...(file.presets ?? {}) } };
 }
 
 export default function (pi: ExtensionAPI) {
   const root = radioRoot();
-  const home = homedir();
   let ctx: ExtensionContext | undefined;
   let station: Station | undefined;
   let watcher: FSWatcher | undefined;
@@ -85,14 +80,23 @@ export default function (pi: ExtensionAPI) {
   function drain(): void {
     if (!station) return;
     for (const envelope of collect(root, station.session_id)) {
-      const waiter = envelope.in_reply_to ? waiting.get(envelope.in_reply_to) : undefined;
-      if (waiter) {
-        acknowledge(root, envelope, "replied");
-        remember(envelope);
-        waiter(envelope);
-        continue;
+      try {
+        receive(envelope);
+      } catch (error) {
+        ctx?.ui.notify(`radio lost a call from ${envelope.from.name}: ${error instanceof Error ? error.message : String(error)}`, "error");
+      } finally {
+        discard(root, station.session_id, envelope);
       }
-      if (expired(envelope)) continue;
+    }
+  }
+
+  function receive(envelope: Envelope): void {
+    const waiter = envelope.in_reply_to ? waiting.get(envelope.in_reply_to) : undefined;
+    if (waiter) {
+      acknowledge(root, envelope, "replied");
+      remember(envelope);
+      waiter(envelope);
+    } else if (!expired(envelope)) {
       inject(envelope);
     }
   }
@@ -106,7 +110,7 @@ export default function (pi: ExtensionAPI) {
   }
 
   function inject(envelope: Envelope): void {
-    const incoming = config().incoming;
+    const incoming = config(root).incoming;
     if (incoming === "off") {
       acknowledge(root, envelope, "declined");
       return;
@@ -117,7 +121,7 @@ export default function (pi: ExtensionAPI) {
     pi.sendMessage(
       {
         customType: CUSTOM_TYPE,
-        content: callText(envelope, homeRelative(envelope.from.cwd, home)),
+        content: callText(envelope, homeRelative(envelope.from.cwd)),
         display: true,
         details: envelope,
       },
@@ -185,7 +189,7 @@ export default function (pi: ExtensionAPI) {
   }
 
   function callBody(body: string | undefined, preset: string | undefined, vars: Record<string, string>): string {
-    const text = preset ? fillPreset(config().presets, preset, vars) : sanitize(body ?? "");
+    const text = preset ? fillPreset(config(root).presets, preset, vars) : sanitize(body ?? "");
     if (!text) throw new Error("Nothing to say: give text, or a preset name.");
     return text;
   }
@@ -209,7 +213,7 @@ export default function (pi: ExtensionAPI) {
         const found = await directory();
         const rows = found.map((peer) => {
           const marks = [peer.self ? "self" : "", peer.reach === "keys" ? `${peer.agent}, no radio` : ""].filter(Boolean);
-          return `${peer.name}\t${peer.pane_id ?? "-"}\t${homeRelative(peer.cwd, home)}\t${peer.status}${marks.length ? `\t(${marks.join(", ")})` : ""}`;
+          return `${peer.name}\t${peer.pane_id ?? "-"}\t${homeRelative(peer.cwd)}\t${peer.status}${marks.length ? `\t(${marks.join(", ")})` : ""}`;
         });
         const text = rows.length > 0 ? `name\tpane\tcwd\tstatus\n${rows.join("\n")}` : "No other agent session is running.";
         return { content: [{ type: "text", text }], details: { peers: found } };
@@ -276,17 +280,19 @@ export default function (pi: ExtensionAPI) {
           expectsReply: params.wait_for_reply === true,
         });
 
+        const mailbox = peer.reach === "radio" ? peer.session_id : undefined;
+        if (!mailbox && !params.keys_fallback) {
+          throw new Error(
+            `${peer.name} runs ${peer.agent} without a radio, so it has no mailbox. Call again with keys_fallback true to type the message into its terminal, knowing it arrives as its owner and cannot answer.`,
+          );
+        }
+        if (!mailbox && !peer.pane_id) throw new Error(`${peer.name} has neither a radio nor a herdr pane, so it cannot be reached.`);
+
         placed = [...recentCalls(placed), { peer: peer.name, at: Date.now() }];
         sentThisTurn += 1;
 
-        if (peer.reach === "keys" || !peer.session_id) {
-          if (!params.keys_fallback) {
-            throw new Error(
-              `${peer.name} runs ${peer.agent} without a radio, so it has no mailbox. Call again with keys_fallback true to type the message into its terminal, knowing it arrives as its owner and cannot answer.`,
-            );
-          }
-          if (!peer.pane_id) throw new Error(`${peer.name} has neither a radio nor a herdr pane, so it cannot be reached.`);
-          const failure = await typeIntoPane(peer.pane_id, `[radio from ${self.name}] ${text}`);
+        if (!mailbox) {
+          const failure = await typeIntoPane(peer.pane_id as string, `[radio from ${self.name}] ${text}`);
           if (failure) throw new Error(`herdr refused to type into ${peer.name}: ${failure}`);
           return {
             content: [
@@ -301,7 +307,7 @@ export default function (pi: ExtensionAPI) {
 
         const reply = params.wait_for_reply === true ? waitForReply(envelope.id, signal) : undefined;
         try {
-          deliver(root, peer.session_id, envelope);
+          deliver(root, mailbox, envelope);
         } catch {
           waiting.get(envelope.id)?.();
           throw new Error(`${peer.name} closed its mailbox between the lookup and the call. Run radio_agents again.`);

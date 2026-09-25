@@ -114,10 +114,6 @@ export function expired(envelope: Envelope, now = Date.now()): boolean {
   return now - Date.parse(envelope.sent_at) > STALE_CALL_MS;
 }
 
-export function homeRelative(path: string, home: string): string {
-  return home && path.startsWith(home) ? `~${path.slice(home.length)}` : path;
-}
-
 function attribute(value: string): string {
   return value.replace(/["<>&]/g, " ").trim();
 }

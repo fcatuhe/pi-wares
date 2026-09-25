@@ -1,11 +1,8 @@
-import net from "node:net";
 import { basename } from "node:path";
 
-import { randomId } from "./envelope.ts";
+import { herdrRequest } from "../../lib/herdr.ts";
 import type { Station } from "./station.ts";
 
-const socketPath = process.env.HERDR_SOCKET_PATH;
-const socketEndpoint = process.platform === "win32" && socketPath ? `\\\\.\\pipe\\${socketPath}` : socketPath;
 const REQUEST_TIMEOUT_MS = 2000;
 
 export interface HerdrAgent {
@@ -28,43 +25,8 @@ export interface Peer {
   self: boolean;
 }
 
-export function herdrEnabled(): boolean {
-  return process.env.HERDR_ENV === "1" && !!socketEndpoint;
-}
-
-function request(method: string, params: Record<string, unknown>): Promise<any> {
-  if (!herdrEnabled()) return Promise.resolve(undefined);
-  return new Promise((resolve) => {
-    let done = false;
-    let buffer = "";
-    const socket = net.createConnection(socketEndpoint as string);
-    socket.unref?.();
-    const finish = (message?: any) => {
-      if (done) return;
-      done = true;
-      clearTimeout(timeout);
-      socket.destroy();
-      resolve(message);
-    };
-    const timeout = setTimeout(finish, REQUEST_TIMEOUT_MS);
-    timeout.unref?.();
-    socket.on("error", () => finish());
-    socket.on("close", () => finish());
-    socket.on("connect", () => socket.write(`${JSON.stringify({ id: randomId("radio"), method, params })}\n`));
-    socket.on("data", (chunk) => {
-      buffer += chunk.toString();
-      if (!buffer.includes("\n")) return;
-      try {
-        finish(JSON.parse(buffer.split("\n", 1)[0]));
-      } catch {
-        finish();
-      }
-    });
-  });
-}
-
 export async function herdrAgents(): Promise<HerdrAgent[]> {
-  const message = await request("agent.list", {});
+  const message = await herdrRequest("agent.list", {}, REQUEST_TIMEOUT_MS);
   const listed = message?.result?.agents;
   if (!Array.isArray(listed)) return [];
   return listed.map((agent: any) => ({
@@ -78,7 +40,7 @@ export async function herdrAgents(): Promise<HerdrAgent[]> {
 }
 
 export async function typeIntoPane(paneId: string, text: string): Promise<string | undefined> {
-  const message = await request("agent.prompt", { target: paneId, text });
+  const message = await herdrRequest("agent.prompt", { target: paneId, text }, REQUEST_TIMEOUT_MS);
   if (!message) return "herdr did not answer";
   if (message.error) return String(message.error.code ?? message.error.message ?? "refused");
   return undefined;
