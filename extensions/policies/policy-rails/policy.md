@@ -1,11 +1,11 @@
 # Rails policy
 
-Ruby 4, Rails 8.1, Hotwire, Importmap, Propshaft, Solid Trifecta, Minitest. When in doubt, check the [Rails guides](https://guides.rubyonrails.org/) and [Code I Like](https://dev.37signals.com/series/code-i-like/).
+Ruby 4, Rails 8.1 or later, Hotwire, Importmap, Propshaft, Solid Trifecta, Minitest. When in doubt, check the [Rails guides](https://guides.rubyonrails.org/) and [Code I Like](https://dev.37signals.com/series/code-i-like/).
 
 ## Convention over configuration
 
 - **Generators first.** `bin/rails g model|controller|migration|job|mailer`. Do not hand-write what Rails generates.
-- **Migration version bracket.** `ActiveRecord::Migration[8.1]`, never bare.
+- **Migration version bracket.** The app's Rails version from `Gemfile.lock`, `ActiveRecord::Migration[8.1]` on 8.1, never bare.
 - **Naming.** Models singular (`User`), controllers plural (`UsersController`), tables plural (`users`), foreign keys `user_id`, join tables alphabetical (`groups_users`).
 
 ## Controllers
@@ -13,7 +13,7 @@ Ruby 4, Rails 8.1, Hotwire, Importmap, Propshaft, Solid Trifecta, Minitest. When
 - **CRUD only.** `index`, `show`, `new`, `create`, `edit`, `update`, `destroy`. An action that does not map to one of those means you need a new resource, not a custom action.
 - **Controllers talk to models directly.** Plain Active Record for simple cases, an intention-revealing model method for complex ones. No service layer between them.
 - **Strong params** in a private method, always `require().permit()`.
-- `form_with`. `form_for` and `form_tag` still ship in 8.1 but are legacy: never write new ones.
+- `form_with`. `form_for` and `form_tag` still ship but are legacy: never write new ones.
 - `redirect_to` after a mutation, `render` on validation failure.
 
 ```ruby
@@ -241,4 +241,4 @@ end
 | bash / python / node scripts | Ruby in `bin/` or a rake task |
 | `has_and_belongs_to_many` | `has_many :through` |
 | `resources` + custom actions | `resources` + nested resource |
-| migration without `[8.1]` | `ActiveRecord::Migration[8.1]` |
+| migration without a version bracket | `ActiveRecord::Migration[x.y]`, the app's Rails version |
