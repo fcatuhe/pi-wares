@@ -10,8 +10,7 @@
       "!skills/gog",
       "!skills/outline-cli",
       "!skills-available/brave-search",
-      "!extensions/handoff",
-      "!extensions/minimal-mode"
+      "!extensions/handoff"
     ]
   },
   "formatter": {

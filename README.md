@@ -81,6 +81,12 @@ Each ware has a README beside its code.
 | [`model-shortcuts/`](./extensions/model-shortcuts/) | Slash shortcuts for model and thinking level: `/<name>`, `/<name>:high`, `/high`. |
 | [`bang-zsh/`](./extensions/bang-zsh/) | Runs `!` commands in an interactive zsh, so your functions and aliases resolve. |
 
+### Transcript
+
+| Ware | What it does |
+|---|---|
+| [`minimal-collapse/`](./extensions/minimal-collapse/) | Collapsed tool calls shrink to one line with no output. `Alt+O` or `/minimal-collapse` switches it, `Ctrl+O` stays pi's expand. |
+
 ### Policies and style
 
 | Ware | What it does |
@@ -128,7 +134,6 @@ Upstream copies, so one install covers them. They drift: resync deliberately.
 | Ware | What it does | Upstream, copied at |
 |---|---|---|
 | [`extensions/handoff/`](./extensions/handoff/) | `/handoff <goal>` starts a new linked session with an LLM-written brief. | pi's [`examples/extensions/handoff.ts`](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/handoff.ts), verbatim, at pi `0.87.1`. |
-| [`extensions/minimal-mode/`](./extensions/minimal-mode/) | Collapsed tool calls show only their header, no output. `Ctrl+O` expands them. | pi's [`examples/extensions/minimal-mode.ts`](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/minimal-mode.ts), verbatim, at pi `0.87.1`. |
 | [`skills/gog/`](./skills/gog/SKILL.md) | Google Workspace automation through `gog`: auth state, JSON output, scoped reads and writes. | [openclaw/gogcli](https://github.com/openclaw/gogcli) `.agents/skills/gog/SKILL.md` (MIT), verbatim, at `v0.41.0`. Resync when `gog --version` moves. |
 | [`skills/outline-cli/`](./skills/outline-cli/SKILL.md) | Search and manage [Outline](https://www.getoutline.com) documents and collections through `ol`. | [Doist/outline-cli](https://github.com/Doist/outline-cli) `skills/outline-cli/SKILL.md` (MIT), verbatim, at `v2.1.3`. Resync when `ol --version` moves. |
 | [`skills-available/brave-search/`](./skills-available/brave-search/SKILL.md) | Web search and page-to-markdown extraction through the Brave Search API. | [badlogic/pi-skills](https://github.com/badlogic/pi-skills) `brave-search/` (MIT), verbatim, at `90bb51c`. Its own `package.json`: run `npm install` in the folder once before switching it on. |
