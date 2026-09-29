@@ -8,12 +8,13 @@ export type Markers = { paths?: string[]; files?: RegExp };
 const LS_FILES_BUFFER = 256 * 1024 * 1024;
 
 export function policy(dir: string, markers?: Markers) {
-  return function (pi: ExtensionAPI) {
-    if (markers && !triggered(markers)) return;
+  return function (pi: ExtensionAPI): boolean {
+    if (markers && !triggered(markers)) return false;
     const text = readFileSync(join(dir, "policy.md"), "utf8").trim();
     pi.on("before_agent_start", async (event) => ({
       systemPrompt: `${event.systemPrompt}\n\n${text}`,
     }));
+    return true;
   };
 }
 

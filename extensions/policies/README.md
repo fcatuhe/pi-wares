@@ -8,7 +8,7 @@ Each policy is its own extension, `policy-<name>/index.ts` plus its `policy.md`,
 |---|---|---|
 | [`policy-code-comment/`](./policy-code-comment/) | when a comment is allowed and its shape, refused at edit time | always |
 | `policy-engineering/` | correctness, failure handling, trust boundaries, tests, hygiene | always |
-| `policy-git/` | commit and push permission, staging, commit format | `.git` exists |
+| `policy-git/` | commit and push permission, staging, commit format, a non-Conventional `git commit -m` refused | `.git` exists |
 | `policy-frontend/` | semantic markup, vanilla CSS and JS, `@layer`, tokens, no inline JS | a `.html`, `.erb` or `.slim` file is in the repository |
 | `policy-rails/` | Rails conventions | `config/application.rb` exists, or the repository has one at its root or one directory down |
 
@@ -18,7 +18,7 @@ To add one, create `policy-<name>/` with a `policy.md` and an `index.ts` of `exp
 
 A policy costs tokens every turn, so it holds repo-wide rules whose neglect breaks code or history. Task-shaped or bulky guidance is a skill, with a one-line pointer from the policy that covers its topic.
 
-A policy is read, not enforced. Where a rule is mechanical, the policy's own extension checks it at edit time, as `policy-code-comment` does.
+A policy is read, not enforced. Where a rule is mechanical, the policy's own extension checks it at `tool_call`, as `policy-code-comment` and `policy-git` do. A check runs on every call, so it returns on the tool name first and stays a regex over the input: file reads only once the path or command has matched. The prose keeps the rule too, since a refusal costs a round trip.
 
 ## Subagents
 
