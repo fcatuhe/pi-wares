@@ -93,7 +93,6 @@ Each ware has a README beside its code.
 |---|---|
 | [`policies/`](./extensions/policies/) | House rules in the system prompt, one extension per policy so `pi config` toggles them one by one. |
 | [`output-style/`](./extensions/output-style/) | `/output-style` switches the writing shape, Default for code and chat, Prose for content. |
-| [`comment-check/`](./extensions/comment-check/) | Blocks a write or edit whose new comment lines break the code comment policy. |
 
 ### Doctor
 

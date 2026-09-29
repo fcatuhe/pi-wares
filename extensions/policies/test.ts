@@ -8,7 +8,7 @@ import { test } from "node:test";
 async function injected(name: string): Promise<string> {
   const load = (await import(`./${name}/index.ts`)).default;
   let handler: any;
-  load({ on: (_: string, fn: unknown) => (handler = fn) } as never);
+  load({ on: (event: string, fn: unknown) => event === "before_agent_start" && (handler = fn) } as never);
   if (!handler) return "";
   const { systemPrompt } = await handler({ systemPrompt: "BASE" });
   return systemPrompt;
@@ -109,11 +109,15 @@ for (const [which, { git, frontend, rails, ...setup }] of Object.entries(CASES))
   });
 }
 
-test("a subagent, started with --no-extensions, gets every policy that applies through one path", async () => {
+test("a subagent, started with --no-extensions, gets every policy that applies and the comment check through one path", async () => {
   const root = scratch({ files: { "config/application.rb": "", "index.html": "" }, repo: true });
   const handlers: Array<(event: { systemPrompt: string }) => Promise<{ systemPrompt: string }>> = [];
+  const events: string[] = [];
   const loadAll = (await import("./subagent-policies/index.ts")).default;
-  await loadAll({ on: (_: string, fn: never) => handlers.push(fn) } as never);
+  await loadAll({
+    on: (event: string, fn: never) => (events.push(event), event === "before_agent_start" && handlers.push(fn)),
+  } as never);
+  assert.ok(events.includes("tool_call"), "the comment check never reaches a subagent");
 
   let aggregate = "BASE";
   for (const handler of handlers) aggregate = (await handler({ systemPrompt: aggregate })).systemPrompt;

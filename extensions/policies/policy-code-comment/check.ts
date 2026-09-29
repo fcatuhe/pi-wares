@@ -81,7 +81,7 @@ export function refusal(path: string, offences: Offence[]): { block: true; reaso
   return {
     block: true,
     reason: [
-      `Comment policy refused ${counted(offences.length)} in ${path}:`,
+      `Code comment policy refused ${counted(offences.length)} in ${path}:`,
       ...listed,
       ...(rest > 0 ? [`  and ${counted(rest)} more.`] : []),
       "Send the call again without them. A fact code cannot express is one tagged line inside the budget, the rest is the README's.",
@@ -120,8 +120,9 @@ export function isTest(path: string): boolean {
   return TEST_FILE.test(name) || segments.some((segment) => TEST_DIR.test(segment));
 }
 
-const TAG = /^(?:TODO|FIXME|OPTIMIZE|INFO):/;
-const NOTE = /^(?:TODO|FIXME|OPTIMIZE|INFO): [a-z]{2,4} \d{2}[a-z]{3}\d{2}\s+(?=\S)/;
+const TAGS = "(?:TODO|FIXME|OPTIMIZE|INFO):";
+const TAG = new RegExp(`^${TAGS}`);
+const NOTE = new RegExp(`^${TAGS} [a-z]{2,4} \\d{2}[a-z]{3}\\d{2}\\s+(?=\\S)`);
 
 function fault(comment: string, test: boolean, continued: boolean): string | undefined {
   if (continued) return "a second comment line, so the note belongs in the README";

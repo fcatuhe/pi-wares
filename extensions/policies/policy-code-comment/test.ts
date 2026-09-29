@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { commentMarker, existingLines, isTest, refusal, review } from "./comments.ts";
+import { commentMarker, existingLines, isTest, refusal, review } from "./check.ts";
 
 const reasons = (path: string, text: string, existing?: Set<string>) => review(path, text, existing).map((offence) => offence.reason);
 
@@ -101,7 +101,7 @@ test("nothing to refuse is no verdict at all, so a clean call is never touched",
 test("the refusal names the file, quotes each line under its reason, and says what to do instead", () => {
   const blocked = refusal("app/thing.ts", review("app/thing.ts", "// vendor API returns 200 on failure"));
   assert.equal(blocked?.block, true);
-  assert.match(blocked?.reason ?? "", /^Comment policy refused 1 comment in app\/thing\.ts:/);
+  assert.match(blocked?.reason ?? "", /^Code comment policy refused 1 comment in app\/thing\.ts:/);
   assert.match(blocked?.reason ?? "", /untagged prose in code[^\n]*:\n    \/\/ vendor API returns 200 on failure/);
   assert.match(blocked?.reason ?? "", /Send the call again without them\./);
 });
@@ -116,8 +116,19 @@ test("a line longer than the clip is quoted with an ellipsis, so one runaway not
 });
 
 test("existingLines reads a missing file as empty and a present one line by line", () => {
-  const file = join(mkdtempSync(join(tmpdir(), "comment-check-")), "thing.ts");
+  const file = join(mkdtempSync(join(tmpdir(), "policy-code-comment-")), "thing.ts");
   assert.deepEqual([...existingLines(file)], []);
   writeFileSync(file, "// legacy prose\nconst a = 1;\n");
   assert.equal(existingLines(file).has("// legacy prose"), true);
+});
+
+test("the extension refuses a write or an edit that adds a bad comment and lets other tools through", async () => {
+  const handlers: Record<string, (event: unknown) => Promise<unknown>> = {};
+  (await import("./index.ts")).default({ on: (event: string, fn: never) => (handlers[event] = fn) } as never);
+  const call = (toolName: string, input: object) => handlers.tool_call({ toolName, input });
+  const path = join(mkdtempSync(join(tmpdir(), "policy-code-comment-")), "thing.ts");
+  assert.equal(((await call("write", { path, content: "// prose" })) as { block: boolean }).block, true);
+  assert.equal(((await call("edit", { path, edits: [{ newText: "// prose" }] })) as { block: boolean }).block, true);
+  assert.equal(await call("write", { path, content: "const a = 1;" }), undefined);
+  assert.equal(await call("bash", { command: "echo // prose" }), undefined);
 });

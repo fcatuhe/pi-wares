@@ -6,7 +6,7 @@ Each policy is its own extension, `policy-<name>/index.ts` plus its `policy.md`,
 
 | Policy | Covers | Loaded when |
 |---|---|---|
-| `policy-code-comment/` | when a comment is allowed and its shape | always |
+| [`policy-code-comment/`](./policy-code-comment/) | when a comment is allowed and its shape, refused at edit time | always |
 | `policy-engineering/` | correctness, failure handling, trust boundaries, tests, hygiene | always |
 | `policy-git/` | commit and push permission, staging, commit format | `.git` exists |
 | `policy-frontend/` | semantic markup, vanilla CSS and JS, `@layer`, tokens, no inline JS | a `.html`, `.erb` or `.slim` file is in the repository |
@@ -18,8 +18,8 @@ To add one, create `policy-<name>/` with a `policy.md` and an `index.ts` of `exp
 
 A policy costs tokens every turn, so it holds repo-wide rules whose neglect breaks code or history. Task-shaped or bulky guidance is a skill, with a one-line pointer from the policy that covers its topic.
 
-A policy is read, not enforced. Where a rule is mechanical, a checker at edit time holds it: [`comment-check`](../comment-check/) refuses comments that break `policy-code-comment`.
+A policy is read, not enforced. Where a rule is mechanical, the policy's own extension checks it at edit time, as `policy-code-comment` does.
 
 ## Subagents
 
-A spawned subagent starts with `--no-extensions`, so `subagent-policies/` loads every `policy-*` sibling through one path, named next to `comment-check` and `output-style` in [`config/pi/pi-codex-subagents/config.json`](../../config/pi/pi-codex-subagents/config.json). It matches neither manifest glob, so the parent never loads a policy twice. Naming any `defaults.extensions` there also stops the subagents extension passing the parent's tool list, so a child starts with pi's built-in tools.
+A spawned subagent starts with `--no-extensions`, so `subagent-policies/` loads every `policy-*` sibling through one path, named next to `output-style` in [`config/pi/pi-codex-subagents/config.json`](../../config/pi/pi-codex-subagents/config.json). It matches neither manifest glob, so the parent never loads a policy twice. Naming any `defaults.extensions` there also stops the subagents extension passing the parent's tool list, so a child starts with pi's built-in tools.
