@@ -8,7 +8,7 @@
 
 ## Branch and staging
 
-- Branch as the repo asks (AGENTS.md, CONTRIBUTING, protected branches), before the first edit. No such rule: work on `main`.
+- Branch as the repo asks (AGENTS.md, CONTRIBUTING, protected branches), before the first edit, then pull request and the owner merges. No such rule: work on and push to `main`.
 - First pass done: stage the files you touched, and only those. Another agent may be working in the same tree. Staged is a review baseline, not a commit.
 - Everything after that stays unstaged: follow-ups, review fixes, second thoughts. The unstaged diff is the owner's view of what changed since the baseline.
 - Stage again only once the owner says they have seen the diff.
@@ -22,14 +22,8 @@
 ## Safety
 
 - No destructive operation without consent: `reset --hard`, `clean`, `rm`, force push, branch deletion, history rewrite.
-- Push to `main` unless the repo says otherwise, and then it is branch, pull request, owner merges. An explicit owner instruction in the current turn overrides this.
 
-## GitHub CLI
+## GitHub
 
-- `gh pr view` / `gh pr diff` for pull requests. `gh run list` / `gh run view` for CI. `gh api .../comments --paginate` for review comments.
-- Given an issue or PR URL, use `gh`. Never web search for it.
-- Red CI: fix, push, repeat until green.
-
-## Pull request bodies
-
-Writing a PR description: read the `pr-description` skill first.
+- Given an issue, PR or CI run URL, use `gh`, never web search. PR review comments: `gh api .../comments --paginate`.
+- Writing a PR description: read the `pr-description` skill first.
