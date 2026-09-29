@@ -28,7 +28,7 @@ const scratch = ({ files, repo, cwd = "." }: Scratch) => {
   return dir;
 };
 
-const ALWAYS = ["policy-code-comment", "policy-engineering"];
+const ALWAYS = ["policy-code-comment", "policy-engineering", "policy-writing"];
 
 const CASES: Record<string, Scratch & { git: boolean; frontend: boolean; rails: boolean }> = {
   "a bare directory": { files: {}, repo: false, git: false, frontend: false, rails: false },
@@ -126,5 +126,5 @@ test("a subagent, started with --no-extensions, gets every policy that applies a
     const headline = readFileSync(join(import.meta.dirname, name, "policy.md"), "utf8").split("\n")[0];
     assert.ok(aggregate.includes(headline), `${name} never reaches a subagent`);
   }
-  assert.equal(handlers.length, 5, `a policy directory was added without a subagent reaching it (${root})`);
+  assert.equal(handlers.length, 6, `a policy directory was added without a subagent reaching it (${root})`);
 });

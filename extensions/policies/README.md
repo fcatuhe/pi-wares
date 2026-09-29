@@ -1,12 +1,13 @@
 # policies
 
-House rules appended to the system prompt, identical every turn so they cache once per session. How to write lives in [`output-style`](../output-style/), which can switch.
+House rules appended to the system prompt, identical every turn so they cache once per session.
 
 Each policy is its own extension, `policy-<name>/index.ts` plus its `policy.md`, so `pi config` turns them on and off one by one.
 
 | Policy | Covers | Loaded when |
 |---|---|---|
 | [`policy-code-comment/`](./policy-code-comment/) | when a comment is allowed and its shape, refused at edit time | always |
+| [`policy-writing/`](./policy-writing/) | how replies, commits, docs and copy are written, measured by its own eval | always |
 | `policy-engineering/` | correctness, failure handling, trust boundaries, tests, hygiene | always |
 | `policy-git/` | commit and push permission, staging, commit format, a non-Conventional `git commit -m` refused | `.git` exists |
 | `policy-frontend/` | semantic markup, vanilla CSS and JS, `@layer`, tokens, no inline JS | a `.html`, `.erb` or `.slim` file is in the repository |
@@ -22,4 +23,4 @@ A policy is read, not enforced. Where a rule is mechanical, the policy's own ext
 
 ## Subagents
 
-A spawned subagent starts with `--no-extensions`, so `subagent-policies/` loads every `policy-*` sibling through one path, named next to `output-style` in [`config/pi/pi-codex-subagents/config.json`](../../config/pi/pi-codex-subagents/config.json). It matches neither manifest glob, so the parent never loads a policy twice. Naming any `defaults.extensions` there also stops the subagents extension passing the parent's tool list, so a child starts with pi's built-in tools.
+A spawned subagent starts with `--no-extensions`, so `subagent-policies/` loads every `policy-*` sibling through one path, named in [`config/pi/pi-codex-subagents/config.json`](../../config/pi/pi-codex-subagents/config.json). It matches neither manifest glob, so the parent never loads a policy twice. Naming any `defaults.extensions` there also stops the subagents extension passing the parent's tool list, so a child starts with pi's built-in tools.

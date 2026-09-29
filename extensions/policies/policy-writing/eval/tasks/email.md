@@ -1,0 +1,1 @@
+Write a short outbound email to Marie Dubois, operations lead at a 40-person architecture firm in Bordeaux, introducing Planbox, our resource-planning tool for architecture studios (who's on which project, week by week, and which projects will overrun their fee). We noticed they're hiring two project managers. Goal: a 20-minute call. Reply with the email only, in English.
