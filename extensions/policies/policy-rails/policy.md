@@ -7,13 +7,14 @@ Ruby 4, Rails 8.1 or later, Hotwire, Importmap, Propshaft, Solid Trifecta, Minit
 - **Generators first.** `bin/rails g model|controller|migration|job|mailer`. Do not hand-write what Rails generates.
 - **Migration version bracket.** The app's Rails version from `Gemfile.lock`, `ActiveRecord::Migration[8.1]` on 8.1, never bare.
 - **Naming.** Models singular (`User`), controllers plural (`UsersController`), tables plural (`users`), foreign keys `user_id`, join tables alphabetical (`groups_users`).
+- Config through credentials or `config.x`, never `ENV["X"]` read at the call site.
 
 ## Controllers
 
-- **CRUD only.** `index`, `show`, `new`, `create`, `edit`, `update`, `destroy`. An action that does not map to one of those means you need a new resource, not a custom action.
-- **Controllers talk to models directly.** Plain Active Record for simple cases, an intention-revealing model method for complex ones. No service layer between them.
+- **CRUD only.** `index`, `show`, `new`, `create`, `edit`, `update`, `destroy`. An action that maps to none of them is a new resource, not a custom action.
+- **Controllers talk to models directly.** Plain Active Record for simple cases, an intention-revealing model method for complex ones: `@bundle.deliver`.
 - **Strong params** in a private method, always `require().permit()`.
-- `form_with`. `form_for` and `form_tag` still ship but are legacy: never write new ones.
+- `form_with`, never `form_for` or `form_tag`.
 - `redirect_to` after a mutation, `render` on validation failure.
 
 ```ruby
@@ -26,24 +27,12 @@ end
 resources :mail_accounts do
   resource :verification, only: :create
 end
-
-# yes: simple CRUD, plain Active Record
-def create
-  @mail_account = Current.user.mail_accounts.create!(mail_account_params)
-end
-
-# yes: complex behavior, the model hides it
-def create
-  @bundle.deliver
-end
 ```
 
 ## Models
 
-- **Rich models.** All business logic lives in models. No service objects, no `app/services/`, no interactors, no use cases. Ever.
-- **Active Record, nice and blended.** Do not separate persistence from domain logic. That blend is the point.
+- **Rich models.** All business logic lives in models, persistence and domain blended. No service objects, no `app/services/`, no interactors. The caller always sees the model: `mail_account.collect_now`, not `MailAccountCollectionService.new(mail_account).call`.
 - **POROs belong in `app/models/` too.** Form objects, value objects, operation objects are domain models without a table.
-- **Domain driven boldness.** `person.decease`, not `person.soft_delete`. `contact.designate_to(box)`, not `ContactBoxAssigner.call`. Use a dictionary.
 - Validations in models, never in controllers.
 - Scopes for reusable queries, class methods for complex ones.
 - Enums for any fixed set of values. String-backed: string column, `.index_by(&:itself)`, `suffix:` or `prefix:` when it reads better.
@@ -59,68 +48,20 @@ enum :status, %w[draft published archived].index_by(&:itself), suffix: true
 
 Two kinds: shared across models in `app/models/concerns/` (`Taggable`), model-specific in `app/models/<model>/` (`MailAccount::Collecting`).
 
-- Every concern has genuine "has trait" or "acts as" semantics. Not a bucket for leftovers.
-- One cohesive responsibility per concern.
+- Every concern has genuine "has trait" or "acts as" semantics, one cohesive responsibility. Not a bucket for leftovers.
 - The model file is mostly declarations: associations, validations, scopes, includes.
 - Complex operations delegate from the concern to a PORO. The model is a facade over a subsystem.
-
-```ruby
-# app/models/mail_account.rb, declarations only
-class MailAccount < ApplicationRecord
-  include Collecting, Verifiable
-
-  belongs_to :user
-  has_many :collected_messages, dependent: :destroy
-
-  validates :address, presence: true
-  scope :active, -> { where(active: true) }
-end
-
-# app/models/mail_account/collecting.rb, one responsibility
-module MailAccount::Collecting
-  extend ActiveSupport::Concern
-
-  def collect_later
-    MailAccount::CollectJob.perform_later(self)
-  end
-
-  def collect_now
-    Collection.new(self).run
-  end
-end
-```
-
-The caller always sees the model:
-
-```ruby
-# yes: mail_account.collect_now
-# no:  MailAccountCollectionService.new(mail_account).call
-```
-
-A thin concern can also act as an API gateway onto composed POROs:
-
-```ruby
-module User::Notifyee
-  extend ActiveSupport::Concern
-
-  def notifications = @notifications ||= Notifications.new(self)
-end
-
-# current.user.notifications.granularity.choice
-```
+- A thin concern can be a gateway onto composed POROs: `user.notifications.granularity.choice`.
 
 ### Callbacks
 
-Callbacks are not a smell. They are how auxiliary complexity stays off the main path.
-
 - Callback decides whether work is needed, then a job does the work. Never block the request.
-- Two steps: `after_save` to inspect dirty attributes inside the transaction, `after_commit` to trigger work after it.
-- Prefer `after_create_commit` / `after_update_commit` / `after_destroy_commit` when you need specificity.
+- Two steps: `after_save` to inspect dirty attributes inside the transaction, `after_commit` to trigger work after it. Prefer `after_create_commit` and friends for specificity.
 - Every callback system needs an opt-out for imports, copies and seeds: `Mention::Eavesdropper.suppressed { import_old_data }`.
 
 ### Current
 
-`Current` is a sharp knife for request-scoped context: account, user, request details. Use it instead of threading those through five layers. Keep it small, not 15 attributes.
+`Current` holds request-scoped context (account, user, request details) instead of threading it through five layers. Keep it small.
 
 ## Associations
 
@@ -132,7 +73,6 @@ Callbacks are not a smell. They are how auxiliary complexity stays off the main 
 
 - One concern per migration. Never mix table creation with data manipulation.
 - Reversible: `change`, or `up`/`down`. Test the rollback.
-- `decimal` or integer cents for money, `string` for short text, `text` for long.
 - Index foreign keys and anything you query.
 - Never edit a migration that has been pushed. Write a new one.
 
@@ -145,13 +85,7 @@ Callbacks are not a smell. They are how auxiliary complexity stays off the main 
 
 ## Jobs
 
-Shallow jobs. `perform` calls a model method, the logic stays in the model. `_later` enqueues, `_now` executes.
-
-```ruby
-class MailAccount::CollectJob < ApplicationJob
-  def perform(mail_account) = mail_account.collect_now
-end
-```
+Shallow jobs: `perform` calls a model method, the logic stays in the model. `_later` enqueues, `_now` executes.
 
 ## Scripts
 
@@ -165,20 +99,17 @@ Everything around the app is Ruby: setup, CI, one-offs, data fixes. No bash, no 
 
 - Partials for reuse, prefixed `_`, locals passed explicitly. No instance variables in partials.
 - View logic in helpers, not in templates and not in models.
-- Turbo Frames for partial updates, Turbo Streams for multi-target updates.
-- Stimulus for behavior.
+- Turbo Frames for partial updates, Turbo Streams for multi-target updates, Stimulus for behavior.
 
 ## Tests
 
-- Minitest and fixtures. No RSpec, no FactoryBot, no mocks, no stubs.
+- Minitest and fixtures. No RSpec, no FactoryBot, no mocks, no stubs, no production code bent to be testable.
 - External HTTP is the one exception: VCR cassettes over WebMock, recorded once against the real service, replayed everywhere else. Never hand-write a response stub.
 - Webhooks enter through the front door: an integration test posts a signed request (`post_stripe_webhook`), with `vcr_stripe_webhook` driving the real Stripe CLI at record time.
-- Hit the real database, let callbacks run, render real views.
+- Hit the real database, let callbacks run, render real views. Half a second for a model test is fine.
 - Fixtures are a shared world of characters to pull from. Objects specific to one test are created inline.
 - Test one aspect, not one assertion. Two to four assertions per test is normal. `assert` and `assert_equal` cover almost everything.
 - Controller tests are integration tests: request, response, HTML assertion.
-- Never distort production code to make it testable. No injected dependencies, no interfaces for mocking.
-- Fast enough beats blazing fast. Half a second for a model test is fine.
 - Mirror the app tree: `app/models/user.rb` to `test/models/user_test.rb`, `Recording::Lockable` to `test/models/recording/lock_test.rb`.
 - System tests with Capybara for user flows that need JS.
 
@@ -192,12 +123,11 @@ Everything around the app is Ruby: setup, CI, one-offs, data fixes. No bash, no 
 - Propshaft. No Sprockets, so no `application.css` manifest and no CSS `@import`, which fails silently.
 - `stylesheet_link_tag :app` bulk-loads `app/assets/stylesheets/`, one `<link>` per file.
 - Declare the `@layer` order in `_global.css`, which sorts first.
-- Stimulus for behavior.
 
 ## Ruby style
 
 - Two-space indent, double quotes, `%i[]` and `%w[]`, hash shorthand `{ x:, y: }`, endless methods for one-liners.
-- **Expanded conditionals over guard clauses.** Guards are hard to read once nested.
+- **Expanded conditionals over guard clauses.** A guard is fine only at the very top of a method whose body is several lines.
 
 ```ruby
 # no
@@ -212,33 +142,7 @@ else
 end
 ```
 
-  A guard clause is fine when it sits at the very top of the method and the body below it is several lines.
-
 - **Method order in a class:** class methods, then public with `initialize` first, then private.
 - **No newline under a visibility modifier**, indent what follows it. A module that is entirely private marks `private` at the top, adds a blank line, and does not indent.
 - **`!` only for a method that has a counterpart without it.** Not a marker for destructive.
-- Notes use `bin/rails notes` tags: `# TODO: fc 30jul26 description`.
-
-## Common AI mistakes
-
-| Not | But |
-|---|---|
-| `form_for` / `form_tag` | `form_with` |
-| `before_filter` | `before_action` |
-| `attr_accessible` | strong params |
-| `render text:` / `render nothing` | `render plain:` / `head :ok` |
-| `find_by_id` | `find` (raises) or `find_by` (nil) |
-| `update_attributes` | `update` |
-| `.where(id: x).first` | `.find(x)` or `.find_by(id: x)` |
-| Sprockets / Webpacker | Propshaft + Importmap |
-| CSS `@import` / `application.css` manifest | `stylesheet_link_tag :app` + `@layer` |
-| Devise / custom auth | Rails 8 authentication generator |
-| FactoryBot / RSpec | fixtures + Minitest |
-| service objects / `app/services` | model concerns |
-| `puts` / `p` for debugging | `Rails.logger.debug` |
-| `ENV["X"]` direct | credentials or config |
-| raw SQL strings | Active Record query interface |
-| bash / python / node scripts | Ruby in `bin/` or a rake task |
-| `has_and_belongs_to_many` | `has_many :through` |
-| `resources` + custom actions | `resources` + nested resource |
-| migration without a version bracket | `ActiveRecord::Migration[x.y]`, the app's Rails version |
+- `Rails.logger.debug`, never `puts` or `p`, for debugging.
