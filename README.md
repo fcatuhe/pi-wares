@@ -87,12 +87,11 @@ Each ware has a README beside its code.
 |---|---|
 | [`minimal-collapse/`](./extensions/minimal-collapse/) | Collapsed tool calls shrink to one line with no output. `Alt+O` or `/minimal-collapse` switches it, `Ctrl+O` stays pi's expand. |
 
-### Policies and style
+### Policies
 
 | Ware | What it does |
 |---|---|
 | [`policies/`](./extensions/policies/) | House rules in the system prompt, one extension per policy so `pi config` toggles them one by one. |
-| [`output-style/`](./extensions/output-style/) | `/output-style` switches the writing shape, Default for code and chat, Prose for content. |
 
 ### Doctor
 

@@ -1,9 +1,6 @@
 {
   "modelsFromEnabledModels": true,
   "defaults": {
-    "extensions": [
-      "~/.pi/agent/git/github.com/fcatuhe/pi-wares/extensions/policies/subagent-policies",
-      "~/.pi/agent/git/github.com/fcatuhe/pi-wares/extensions/output-style"
-    ]
+    "extensions": ["~/.pi/agent/git/github.com/fcatuhe/pi-wares/extensions/policies/subagent-policies"]
   }
 }
