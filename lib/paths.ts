@@ -5,8 +5,11 @@ export const PROJECT_DIR = ".pi";
 
 export function agentDir(): string {
   const dir = process.env.PI_CODING_AGENT_DIR;
-  if (!dir) return join(homedir(), PROJECT_DIR, "agent");
-  return dir === "~" || dir.startsWith("~/") ? join(homedir(), dir.slice(1)) : dir;
+  return dir ? expandHome(dir) : join(homedir(), PROJECT_DIR, "agent");
+}
+
+export function expandHome(path: string): string {
+  return path === "~" || path.startsWith("~/") ? join(homedir(), path.slice(1)) : path;
 }
 
 export function wareDir(ware: string): string {

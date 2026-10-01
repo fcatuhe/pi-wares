@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { homedir, tmpdir } from "node:os";
+import { join, relative } from "node:path";
 import { test } from "node:test";
 import { parseTOML } from "toml-eslint-parser";
 
@@ -156,6 +156,15 @@ test("JSON force replaces the user's value, and extra array members are addition
   assert.equal(reconcileJson(forcedJson.text, REFERENCE_JSON, true).text, forcedJson.text, "forcing twice is not idempotent");
 });
 
+test("a stale TOML array member is kept without force and dropped with it, the rest of the array untouched", () => {
+  const stale = (member: unknown) => member === "gone";
+  const source = `[keys]\nnew_tab = ["mine", "gone", "prefix+c", "cmd+shift+t"]\n`;
+  assert.equal(reconcileToml(source, ALTERNATES_TOML, false, stale).text.includes(`"gone"`), true, "a stale member went without force");
+  const forced = reconcileToml(source, ALTERNATES_TOML, true, stale);
+  assert.match(forced.text, /new_tab = \["mine", "prefix\+c", "cmd\+shift\+t"\]/, "force kept the stale member or lost another");
+  assert.equal(reconcileToml(forced.text, ALTERNATES_TOML, true, stale).text, forced.text, "forcing twice is not idempotent");
+});
+
 test("a bare machine reports every target as a warning to create, one row per file", () => {
   home = bareMachine();
   const bare = report("");
@@ -295,6 +304,41 @@ test("a diverged rails-review agent is kept by report and apply, and replaced wh
   assert.equal(forced.rows[3].hint, "  (restart pi)");
   assert.equal(readFileSync(agentFile, "utf-8"), reference, "force did not write the reference agent file");
   assert.deepEqual(report("").notes, [], "the forced agent file still reports work");
+});
+
+// A ware removed from the reference left its path in machine configs, and every subagent spawn failed on it.
+test("a wares path that no longer exists is reported stale, kept by apply, and removed by force", () => {
+  const staleHome = bareMachine();
+  report(APPLY);
+  const subagents = join(staleHome, "agent/pi-codex-subagents/config.json");
+  const config = JSON.parse(readFileSync(subagents, "utf-8"));
+  const live = config.defaults.extensions[0];
+  const dead = "~/" + relative(homedir(), join(ROOT, "extensions/retired-ware"));
+  const mine = "~/my-own-extension";
+  config.defaults.extensions = [live, dead, mine];
+  writeFileSync(subagents, JSON.stringify(config, null, 2));
+  const expectedNotes = [
+    { tone: "warning", text: `1 stale, a wares path that no longer exists. /wares-doctor:${FORCE} removes it.` },
+    { tone: "text", text: `  subagents defaults.extensions - [${JSON.stringify(dead)}]` },
+  ];
+
+  const reported = report("");
+  assert.deepEqual(reported.notes, expectedNotes, "a dead wares path passed as ok");
+  assert.equal(reported.rows[2].state.trim(), "stale 1, ok 1");
+  assert.equal(reported.rows[2].tone, "warning", "a file with a dead path renders like one that matches");
+
+  assert.deepEqual(report(APPLY).notes, expectedNotes, "apply dropped the stale note");
+  assert.deepEqual(JSON.parse(readFileSync(subagents, "utf-8")).defaults.extensions, [live, dead, mine], "apply removed a member");
+
+  const forced = report(FORCE);
+  assert.equal(forced.rows[2].state.trim(), "removed 1, ok 1");
+  assert.equal(forced.rows[2].hint, "  (restart pi)");
+  assert.deepEqual(
+    JSON.parse(readFileSync(subagents, "utf-8")).defaults.extensions,
+    [live, mine],
+    "force kept the dead path or dropped the user's own",
+  );
+  assert.deepEqual(report("").notes, [], "the forced config still reports work");
 });
 
 test("one command per mode, so the palette shows all three rather than hiding two behind an argument", () => {

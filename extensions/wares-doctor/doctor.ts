@@ -3,8 +3,8 @@ import { homedir } from "node:os";
 import { dirname, extname, join } from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 
-import { agentDir, homeRelative } from "../../lib/paths.ts";
-import { type Finding, type Reconciled, writes } from "./diff.ts";
+import { agentDir, expandHome, homeRelative } from "../../lib/paths.ts";
+import { type Finding, hasStale, type Reconciled, writes } from "./diff.ts";
 import { reconcileJson } from "./json.ts";
 import { reconcileToml } from "./toml.ts";
 
@@ -105,10 +105,16 @@ function notes(inspections: Inspection[], apply: boolean, force: boolean): Note[
   const toAdd = apply ? [] : pending(inspections);
   const manual = items(inspections, (finding) => finding.blocked !== undefined);
   const kept = force ? [] : items(inspections, diverging);
+  const stale = force ? [] : items(inspections, staling, removal);
   return [
     ...note("warning", toAdd, `to add. /${commandName(APPLY)} writes ${toAdd.length === 1 ? "it" : "them"}.`),
     ...note("error", manual, "manual. No command writes these, edit the file."),
     ...note("warning", kept, `kept as yours. /${commandName(FORCE)} takes the reference instead.`),
+    ...note(
+      "warning",
+      stale,
+      `stale, a wares path that no longer exists. /${commandName(FORCE)} removes ${stale.length === 1 ? "it" : "them"}.`,
+    ),
   ];
 }
 
@@ -123,16 +129,22 @@ function pending(inspections: Inspection[]): string[] {
   );
 }
 
-function items(inspections: Inspection[], keep: (finding: Finding) => boolean): string[] {
-  return inspections.flatMap((inspection) => names(inspection, keep));
+type Describe = (finding: Finding) => string;
+
+function items(inspections: Inspection[], keep: (finding: Finding) => boolean, describe: Describe = change): string[] {
+  return inspections.flatMap((inspection) => names(inspection, keep, describe));
 }
 
-function names(inspection: Inspection, keep: (finding: Finding) => boolean): string[] {
-  return inspection.findings.filter(keep).map((finding) => `${inspection.target.label} ${name(finding)}`);
+function names(inspection: Inspection, keep: (finding: Finding) => boolean, describe: Describe = change): string[] {
+  return inspection.findings.filter(keep).map((finding) => `${inspection.target.label} ${name(finding, describe)}`);
 }
 
-function name(finding: Finding): string {
-  return [finding.path.join("."), change(finding), finding.blocked ? `(${finding.blocked})` : ""].filter(Boolean).join(" ");
+function name(finding: Finding, describe: Describe): string {
+  return [finding.path.join("."), describe(finding), finding.blocked ? `(${finding.blocked})` : ""].filter(Boolean).join(" ");
+}
+
+function removal(finding: Finding): string {
+  return `- [${(finding.stale ?? []).map(show).join(", ")}]`;
 }
 
 function change(finding: Finding): string {
@@ -186,10 +198,16 @@ function inspect(target: Target, force: boolean): Inspection {
 
 function reconcile(target: Target, actual: string, reference: string, force: boolean): Reconciled {
   const extension = extname(target.reference);
-  if (extension === ".json") return reconcileJson(actual, reference, force);
-  if (extension === ".toml") return reconcileToml(actual, reference, force);
+  if (extension === ".json") return reconcileJson(actual, reference, force, staleWarePath);
+  if (extension === ".toml") return reconcileToml(actual, reference, force, staleWarePath);
   const state = actual === reference ? "ok" : "diverged";
   return { findings: [{ kind: "file", path: [], state }], text: reference };
+}
+
+function staleWarePath(member: unknown): boolean {
+  if (typeof member !== "string") return false;
+  const path = expandHome(member);
+  return path.startsWith(`${ROOT}/`) && !existsSync(path);
 }
 
 function describe(inspections: Inspection[], apply: boolean, force: boolean): Row[] {
@@ -208,7 +226,7 @@ function describe(inspections: Inspection[], apply: boolean, force: boolean): Ro
 function tone(inspection: Inspection, force: boolean): Note["tone"] | undefined {
   if (inspection.findings.some((finding) => finding.blocked)) return "error";
   if (inspection.missing || writable(inspection, force) > 0) return "warning";
-  return !force && keeping(inspection) > 0 ? "warning" : undefined;
+  return !force && keeping(inspection) + stales(inspection) > 0 ? "warning" : undefined;
 }
 
 function state(inspection: Inspection, apply: boolean, force: boolean): string {
@@ -218,8 +236,10 @@ function state(inspection: Inspection, apply: boolean, force: boolean): string {
   const counts: [string, number][] = [
     [apply ? "added" : "add", writable(inspection, false)],
     [apply ? "replaced" : "replace", force ? diverged : 0],
+    ["removed", force ? stales(inspection) : 0],
     ["manual", findings.filter((finding) => finding.blocked).length],
     ["kept", force ? 0 : diverged],
+    ["stale", force ? 0 : stales(inspection)],
     ["ok", findings.filter((finding) => finding.state === "ok").length],
   ];
   return counts
@@ -242,6 +262,14 @@ function keeping(inspection: Inspection): number {
 
 function diverging(finding: Finding): boolean {
   return !finding.blocked && finding.state === "diverged";
+}
+
+function stales(inspection: Inspection): number {
+  return inspection.findings.filter(staling).length;
+}
+
+function staling(finding: Finding): boolean {
+  return !finding.blocked && hasStale(finding);
 }
 
 function width(strings: string[]): number {

@@ -20,12 +20,16 @@
 
 `:apply` only adds. A value you set differently is `kept`, and `:force` replaces it. Keys and array members the reference does not list always stay. A reference array is members to add, so `new_tab = "ctrl+alt+t"` against `["prefix+c", "ctrl+alt+t"]` becomes `["ctrl+alt+t", "prefix+c"]`. `:force` keeps a trailing comment next to a value it replaces, which may then describe the old one.
 
+The one member that does not stay is a path into this checkout that no longer exists, left behind when a ware is removed from the reference. The report calls it `stale`, `:apply` keeps it, and `:force` removes it.
+
 ```text
 2 to add. /wares-doctor:apply writes them.
   pi settings treeFilterMode = "no-tools"
   pi settings showCacheMissNotices = true
 1 kept as yours. /wares-doctor:force takes the reference instead.
   pi settings defaultThinkingLevel "low" -> "high"
+1 stale, a wares path that no longer exists. /wares-doctor:force removes it.
+  subagents defaults.extensions - ["~/.pi/agent/git/github.com/fcatuhe/pi-wares/extensions/comment-check"]
 ```
 
 Warning color marks what a command closes. Error color marks `manual`, a TOML key the doctor cannot place or pin down, such as an inline table, left for you to edit. A TOML table array (`[[keys.command]]`) in a reference fails the run.

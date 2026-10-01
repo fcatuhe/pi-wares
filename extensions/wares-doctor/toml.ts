@@ -1,6 +1,6 @@
 import { getStaticTOMLValue, parseTOML } from "toml-eslint-parser";
 
-import { diffDefaults, type Finding, members, type Reconciled, writes } from "./diff.ts";
+import { diffDefaults, type Finding, members, type Reconciled, type Staleness, writes } from "./diff.ts";
 
 type Node = any;
 type Index = ReturnType<typeof indexDocument>;
@@ -10,10 +10,10 @@ interface Edit {
   text: string;
 }
 
-export function reconcileToml(actualSource: string, referenceSource: string, force = false): Reconciled {
+export function reconcileToml(actualSource: string, referenceSource: string, force = false, isStale?: Staleness): Reconciled {
   const reference = parseTOML(referenceSource);
   const actual = parseTOML(actualSource);
-  const findings = diffDefaults(getStaticTOMLValue(reference), getStaticTOMLValue(actual));
+  const findings = diffDefaults(getStaticTOMLValue(reference), getStaticTOMLValue(actual), isStale);
   const referenceIndex = indexDocument(reference);
   const actualIndex = indexDocument(actual);
 
@@ -30,8 +30,8 @@ export function reconcileToml(actualSource: string, referenceSource: string, for
       if (replacement) replacements.push(replacement);
       continue;
     }
-    if (finding.kind === "members" && finding.state === "incomplete") {
-      const extension = extend(finding, actualIndex);
+    if (finding.kind === "members" && finding.state !== "missing") {
+      const extension = extend(finding, actualIndex, force);
       if (extension) replacements.push(extension);
       continue;
     }
@@ -58,14 +58,14 @@ export function reconcileToml(actualSource: string, referenceSource: string, for
   return { findings, text: appendBlocks(applyEdits(actualSource, inserts, replacements), appends) };
 }
 
-function extend(finding: Finding, actualIndex: Index): Edit | undefined {
+function extend(finding: Finding, actualIndex: Index, force: boolean): Edit | undefined {
   const where = finding.path.join(".");
   const value = actualIndex.values.get(where)?.node.value;
   if (!value) {
     finding.blocked = `no ${where} written plainly enough to extend`;
     return undefined;
   }
-  const list = members(finding)
+  const list = members(finding, force)
     .map((member) => JSON.stringify(member))
     .join(", ");
   return { at: value.range[0], through: value.range[1], text: `[${list}]` };
