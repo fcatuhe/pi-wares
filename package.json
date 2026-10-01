@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "tsx --test extensions/*/test.ts extensions/policies/*/test.ts lib/test.ts",
+    "test": "node --test extensions/*/test.ts extensions/policies/*/test.ts lib/test.ts",
     "format": "biome format --write ."
   },
   "dependencies": {
@@ -37,8 +37,6 @@
     ]
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.14",
-    "@types/turndown": "^5.0.6",
-    "tsx": "^4.23.15"
+    "@biomejs/biome": "^2.5.14"
   }
 }

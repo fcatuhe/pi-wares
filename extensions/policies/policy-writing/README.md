@@ -7,8 +7,8 @@ Appends [`policy.md`](./policy.md) to the system prompt: how every reply, commit
 [`eval/eval.ts`](./eval/eval.ts) sends each task in [`eval/tasks/`](./eval/tasks/) through `pi -p`, with every other policy loaded, once without this policy (`none`) and once with it (`policy`). It then counts tells in the replies, with code blocks and inline code taken out.
 
 ```sh
-npx tsx extensions/policies/policy-writing/eval/eval.ts run --model anthropic/claude-opus-5-5 --thinking high --runs 3 --jobs 5
-npx tsx extensions/policies/policy-writing/eval/eval.ts score /tmp/policy-writing-eval-XXXXXX
+node extensions/policies/policy-writing/eval/eval.ts run --model anthropic/claude-opus-5-5 --thinking high --runs 3 --jobs 5
+node extensions/policies/policy-writing/eval/eval.ts score /tmp/policy-writing-eval-XXXXXX
 ```
 
 `run` prints the tables below and the directory that holds every reply. `score` recounts a directory, for a tell added after the run. The defaults make 60 pi calls, about 6 minutes. Each call runs in a fresh copy of [`eval/fixture/`](./eval/fixture/) with `git init`, so `policy-git` loads and the code task has a file to edit. `subscription-tool-alias` is loaded too, so an Anthropic subscription accepts the call.
