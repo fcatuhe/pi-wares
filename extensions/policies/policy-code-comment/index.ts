@@ -12,6 +12,9 @@ export default function (pi: ExtensionAPI) {
     const { path, content = "", edits = [] } = input as Input;
     const existing = existingLines(path);
     const texts = toolName === "write" ? [content] : edits.map(({ newText }) => newText);
-    return refusal(path, texts.flatMap((text) => review(path, text, existing)));
+    return refusal(
+      path,
+      texts.flatMap((text) => review(path, text, existing)),
+    );
   });
 }
