@@ -26,4 +26,4 @@
 ## GitHub
 
 - Given an issue, PR or CI run URL, use `gh`, never web search. PR review comments: `gh api .../comments --paginate`.
-- Writing a PR description: read the `pr-description` skill first.
+- Opening a PR, or writing its title or description: read the `pull-request` skill first.

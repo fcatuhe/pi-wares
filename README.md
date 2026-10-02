@@ -105,7 +105,7 @@ Loaded on demand rather than injected, so they can be as long as they need. The 
 
 | Skill | What it does |
 |---|---|
-| [`pr-description/`](./skills/pr-description/SKILL.md) | Section structure for a feature pull request body. |
+| [`pull-request/`](./skills/pull-request/SKILL.md) | Branch name, title convention and body structure for a pull request. |
 | [`agent-browser/`](./skills/agent-browser/SKILL.md) | Headed Chrome on a shared logged-in profile, one tab per agent, for the `agent-browser` CLI. |
 | [`rails-review/`](./skills/rails-review/SKILL.md) | Rails review that cites the repo's own patterns, the gem source for the version in `Gemfile.lock`, and Fizzy, Campfire and Writebook. |
 

@@ -1,9 +1,51 @@
 ---
-name: pr-description
-description: Structure for a feature pull request body. Use when writing or rewriting a PR description, a merge request body, or a release note for a feature branch, and when asked to open a PR with gh.
+name: pull-request
+description: Open a pull request, from the branch name to the title and the body. Use when creating a branch for a PR, opening a PR with gh, or writing or rewriting a PR title or description.
 ---
 
-# PR description
+# Pull request
+
+A branch, a PR titled in the convention below, then a body built from the sections further down. The owner merges.
+
+## Branch
+
+`<type>/<slug>`, the slug two to four lowercase words joined by hyphens, naming what the work changes, no issue number: `feat/exempt-user-role`, `refactor/delete-conversion-backfill`.
+
+## Title
+
+`<type>(<scope>): <description>`
+
+The description is a verb in the imperative and what it acts on, lowercase, no closing period: what the PR changes for the person using the app or running it, not the files touched.
+
+### Types
+
+| Type | Usage |
+| --- | --- |
+| `feat` | New feature |
+| `fix` | Bug fix |
+| `ui` | Style, UX, no business logic |
+| `content` | Copy and static pages |
+| `refactor` | Restructuring without functional change |
+| `test` | Tests only |
+| `docs` | README, guides, agent skills |
+| `perf` | Faster, same behavior |
+| `infra` | CI, build, Kamal, servers, monitoring |
+| `deps` | Dependency updates |
+
+### Scopes
+
+The domain the PR changes. Optional, recommended for `feat`, `fix`, `ui`, `refactor`, `perf`.
+
+Take it from the repo's own list when it keeps one, in its README or AGENTS.md, else from the scopes in `gh pr list --state all` and `git log`. A new domain earns a new scope: name it after the model or the screen, plural like the controller.
+
+### Examples
+
+```
+feat(auth): exempt a customer from the subscription
+ui(calendar): even out the toolbars and lift the opening bar to the day
+```
+
+## Description
 
 A fixed core, plus conditional sections only when they carry information. Omit an empty section, never leave a heading with "N/A" under it.
 
@@ -22,7 +64,7 @@ Order: Summary, User flow, Behavior changes, Visual changes, Implementation note
 | Tests | Always | Tested behavior by level, unit through system. |
 | Screenshots footer | With images | The ref and folder the images live in. |
 
-## Screenshots
+### Screenshots
 
 Every PR a user can see gets screenshots: a screen, an email, a PDF, an error message. Only when nothing visible changed (a refactor, a job, infra) skip them, and say so in one line.
 
@@ -32,7 +74,7 @@ Capture what a reviewer needs without running the branch:
 - A changed screen: before and after, from the same data.
 - Each viewport where the layout differs, phone included.
 
-## Where the images live
+### Where the images live
 
 On the ref `refs/assets/github`, never on a branch: `git clone` fetches only branches and tags, so the images stay out of everyone's clone, the branch list, and the PR base and compare pickers.
 
