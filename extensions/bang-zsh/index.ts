@@ -1,15 +1,15 @@
 import { createLocalBashOperations, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-import { interactiveZshCommand, loginZsh } from "./zsh.ts";
+import { configuredZsh, withZshFallback } from "./zsh.ts";
 
 export default function (pi: ExtensionAPI) {
-  const zsh = loginZsh();
+  const zsh = configuredZsh();
   if (!zsh) return;
 
   const local = createLocalBashOperations();
   pi.on("user_bash", () => ({
     operations: {
-      exec: (command, cwd, options) => local.exec(interactiveZshCommand(command, zsh), cwd, options),
+      exec: (command, cwd, options) => local.exec(withZshFallback(command, zsh), cwd, options),
     },
   }));
 }

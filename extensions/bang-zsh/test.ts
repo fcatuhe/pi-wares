@@ -1,36 +1,37 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
-import { interactiveZshCommand, loginZsh } from "./zsh.ts";
+import { configuredZsh, withZshFallback } from "./zsh.ts";
 
-const noZsh = !existsSync("/bin/zsh") && "no zsh on this machine";
+const zdotdir = mkdtempSync(join(tmpdir(), "bang-zsh-"));
+writeFileSync(join(zdotdir, ".zshrc"), `alias zz_probe='printf "[%s]\\n"'\n`);
+const zsh = configuredZsh(process.env.PATH, zdotdir);
+const noZsh = !zsh && "no zsh on this machine";
 
-const roundTrip = (command: string) =>
-  execFileSync("/bin/bash", ["-c", interactiveZshCommand(command, "/bin/zsh")], {
-    encoding: "utf-8",
-  }).trimEnd();
+const bang = (command: string) =>
+  spawnSync("bash", ["-c", withZshFallback(command, zsh ?? "zsh")], { encoding: "utf-8", env: { ...process.env, ZDOTDIR: zdotdir } });
 
-test("the command reaches an interactive shell, so zshrc functions and aliases resolve", () => {
-  assert.equal(interactiveZshCommand("vsc", "/bin/zsh"), "exec /bin/zsh -ic 'vsc'");
+test("zsh counts only once a zshrc exists, without one there are no aliases for the fallback to find", () => {
+  const bin = mkdtempSync(join(tmpdir(), "bang-zsh-bin-"));
+  writeFileSync(join(bin, "zsh"), "");
+  assert.equal(configuredZsh(`/nonexistent:${bin}`, zdotdir), join(bin, "zsh"));
+  assert.equal(configuredZsh(`/nonexistent:${bin}`, mkdtempSync(join(tmpdir(), "bang-zsh-empty-"))), undefined);
+  assert.equal(configuredZsh("/nonexistent", zdotdir), undefined);
 });
 
-test("quotes in the user's command do not end the wrapper's quoting", () => {
-  assert.equal(interactiveZshCommand(`git commit -m 'it's fine'`, "/bin/zsh"), `exec /bin/zsh -ic 'git commit -m '\\''it'\\''s fine'\\'''`);
+test("a command bash knows runs in bash, without paying for an interactive zsh", { skip: noZsh }, () => {
+  assert.equal(bang(`printf '%s' "\${ZSH_VERSION-bash}"`).stdout, "bash");
 });
 
-test("the escaping holds through a real bash -c, the layer pi wraps this in", { skip: noZsh }, () => {
-  assert.equal(roundTrip(`printf '%s\n' "it's here"`), "it's here");
-  assert.notEqual(roundTrip("printf '%s' \"$ZSH_VERSION\""), "");
+test("a command only zsh knows runs in an interactive zsh, with every argument intact", { skip: noZsh }, () => {
+  const result = bang(`echo bash first && zz_probe "it's" $'two\\nlines' '$HOME *' ""`);
+  assert.equal(result.stdout, "bash first\n[it's]\n[two\nlines]\n[$HOME *]\n[]\n");
+  assert.equal(result.status, 0);
 });
 
-test("only a zsh login shell is intercepted, anything else leaves pi on its own bash -c", () => {
-  assert.equal(loginZsh("/bin/zsh"), "/bin/zsh");
-  assert.equal(loginZsh("/opt/homebrew/bin/zsh"), "/opt/homebrew/bin/zsh");
-  assert.equal(loginZsh("/bin/bash"), undefined);
-  assert.equal(loginZsh("/usr/bin/fish"), undefined);
-});
-
-test("an unset $SHELL, as on a bare cron-like environment, is not intercepted", () => {
-  assert.equal(loginZsh(""), undefined);
+test("a command neither shell knows still fails with 127", { skip: noZsh }, () => {
+  assert.equal(bang("zz_nowhere").status, 127);
 });
