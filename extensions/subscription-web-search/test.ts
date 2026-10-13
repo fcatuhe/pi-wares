@@ -60,7 +60,7 @@ const registryWith = (available: Model<Api>[]) =>
     },
   }) as unknown as ExtensionContext;
 
-const haiku = anthropicModel("claude-haiku-4-5", 1);
+const haiku = anthropicModel("claude-haiku-5-5", 1);
 const opus = anthropicModel("claude-opus-5", 15);
 const sonnet = anthropicModel("claude-sonnet-5", 3);
 const gpt = { id: "gpt-5.6-sol", provider: "openai-codex", cost: { input: 0.1 } } as Model<Api>;
@@ -165,14 +165,14 @@ test("text blocks are concatenated, and a turn that produced none is an error ra
 });
 
 test("the query is tag-delimited rather than quoted, since a quoted phrase in it would close the quote early", () => {
-  const request = searchRequest("claude-haiku-4-5", 'zig "0.16"');
-  assert.equal(request.model, "claude-haiku-4-5");
+  const request = searchRequest("claude-haiku-5-5", 'zig "0.16"');
+  assert.equal(request.model, "claude-haiku-5-5");
   assert.deepEqual(request.tools, [{ type: "web_search_20250305", name: "web_search", max_uses: 1 }]);
   assert.match(JSON.stringify(request.messages), /<query>zig \\"0\.16\\"<\/query>/);
 });
 
 test("the summary request carries no tools, so it only reads what was fetched", () => {
-  const summary = summaryRequest("claude-haiku-4-5", "https://x.example/a", "# Page\n\nbody", "List the prices.");
+  const summary = summaryRequest("claude-haiku-5-5", "https://x.example/a", "# Page\n\nbody", "List the prices.");
   assert.equal(summary.tools, undefined);
   assert.match(JSON.stringify(summary.messages), /<page url=\\"https:\/\/x\.example\/a\\">/);
   assert.match(JSON.stringify(summary.messages), /Request: List the prices\./);
@@ -188,7 +188,7 @@ test("OAuth tokens go as Bearer with the OAuth beta and API keys in x-api-key, s
 
 test("the billed worker is a preferred cheap model, else the cheapest anthropic one, never another provider", async () => {
   const preferred = await resolveWorker(registryWith([opus, haiku, sonnet]));
-  assert.equal(preferred.model.id, "claude-haiku-4-5");
+  assert.equal(preferred.model.id, "claude-haiku-5-5");
   assert.equal((await resolveWorker(registryWith([opus, sonnet]))).model.id, "claude-sonnet-5", "the first listed won over the cheapest");
   assert.equal((await resolveWorker(registryWith([gpt, opus]))).model.id, "claude-opus-5", "only anthropic serves this server tool");
   await assert.rejects(resolveWorker(registryWith([gpt])), /Run \/login anthropic/);

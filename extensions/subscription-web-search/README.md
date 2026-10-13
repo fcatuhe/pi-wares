@@ -4,7 +4,7 @@ Two tools, `websearch` and `webfetch`, that run on the Anthropic subscription pi
 
 `websearch` returns titles and URLs, no page text. `webfetch` fetches one URL, converts it to markdown and has a small model answer the prompt from it, so ask for the facts you need: the page itself never reaches the conversation. Both work whatever model the session runs.
 
-Each call is a side request to `claude-haiku-4-5`, or the cheapest authenticated anthropic model by input cost when haiku is not on offer, and its tokens and cost are added to pi's totals. A search costs about a cent, a large page a few cents, where the same page in a frontier model's context costs dollars. The native `web_search` server tool stays out of the main request on purpose: it adds about 2.8k input tokens to every request, and pi drops its result blocks, so the model searches again on later turns.
+Each call is a side request to `claude-haiku-5-5`, or the cheapest authenticated anthropic model by input cost when haiku is not on offer, and its tokens and cost are added to pi's totals. A search costs about a cent, a large page a few cents, where the same page in a frontier model's context costs dollars. The native `web_search` server tool stays out of the main request on purpose: it adds about 2.8k input tokens to every request, and pi drops its result blocks, so the model searches again on later turns.
 
 Fetching follows Claude Code 2.1.222's limits, so a page reads the same here as there:
 

@@ -1,7 +1,7 @@
 import type { Api, Model } from "@earendil-works/pi-ai";
 
 export const SIDE_CALL_PROVIDER = "anthropic";
-export const SIDE_CALL_MODEL = "claude-haiku-4-5";
+export const SIDE_CALL_MODEL = "claude-haiku-5-5";
 
 interface Registry {
   getAvailable(): Model<Api>[];

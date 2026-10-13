@@ -48,7 +48,7 @@ test("writeJson creates the directory, writes private, and leaves no temporary f
 });
 
 test("sideCallModel prefers haiku, then the cheapest anthropic model, never another provider", () => {
-  const haiku = model("anthropic", "claude-haiku-4-5", 1);
+  const haiku = model("anthropic", "claude-haiku-5-5", 1);
   const sonnet = model("anthropic", "claude-sonnet-5", 3);
   const opus = model("anthropic", "claude-opus-5", 15);
   const gpt = model("openai-codex", "gpt-6-sol", 0.1);
