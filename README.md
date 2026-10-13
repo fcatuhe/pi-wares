@@ -24,7 +24,6 @@ Some skills drive CLIs this package does not install:
 |---|---|---|
 | [`agent-browser`](https://agent-browser.dev) | `mise use -g npm:agent-browser` | `~/.pi/agent/git/github.com/fcatuhe/pi-wares/skills/agent-browser/setup.sh`, which points it at the system Chrome or Chromium. |
 | [`gog`](https://github.com/openclaw/gogcli) | `mise use -g github:openclaw/gogcli` | Create a Google Cloud OAuth "Desktop app" client, download its `credentials.json`, then `gog auth credentials set credentials.json` and `gog auth add you@example.com`. |
-| [`ol`](https://github.com/Doist/outline-cli) | `mise use -g npm:@doist/outline-cli` | `ol auth token <token>` with a personal token from Outline's Settings > API. `ol auth login` works too, but its tokens expire. |
 
 ## Keys
 
@@ -133,7 +132,6 @@ Upstream copies, so one install covers them. They drift: resync deliberately.
 |---|---|---|
 | [`extensions/handoff/`](./extensions/handoff/) | `/handoff <goal>` starts a new linked session with an LLM-written brief. | pi's [`examples/extensions/handoff.ts`](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/handoff.ts), verbatim, at pi `0.87.1`. |
 | [`skills/gog/`](./skills/gog/SKILL.md) | Google Workspace automation through `gog`: auth state, JSON output, scoped reads and writes. | [openclaw/gogcli](https://github.com/openclaw/gogcli) `.agents/skills/gog/SKILL.md` (MIT), verbatim, at `v0.41.0`. Resync when `gog --version` moves. |
-| [`skills/outline-cli/`](./skills/outline-cli/SKILL.md) | Search and manage [Outline](https://www.getoutline.com) documents and collections through `ol`. | [Doist/outline-cli](https://github.com/Doist/outline-cli) `skills/outline-cli/SKILL.md` (MIT), verbatim, at `v2.1.3`. Resync when `ol --version` moves. |
 | [`skills-available/brave-search/`](./skills-available/brave-search/SKILL.md) | Web search and page-to-markdown extraction through the Brave Search API. | [badlogic/pi-skills](https://github.com/badlogic/pi-skills) `brave-search/` (MIT), verbatim, at `90bb51c`. Its own `package.json`: run `npm install` in the folder once before switching it on. |
 
 ## Bundled extensions
