@@ -11,13 +11,23 @@ command -v agent-browser >/dev/null || {
   exit 1
 }
 
+executable=""
 case "$(uname -s)" in
   Darwin)
-    executable="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+    candidates=("Brave Origin" "Brave Browser" "Chromium" "Google Chrome")
+    for app in "${candidates[@]}"; do
+      bundle="/Applications/$app.app/Contents"
+      [ -f "$bundle/Info.plist" ] || continue
+      executable="$bundle/MacOS/$(defaults read "$bundle/Info" CFBundleExecutable)"
+      break
+    done
     platform_args=""
     ;;
   Linux)
-    executable="/usr/bin/chromium"
+    candidates=(brave-origin brave brave-browser chromium google-chrome-stable google-chrome)
+    for name in "${candidates[@]}"; do
+      executable=$(command -v "$name") && break
+    done
     platform_args="--class=agent-browser\n"
     ;;
   *)
@@ -27,8 +37,8 @@ case "$(uname -s)" in
 esac
 
 [ -x "$executable" ] || {
-  echo "no browser at $executable" >&2
-  echo "install it, or run: AGENT_BROWSER_EXECUTABLE_PATH=<path> agent-browser ..." >&2
+  echo "no browser found, looked for: ${candidates[*]}" >&2
+  echo "install one, or run: AGENT_BROWSER_EXECUTABLE_PATH=<path> agent-browser ..." >&2
   exit 1
 }
 

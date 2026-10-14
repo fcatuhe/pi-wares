@@ -18,7 +18,7 @@ mise use -g npm:agent-browser
 ~/.pi/agent/git/github.com/fcatuhe/pi-wares/skills/agent-browser/setup.sh
 ```
 
-`setup.sh` writes `~/.agent-browser/config.json` (browser binary for this OS, the profile holding the logins, headed, pinned tabs, launch args), which every `agent-browser` command reads, so no agent passes a launch flag. It also writes `keeper.html` and seeds the profile's `Preferences` to silence translation offers, the password manager, leaked-password warnings and autofill. `--deny-permission-prompts` denies every permission prompt, `--propagate-iph-for-testing` without a value turns off feature-promo bubbles.
+`setup.sh` writes `~/.agent-browser/config.json` (the first browser installed among Brave Origin, Brave, Chromium and Chrome, the profile holding the logins, headed, pinned tabs, launch args), which every `agent-browser` command reads, so no agent passes a launch flag. It also writes `keeper.html` and seeds the profile's `Preferences` to silence translation offers, the password manager, leaked-password warnings and autofill. `--deny-permission-prompts` denies every permission prompt, `--propagate-iph-for-testing` without a value turns off feature-promo bubbles.
 
 Re-run it when the browser moves or the OS changes. Close the browser first: it refuses to run while the browser is up, since Chrome rewrites `Preferences` on exit and a new config relaunches Chrome under everyone.
 
@@ -26,7 +26,7 @@ A Chrome nag that survives belongs in the prefs block of `setup.sh`, not in `arg
 
 The profile starts logged out everywhere. Ask the user to log in once in the visible window, it persists.
 
-On Linux the binary is `/usr/bin/chromium`, which reads `~/.config/chromium-flags.conf` and so inherits the machine's chromium defaults. The window's `app_id` is `agent-browser`, for window placement rules. Writing such a rule on Omarchy is a config change, see the `omarchy` skill.
+On Linux the binary is the distro wrapper found on `PATH`, `brave-origin` or `chromium` for instance, which reads its `~/.config/<name>-flags.conf` and so inherits the machine's defaults for that browser. The window's `app_id` is `agent-browser`, for window placement rules. Writing such a rule on Omarchy is a config change, see the `omarchy` skill.
 
 ## One browser, one tab per agent
 
