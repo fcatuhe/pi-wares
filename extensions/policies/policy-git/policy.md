@@ -9,6 +9,9 @@
 ## Branch and staging
 
 - Branch as the repo asks (AGENTS.md, CONTRIBUTING, protected branches), before the first edit, then pull request and the owner merges. No such rule: work on and push to `main`.
+- A branch name has no `/`: `<type>-<slug>`, as in `feat-exempt-user-role`.
+- A worktree comes from `git wt <type>-<slug> [base]`, or from `herdr_worktree_jump`, both landing in `~/fcode/worktrees/<repo>/<branch>`. Never `git worktree add`.
+- `git wt` missing: ask the owner, then `git config --global --add include.path ~/.pi/agent/git/github.com/fcatuhe/pi-wares/config/git/config`.
 - First pass done: stage the files you touched, and only those. Another agent may be working in the same tree. Staged is a review baseline, not a commit.
 - Everything after that stays unstaged: follow-ups, review fixes, second thoughts. The unstaged diff is the owner's view of what changed since the baseline.
 - Stage again only once the owner says they have seen the diff.

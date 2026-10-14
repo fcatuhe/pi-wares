@@ -9,7 +9,7 @@ A branch, a PR titled in the convention below, then a body built from the sectio
 
 ## Branch
 
-`<type>/<slug>`, the slug two to four lowercase words joined by hyphens, naming what the work changes, no issue number: `feat/exempt-user-role`, `refactor/delete-conversion-backfill`.
+`<type>-<slug>`, the slug two to four lowercase words joined by hyphens, naming what the work changes, no issue number: `feat-exempt-user-role`, `refactor-delete-conversion-backfill`. No `/`: herdr names the worktree folder after the branch.
 
 ## Title
 

@@ -1,0 +1,11 @@
+# Worktrees in ~/fcode/worktrees/<repo>/<branch>, where herdr's worktrees.directory puts its own
+[alias]
+	wt = "!f() { \
+		branch=$1; \
+		case $branch in ''|-*|*/*) echo 'usage: git wt <type>-<slug> [base], no / in the branch' >&2; return 1;; esac; \
+		main=$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\") || return 1; \
+		dir=$HOME/fcode/worktrees/$(basename \"$main\")/$branch; \
+		if git show-ref --verify --quiet \"refs/heads/$branch\"; then git worktree add --quiet \"$dir\" \"$branch\"; \
+		else git worktree add --quiet -b \"$branch\" \"$dir\" \"${2:-HEAD}\"; fi || return 1; \
+		echo \"$dir\"; \
+	}; f"

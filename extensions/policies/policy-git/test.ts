@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdtempSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import { existsSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -34,6 +35,62 @@ test("what it cannot read, it lets through: no -m, a message file, an amend, any
   }
 });
 
+test("a new branch with a slash is refused, naming the hyphenated form", () => {
+  for (const command of [
+    "git checkout -b feat/exempt-user-role",
+    "git -C ../repo switch -c 'feat/exempt-user-role'",
+    "git switch --create feat/exempt-user-role",
+    "git fetch && git branch feat/exempt-user-role origin/main",
+    "herdr worktree create --cwd . --branch feat/exempt-user-role --no-focus",
+  ]) {
+    assert.match(refusal(command)?.reason ?? "", /"feat\/exempt-user-role".*as in feat-exempt-user-role\./, command);
+  }
+});
+
+test("a hyphenated branch, or a slash anywhere but a new branch name, passes", () => {
+  for (const command of [
+    "git checkout -b feat-exempt-user-role",
+    "git checkout origin/main -- app/models/user.rb",
+    "git branch -r | grep origin/",
+    "git branch --show-current | tr / -",
+    "git switch feat/existing",
+    "herdr worktree create --cwd ~/fcode/app --branch feat-x",
+  ]) {
+    assert.equal(refusal(command), undefined, command);
+  }
+});
+
+test("git wt checks out a new or existing branch in ~/fcode/worktrees/<repo>/<branch>, and refuses a slash", () => {
+  const home = mkdtempSync(join(tmpdir(), "policy-git-home-"));
+  const repo = join(home, "fcode", "app");
+  const env = { ...process.env, HOME: home, GIT_CONFIG_GLOBAL: join(import.meta.dirname, "../../../config/git/config") };
+  const git = (cwd: string, ...args: string[]) => execFileSync("git", args, { cwd, env, encoding: "utf8" }).trim();
+  execFileSync("git", ["init", "-q", "-b", "main", repo]);
+  git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "init");
+  git(repo, "branch", "fix-existing");
+
+  const created = git(repo, "wt", "feat-x");
+  assert.equal(created, join(home, "fcode", "worktrees", "app", "feat-x"));
+  assert.equal(git(created, "branch", "--show-current"), "feat-x");
+  assert.equal(
+    git(created, "wt", "fix-existing"),
+    join(home, "fcode", "worktrees", "app", "fix-existing"),
+    "named after the main checkout, even from a worktree",
+  );
+
+  const slash = spawnSync("git", ["wt", "feat/y"], { cwd: repo, env, encoding: "utf8" });
+  assert.notEqual(slash.status, 0);
+  assert.match(slash.stderr, /no \/ in the branch/);
+  assert.equal(existsSync(join(home, "fcode", "worktrees", "app", "feat")), false);
+});
+
+test("git worktree add is refused in favour of git wt, which owns the worktree directory", () => {
+  for (const command of ["git worktree add ../app-x -b feat-x", "git -C ~/fcode/app worktree add /tmp/x main"]) {
+    assert.match(refusal(command)?.reason ?? "", /git wt <type>-<slug>/, command);
+  }
+  assert.equal(refusal("git worktree list && git worktree remove ../app-x"), undefined);
+});
+
 test("the extension checks bash only, and only where the git policy loads", async () => {
   const handlers: Record<string, (event: unknown) => Promise<unknown>> = {};
   process.chdir(mkdtempSync(join(tmpdir(), "policy-git-")));
@@ -46,4 +103,7 @@ test("the extension checks bash only, and only where the git policy loads", asyn
   const call = (toolName: string, input: object) => handlers.tool_call({ toolName, input });
   assert.equal(((await call("bash", { command: 'git commit -m "wip"' })) as { block: boolean }).block, true);
   assert.equal(await call("write", { path: "x", content: 'git commit -m "wip"' }), undefined);
+  assert.equal(((await call("herdr_worktree_jump", { branch: "feat/x" })) as { block: boolean }).block, true);
+  assert.equal(await call("herdr_worktree_jump", { branch: "feat-x" }), undefined);
+  assert.equal(await call("herdr_worktree_jump", {}), undefined);
 });
