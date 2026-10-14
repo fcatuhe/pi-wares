@@ -1,11 +1,11 @@
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, extname, join } from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 
 import { agentDir, expandHome, homeRelative } from "../../lib/paths.ts";
 import { type Finding, hasStale, type Reconciled, writes } from "./diff.ts";
-import { reconcileJson } from "./json.ts";
+import { reconcileJson, setJson } from "./json.ts";
 import { reconcileToml } from "./toml.ts";
 
 export const COMMAND = "wares-doctor";
@@ -41,11 +41,19 @@ function commandName(mode: string): string {
   return mode === "" ? COMMAND : `${COMMAND}:${mode}`;
 }
 
+export type Usable = (model: string) => boolean;
+
+interface Scoped {
+  reference: string;
+  skipped: string[];
+}
+
 interface Target {
   label: string;
   reference: string;
   path: string;
   hint: string;
+  scope?: (reference: string, usable: Usable) => Scoped;
 }
 
 export interface Note {
@@ -69,6 +77,8 @@ export interface Report {
 
 interface Inspection {
   target: Target;
+  reference: string;
+  skipped: string[];
   missing: boolean;
   findings: Finding[];
   text?: string;
@@ -83,16 +93,20 @@ export function runDoctor(pi: ExtensionAPI, command: DoctorCommand, args: string
   }
 
   try {
-    pi.appendEntry<Report>(REPORT_ENTRY, report(command.mode));
+    const available = new Set(ctx.modelRegistry.getAvailable().map((model) => `${model.provider}/${model.id}`));
+    pi.appendEntry<Report>(
+      REPORT_ENTRY,
+      report(command.mode, (model) => available.has(model)),
+    );
   } catch (err) {
     ctx.ui.notify(`${command.name} failed: ${err instanceof Error ? err.message : String(err)}`, "error");
   }
 }
 
-export function report(mode: string): Report {
+export function report(mode: string, usable: Usable): Report {
   const apply = mode !== "";
   const force = mode === FORCE;
-  const inspections = targets().map((target) => inspect(target, force));
+  const inspections = targets().map((target) => inspect(target, usable, force));
   if (apply) for (const inspection of inspections.filter((it) => needsWrite(it, force))) write(inspection);
   return {
     command: commandName(mode),
@@ -106,6 +120,7 @@ function notes(inspections: Inspection[], apply: boolean, force: boolean): Note[
   const manual = items(inspections, (finding) => finding.blocked !== undefined);
   const kept = force ? [] : items(inspections, diverging);
   const stale = force ? [] : items(inspections, staling, removal);
+  const skipped = [...new Set(inspections.flatMap((inspection) => inspection.skipped))];
   return [
     ...note("warning", toAdd, `to add. /${commandName(APPLY)} writes ${toAdd.length === 1 ? "it" : "them"}.`),
     ...note("error", manual, "manual. No command writes these, edit the file."),
@@ -115,6 +130,7 @@ function notes(inspections: Inspection[], apply: boolean, force: boolean): Note[
       stale,
       `stale, a wares path that no longer exists. /${commandName(FORCE)} removes ${stale.length === 1 ? "it" : "them"}.`,
     ),
+    ...note("text", skipped, "skipped, not available here. /login to the provider, then run this again."),
   ];
 }
 
@@ -162,12 +178,19 @@ function targets(): Target[] {
   const pi = agentDir();
   const herdr = join(process.env.XDG_CONFIG_HOME ?? join(homedir(), ".config"), "herdr");
   return [
-    { label: "pi settings", reference: "config/pi/settings.json", path: join(pi, "settings.json"), hint: "restart pi" },
+    {
+      label: "pi settings",
+      reference: "config/pi/settings.json",
+      path: join(pi, "settings.json"),
+      hint: "restart pi",
+      scope: enabledModels,
+    },
     {
       label: "model shortcuts",
       reference: "config/pi/model-shortcuts/config.json",
       path: join(pi, "model-shortcuts", "config.json"),
       hint: "/reload in pi",
+      scope: shortcuts,
     },
     {
       label: "subagents",
@@ -190,10 +213,28 @@ function targets(): Target[] {
   ];
 }
 
-function inspect(target: Target, force: boolean): Inspection {
-  if (!existsSync(target.path)) return { target, missing: true, findings: [] };
-  const reference = readFileSync(join(ROOT, target.reference), "utf-8");
-  return { target, missing: false, ...reconcile(target, readFileSync(target.path, "utf-8"), reference, force) };
+function enabledModels(reference: string, usable: Usable): Scoped {
+  const models: string[] = JSON.parse(reference).enabledModels;
+  const skipped = models.filter((model) => !usable(model));
+  if (skipped.length === 0) return { reference, skipped };
+  return { reference: setJson(reference, ["enabledModels"], models.filter(usable)), skipped };
+}
+
+function shortcuts(reference: string, usable: Usable): Scoped {
+  const unusable = Object.entries<{ provider: string; model: string }>(JSON.parse(reference)).filter(
+    ([, shortcut]) => !usable(`${shortcut.provider}/${shortcut.model}`),
+  );
+  return {
+    reference: unusable.reduce((text, [name]) => setJson(text, [name], undefined), reference),
+    skipped: unusable.map(([, shortcut]) => `${shortcut.provider}/${shortcut.model}`),
+  };
+}
+
+function inspect(target: Target, usable: Usable, force: boolean): Inspection {
+  const source = readFileSync(join(ROOT, target.reference), "utf-8");
+  const { reference, skipped } = target.scope ? target.scope(source, usable) : { reference: source, skipped: [] };
+  if (!existsSync(target.path)) return { target, reference, skipped, missing: true, findings: [] };
+  return { target, reference, skipped, missing: false, ...reconcile(target, readFileSync(target.path, "utf-8"), reference, force) };
 }
 
 function reconcile(target: Target, actual: string, reference: string, force: boolean): Reconciled {
@@ -279,9 +320,5 @@ function width(strings: string[]): number {
 function write(inspection: Inspection): void {
   const { target } = inspection;
   mkdirSync(dirname(target.path), { recursive: true });
-  if (inspection.missing) {
-    copyFileSync(join(ROOT, target.reference), target.path);
-    return;
-  }
-  writeFileSync(target.path, inspection.text!);
+  writeFileSync(target.path, inspection.missing ? inspection.reference : inspection.text!);
 }

@@ -13,6 +13,8 @@ agent-browser skills get core   # the snapshot / @eN ref loop, extraction, waits
 
 ## Setup, once per machine
 
+No `~/.agent-browser/config.json` yet means this machine was never set up: run these two lines before step 1, then ask the user to log in.
+
 ```bash
 mise use -g npm:agent-browser
 ~/.pi/agent/git/github.com/fcatuhe/pi-wares/skills/agent-browser/setup.sh
@@ -54,10 +56,11 @@ Everything runs in one headed browser on the profile `agent-browser`. Each agent
    ```bash
    agent-browser --session <you> --cdp "$CDP" tab close
    agent-browser --session <you> --cdp "$CDP" close
-   rm -f "$XDG_RUNTIME_DIR"/agent-browser/<you>.*
+   dir=${XDG_RUNTIME_DIR:+$XDG_RUNTIME_DIR/agent-browser}
+   rm -f "${dir:-$HOME/.agent-browser}"/<you>.*
    ```
 
-   `close` detaches only your session, the browser and the other agents survive. The `rm` clears the session state it leaves, since a stale `.target` rebinds your next command to a dead tab.
+   `close` detaches only your session, the browser and the other agents survive. The `rm` clears the session state it leaves, since a stale `.target` rebinds your next command to a dead tab. That state lives in `$XDG_RUNTIME_DIR/agent-browser`, or in `~/.agent-browser` where `XDG_RUNTIME_DIR` is unset, as on macOS.
 
 ## Rules
 
@@ -74,5 +77,5 @@ Everything runs in one headed browser on the profile `agent-browser`. Each agent
 
 - Two agents starting the browser in the same second both fail with a daemon startup error. Wait a second and retry, one of them has it up by then.
 - `tab_gone`, or CDP connect refused: your tab or the window went away. Re-run step 1, then `agent-browser --session <you> --cdp "$CDP" tab new <url>` to rebind.
-- A command hangs with no output: your session daemon is wedged. `kill $(cat "$XDG_RUNTIME_DIR"/agent-browser/<you>.pid)`, remove `"$XDG_RUNTIME_DIR"/agent-browser/<you>.*`, redo step 2. Never kill another session's daemon.
+- A command hangs with no output: your session daemon is wedged. Kill the pid in `<you>.pid` from the state directory of step 3, remove `<you>.*` there, redo step 2. Never kill another session's daemon.
 - `read <url>` fetches outside the browser with no profile cookies, so a logged-in site returns a login page or an error (LinkedIn: HTTP 999). Use `open`, then `get text` or `snapshot`.

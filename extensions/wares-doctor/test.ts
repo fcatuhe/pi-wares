@@ -41,6 +41,8 @@ const REFERENCE_JSON = `{"defaultModel":"claude-opus-5","defaultThinkingLevel":"
 const ROOT = join(import.meta.dirname, "..", "..");
 const RAILS_REVIEW = "pi-codex-subagents/agents/rails-review.md";
 
+const everything = () => true;
+
 const toml = reconcileToml(USER_TOML, REFERENCE_TOML);
 
 const state = (findings: any[], path: string) => findings.find((f) => f.path.join(".") === path)?.state;
@@ -62,7 +64,10 @@ const byMode = new Map(COMMANDS.map((it) => [it.mode, it]));
 function command() {
   const run: Run = { entries: [], notices: [] };
   const pi = { appendEntry: (_customType: string, data: Report) => run.entries.push(data) };
-  const ctx = { ui: { notify: (message: string, type?: string) => run.notices.push([message, type]) } };
+  const ctx = {
+    ui: { notify: (message: string, type?: string) => run.notices.push([message, type]) },
+    modelRegistry: { getAvailable: () => [{ provider: "anthropic", id: "claude-opus-5-5" }] },
+  };
   return { run, call: (mode: string, args = "") => runDoctor(pi as any, byMode.get(mode)!, args, ctx as any) };
 }
 
@@ -167,7 +172,7 @@ test("a stale TOML array member is kept without force and dropped with it, the r
 
 test("a bare machine reports every target as a warning to create, one row per file", () => {
   home = bareMachine();
-  const bare = report("");
+  const bare = report("", everything);
   assert.deepEqual(
     bare.notes.map((note) => note.tone),
     ["warning", "text", "text", "text", "text", "text"],
@@ -186,13 +191,13 @@ test("a bare machine reports every target as a warning to create, one row per fi
 });
 
 test("apply creates every target as the reference, then nothing is left to report", () => {
-  const applied = report(APPLY);
+  const applied = report(APPLY, everything);
   assert.equal(applied.rows.length, 5, "apply printed more than one row per file");
   assert.equal(applied.rows[0].state.trim(), "created");
   assert.equal(applied.rows[0].tone, "warning", "a file just written needs a reload, so it is not plain text");
   assert.match(applied.rows[0].path, /settings\.json$/);
   assert.equal(applied.rows[0].hint, "  (restart pi)");
-  const settled = report("");
+  const settled = report("", everything);
   assert.deepEqual(settled.notes, [], "the applied config still reports work");
   assert.deepEqual(
     settled.rows.map((row) => row.tone),
@@ -208,7 +213,7 @@ test("apply creates every target as the reference, then nothing is left to repor
 test("a diverged key is reported with both values, kept as a warning, and force is offered", () => {
   settings = join(home, "agent/settings.json");
   writeFileSync(settings, readFileSync(settings, "utf-8").replace(`"high"`, `"low"`));
-  const diverging = report("");
+  const diverging = report("", everything);
   kept = diverging.notes;
   assert.deepEqual(
     kept.map((note) => note.text),
@@ -225,23 +230,23 @@ test("a diverged key is reported with both values, kept as a warning, and force 
 });
 
 test("apply keeps the diverged value and still says so", () => {
-  const keptOnApply = report(APPLY);
+  const keptOnApply = report(APPLY, everything);
   assert.deepEqual(keptOnApply.notes, kept, "apply dropped the kept note");
   assert.match(readFileSync(settings, "utf-8"), /"defaultThinkingLevel": "low"/, "apply overwrote a value the user set");
 });
 
 test("force says what it replaced, has nothing left to keep, and a second force is quiet", () => {
-  const replaced = report(FORCE);
+  const replaced = report(FORCE, everything);
   assert.match(replaced.rows[0].state, /^replaced 1, ok /, "force did not report what it replaced");
   assert.equal(replaced.rows[0].hint, "  (restart pi)", "force wrote the file and said nothing about reloading");
   assert.deepEqual(replaced.notes, [], "force still offers to take what it just took");
   assert.match(readFileSync(settings, "utf-8"), /"defaultThinkingLevel": "high"/, "force did not write the reference value");
-  assert.equal(report(FORCE).rows.length, 5, "a forced machine still has work to do");
+  assert.equal(report(FORCE, everything).rows.length, 5, "a forced machine still has work to do");
 });
 
 test("a machine one key and one model short lists each key with the value that would land", () => {
   const shortHome = bareMachine();
-  report(APPLY);
+  report(APPLY, everything);
   const shortSettings = join(shortHome, "agent/settings.json");
   const shortened = JSON.parse(readFileSync(shortSettings, "utf-8"));
   delete shortened.defaultThinkingLevel;
@@ -249,7 +254,7 @@ test("a machine one key and one model short lists each key with the value that w
   writeFileSync(shortSettings, JSON.stringify(shortened, null, 2));
   const wanted = JSON.parse(readFileSync(join(ROOT, "config/pi/settings.json"), "utf-8"));
   assert.deepEqual(
-    report("").notes.map((note) => note.text),
+    report("", everything).notes.map((note) => note.text),
     [
       "2 to add. /wares-doctor:apply writes them.",
       `  pi settings defaultThinkingLevel = ${JSON.stringify(wanted.defaultThinkingLevel)}`,
@@ -264,9 +269,9 @@ test("a machine one key and one model short lists each key with the value that w
 
 test("a value parsed but not written as a plain key is manual, an error no command can close", () => {
   const inlineHome = bareMachine();
-  report(APPLY);
+  report(APPLY, everything);
   writeFileSync(join(inlineHome, "config/herdr/config.toml"), `keys = { prefix = "ctrl+a" }\n`);
-  const forcedInline = report(FORCE);
+  const forcedInline = report(FORCE, everything);
   const manual = forcedInline.notes;
   assert.equal(manual[0].tone, "error", "a gap no command can close is only a warning");
   assert.equal(forcedInline.rows.at(-1)!.tone, "error", "the file holding a stuck key reads like any other file");
@@ -280,7 +285,7 @@ test("a value parsed but not written as a plain key is manual, an error no comma
 
 test("a diverged rails-review agent is kept by report and apply, and replaced whole by force", () => {
   const agentHome = bareMachine();
-  report(APPLY);
+  report(APPLY, everything);
   const agentFile = join(agentHome, "agent", RAILS_REVIEW);
   const reference = readFileSync(join(ROOT, "config/pi", RAILS_REVIEW), "utf-8");
   const mine = `${reference}\nMy own review rules.\n`;
@@ -290,26 +295,26 @@ test("a diverged rails-review agent is kept by report and apply, and replaced wh
     { tone: "text", text: "  rails-review agent differs from the reference" },
   ];
 
-  const reported = report("");
+  const reported = report("", everything);
   assert.deepEqual(reported.notes, expectedNotes, "a diverged agent file is not reported as kept");
   assert.equal(reported.rows[3].state.trim(), "kept 1");
   assert.equal(reported.rows[3].tone, "warning", "a diverged agent file renders like one that matches");
   assert.equal(readFileSync(agentFile, "utf-8"), mine, "a report wrote the agent file");
 
-  assert.deepEqual(report(APPLY).notes, expectedNotes, "apply dropped the kept note");
+  assert.deepEqual(report(APPLY, everything).notes, expectedNotes, "apply dropped the kept note");
   assert.equal(readFileSync(agentFile, "utf-8"), mine, "apply overwrote the user's agent file");
 
-  const forced = report(FORCE);
+  const forced = report(FORCE, everything);
   assert.equal(forced.rows[3].state.trim(), "replaced 1");
   assert.equal(forced.rows[3].hint, "  (restart pi)");
   assert.equal(readFileSync(agentFile, "utf-8"), reference, "force did not write the reference agent file");
-  assert.deepEqual(report("").notes, [], "the forced agent file still reports work");
+  assert.deepEqual(report("", everything).notes, [], "the forced agent file still reports work");
 });
 
 // A ware removed from the reference left its path in machine configs, and every subagent spawn failed on it.
 test("a wares path that no longer exists is reported stale, kept by apply, and removed by force", () => {
   const staleHome = bareMachine();
-  report(APPLY);
+  report(APPLY, everything);
   const subagents = join(staleHome, "agent/pi-codex-subagents/config.json");
   const config = JSON.parse(readFileSync(subagents, "utf-8"));
   const live = config.defaults.extensions[0];
@@ -322,15 +327,15 @@ test("a wares path that no longer exists is reported stale, kept by apply, and r
     { tone: "text", text: `  subagents defaults.extensions - [${JSON.stringify(dead)}]` },
   ];
 
-  const reported = report("");
+  const reported = report("", everything);
   assert.deepEqual(reported.notes, expectedNotes, "a dead wares path passed as ok");
   assert.equal(reported.rows[2].state.trim(), "stale 1, ok 1");
   assert.equal(reported.rows[2].tone, "warning", "a file with a dead path renders like one that matches");
 
-  assert.deepEqual(report(APPLY).notes, expectedNotes, "apply dropped the stale note");
+  assert.deepEqual(report(APPLY, everything).notes, expectedNotes, "apply dropped the stale note");
   assert.deepEqual(JSON.parse(readFileSync(subagents, "utf-8")).defaults.extensions, [live, dead, mine], "apply removed a member");
 
-  const forced = report(FORCE);
+  const forced = report(FORCE, everything);
   assert.equal(forced.rows[2].state.trim(), "removed 1, ok 1");
   assert.equal(forced.rows[2].hint, "  (restart pi)");
   assert.deepEqual(
@@ -338,7 +343,45 @@ test("a wares path that no longer exists is reported stale, kept by apply, and r
     [live, mine],
     "force kept the dead path or dropped the user's own",
   );
-  assert.deepEqual(report("").notes, [], "the forced config still reports work");
+  assert.deepEqual(report("", everything).notes, [], "the forced config still reports work");
+});
+
+// A machine without an OpenAI or Fireworks login gained models and shortcuts it could never run.
+test("models whose provider is not logged in are skipped, named once, and land once the login exists", () => {
+  const loginHome = bareMachine();
+  const anthropicOnly = (model: string) => model.startsWith("anthropic/");
+  const wanted: string[] = JSON.parse(readFileSync(join(ROOT, "config/pi/settings.json"), "utf-8")).enabledModels;
+  const elsewhere = wanted.filter((model) => !anthropicOnly(model));
+  assert.ok(elsewhere.length > 0, "the reference no longer enables a model outside anthropic, so this test proves nothing");
+
+  const applied = report(APPLY, anthropicOnly);
+  const settingsFile = join(loginHome, "agent/settings.json");
+  const shortcutsFile = join(loginHome, "agent/model-shortcuts/config.json");
+  assert.deepEqual(JSON.parse(readFileSync(settingsFile, "utf-8")).enabledModels, wanted.filter(anthropicOnly));
+  const shortcuts = Object.values<{ provider: string }>(JSON.parse(readFileSync(shortcutsFile, "utf-8")));
+  assert.ok(
+    shortcuts.length > 0 && shortcuts.every((shortcut) => shortcut.provider === "anthropic"),
+    "a shortcut landed without its login",
+  );
+  assert.deepEqual(
+    applied.notes.map((note) => note.text),
+    [
+      `${elsewhere.length} skipped, not available here. /login to the provider, then run this again.`,
+      ...elsewhere.map((model) => `  ${model}`),
+    ],
+    "a skipped model is not named, or named once per file",
+  );
+  assert.deepEqual(
+    report("", anthropicOnly).rows.map((row) => row.tone),
+    [undefined, undefined, undefined, undefined, undefined],
+  );
+
+  report(APPLY, everything);
+  assert.deepEqual(JSON.parse(readFileSync(settingsFile, "utf-8")).enabledModels, [...wanted.filter(anthropicOnly), ...elsewhere]);
+  assert.equal(
+    Object.keys(JSON.parse(readFileSync(shortcutsFile, "utf-8"))).length,
+    Object.keys(JSON.parse(readFileSync(join(ROOT, "config/pi/model-shortcuts/config.json"), "utf-8"))).length,
+  );
 });
 
 test("one command per mode, so the palette shows all three rather than hiding two behind an argument", () => {

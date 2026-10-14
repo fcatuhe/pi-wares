@@ -20,6 +20,8 @@
 
 `:apply` only adds. A value you set differently is `kept`, and `:force` replaces it. Keys and array members the reference does not list always stay. A reference array is members to add, so `new_tab = "ctrl+alt+t"` against `["prefix+c", "ctrl+alt+t"]` becomes `["ctrl+alt+t", "prefix+c"]`. `:force` keeps a trailing comment next to a value it replaces, which may then describe the old one.
 
+A model pi cannot run here, for want of a login or because this pi does not know it, is left out of `enabledModels` and the model shortcuts. The report names it as `skipped` and adds it on the first run after `/login`.
+
 The one member that does not stay is a path into this checkout that no longer exists, left behind when a ware is removed from the reference. The report calls it `stale`, `:apply` keeps it, and `:force` removes it.
 
 ```text

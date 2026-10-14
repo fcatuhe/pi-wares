@@ -22,7 +22,7 @@ Some skills drive CLIs this package does not install:
 
 | CLI | Install | Then |
 |---|---|---|
-| [`agent-browser`](https://agent-browser.dev) | `mise use -g npm:agent-browser` | `~/.pi/agent/git/github.com/fcatuhe/pi-wares/skills/agent-browser/setup.sh`, which points it at the system Chrome or Chromium. |
+| [`agent-browser`](https://agent-browser.dev) | `mise use -g npm:agent-browser` | `~/.pi/agent/git/github.com/fcatuhe/pi-wares/skills/agent-browser/setup.sh`, which points it at the first of Brave Origin, Brave, Chromium and Chrome installed. The skill runs it on first use. |
 | [`gog`](https://github.com/openclaw/gogcli) | `mise use -g github:openclaw/gogcli` | Create a Google Cloud OAuth "Desktop app" client, download its `credentials.json`, then `gog auth credentials set credentials.json` and `gog auth add you@example.com`. |
 
 ## Keys

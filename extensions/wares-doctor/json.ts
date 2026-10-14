@@ -11,7 +11,11 @@ export function reconcileJson(actualSource: string, referenceSource: string, for
   for (const finding of findings) {
     if (!writes(finding, force)) continue;
     const value = finding.kind === "members" ? members(finding, force) : finding.expected;
-    text = applyEdits(text, modify(text, finding.path, value, FORMATTING));
+    text = setJson(text, finding.path, value);
   }
   return { findings, text };
+}
+
+export function setJson(text: string, path: string[], value: unknown): string {
+  return applyEdits(text, modify(text, path, value, FORMATTING));
 }
