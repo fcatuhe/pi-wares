@@ -18,11 +18,13 @@ mise use -g npm:agent-browser
 ~/.pi/agent/git/github.com/fcatuhe/pi-wares/skills/agent-browser/setup.sh
 ```
 
-`setup.sh` writes `~/.agent-browser/config.json` (the first browser installed among Brave Origin, Brave, Chromium and Chrome, the profile holding the logins, headed, pinned tabs, launch args), which every `agent-browser` command reads, so no agent passes a launch flag. It also writes `keeper.html` and seeds the profile's `Preferences` to silence translation offers, the password manager, leaked-password warnings and autofill. `--deny-permission-prompts` denies every permission prompt, `--propagate-iph-for-testing` without a value turns off feature-promo bubbles.
+`setup.sh` writes `~/.agent-browser/config.json` (the first browser installed among Brave Origin, Brave, Chromium and Chrome, the profile holding the logins, headed, pinned tabs, launch args), which every `agent-browser` command reads, so no agent passes a launch flag. It also writes `keeper.html` and seeds the profile's `Preferences` to silence translation offers, the password manager, leaked-password warnings and autofill, to open only the keeper on launch, and with the owner's browser settings (languages, search, downloads, theme). `--deny-permission-prompts` denies every permission prompt, `--propagate-iph-for-testing` without a value turns off feature-promo bubbles.
 
 Re-run it when the browser moves or the OS changes. Close the browser first: it refuses to run while the browser is up, since Chrome rewrites `Preferences` on exit and a new config relaunches Chrome under everyone.
 
 A Chrome nag that survives belongs in the prefs block of `setup.sh`, not in `args`: `--disable-features=Translate` does not stop the translate bubble, `translate.enabled` does. `args` splits on commas as well as newlines, so a flag containing a comma cannot go there: its tail opens as a URL. Never add `--disable-features` to `args`: Chrome keeps only the last one, so it replaces agent-browser's own list.
+
+On Brave, `setup.sh` also seeds the owner's Shields filter lists, Shields levels and tab layout into `Preferences` and `Local State`. `executablePath` then points at `~/.agent-browser/brave-launcher`, which drops `--disable-component-update` and `--disable-background-networking` from agent-browser's flags before it execs Brave: with them Brave never downloads its filter lists, and Shields blocks far less.
 
 The profile starts logged out everywhere. Ask the user to log in once in the visible window, it persists.
 
