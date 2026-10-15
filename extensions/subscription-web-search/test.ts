@@ -172,6 +172,27 @@ test("the query is tag-delimited rather than quoted, since a quoted phrase in it
   assert.match(JSON.stringify(request.messages), /<query>zig \\"0\.16\\"<\/query>/);
 });
 
+test("an overloaded or rate-limited call is retried once, after the delay the API asks for", async () => {
+  const statuses = [529, 200];
+  stub(() => {
+    const status = statuses.shift()!;
+    return new Response(JSON.stringify(status === 200 ? searchResponse : { error: {} }), { status, headers: { "retry-after": "0" } });
+  });
+  const worker = { model: haiku, apiKey: "sk-ant-api03-abc", baseUrl: "https://api.anthropic.com" };
+  assert.equal(parseSearchResults(await postMessages(worker, searchRequest("claude-haiku-5-5", "zig"))).length, 2);
+  assert.deepEqual(statuses, []);
+});
+
+// A refused request read "rate limited on this account" for two days: the 429 was a missing identity block.
+test("an API error is reported with its own type, message and request id, never a guessed cause", async () => {
+  const error = { type: "error", error: { type: "rate_limit_error", message: "Error" }, request_id: "req_1" };
+  stub(() => new Response(JSON.stringify(error), { status: 429, headers: { "content-type": "application/json", "retry-after": "0" } }));
+  const worker = { model: haiku, apiKey: "sk-ant-api03-abc", baseUrl: "https://api.anthropic.com" };
+  await assert.rejects(postMessages(worker, searchRequest("claude-haiku-5-5", "zig")), {
+    message: "Anthropic 429 rate_limit_error: Error (req_1)",
+  });
+});
+
 test("the summary request carries no tools, so it only reads what was fetched", () => {
   const summary = summaryRequest("claude-haiku-5-5", "https://x.example/a", "# Page\n\nbody", "List the prices.");
   assert.equal(summary.tools, undefined);

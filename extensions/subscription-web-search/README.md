@@ -19,7 +19,7 @@ The conversion is Claude Code's, turndown on domino over the whole page, plus ab
 
 Interactive pi leaves stdout to its TUI, so any library printing during conversion would break the frame. `withoutTerminalOutput` silences `console` and both streams while the synchronous conversion runs. Call rows strip terminal sequences from their arguments, since pi sanitizes tool output but not the arguments a model wrote after reading a hostile page.
 
-A transport failure names its cause (`ENOTFOUND`, a refused connection, an expired certificate) instead of undici's bare `fetch failed`, and is retried once after 250ms. Timeouts and aborts are never retried. The domain check times out at 10s, the model call at 120s.
+A transport failure names its cause (`ENOTFOUND`, a refused connection, an expired certificate) instead of undici's bare `fetch failed`, and is retried once after 250ms. Timeouts and aborts are never retried. The domain check times out at 10s, the model call at 120s. A model call refused with 429 or 529 is retried once, after the API's `retry-after` capped at 10s, else 500ms, and any other API error is reported with its own type, message and request id.
 
 A result opens with `8 results in 3.2s` or `Received 479.3KB (200 OK) in 24.1s`, timing the whole tool call.
 

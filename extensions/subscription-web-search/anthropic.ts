@@ -10,6 +10,9 @@ export const MAX_QUERY_CHARS = 400;
 const SEARCH_MAX_TOKENS = 300;
 const SUMMARY_MAX_TOKENS = 2048;
 const REQUEST_TIMEOUT_MS = 120_000;
+const RETRY_DELAY_MS = 500;
+const MAX_RETRY_DELAY_MS = 10_000;
+const RETRIED_STATUSES = [429, 529];
 const THINKING_OFF = { type: "disabled" };
 const CLAUDE_CODE_IDENTITY = { type: "text", text: "You are Claude Code, Anthropic's official CLI for Claude." };
 
@@ -162,8 +165,21 @@ export function usageTokens(response: unknown): UsageTokens {
 }
 
 export async function postMessages(worker: Worker, body: Record<string, unknown>, signal?: AbortSignal): Promise<unknown> {
+  let response = await send(worker, body, signal);
+  if (RETRIED_STATUSES.includes(response.status)) {
+    await new Promise((resume) => setTimeout(resume, retryDelayMs(response)));
+    response = await send(worker, body, signal);
+  }
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(apiError(response, text));
+  }
+  return JSON.parse(text);
+}
+
+async function send(worker: Worker, body: Record<string, unknown>, signal?: AbortSignal): Promise<Response> {
   const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
-  const response = await fetch(`${worker.baseUrl.replace(/\/+$/, "")}/v1/messages`, {
+  return await fetch(`${worker.baseUrl.replace(/\/+$/, "")}/v1/messages`, {
     method: "POST",
     signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
     headers: {
@@ -174,14 +190,19 @@ export async function postMessages(worker: Worker, body: Record<string, unknown>
     },
     body: JSON.stringify(isOAuth(worker.apiKey) ? withIdentity(body) : body),
   });
-  const text = await response.text();
-  if (response.status === 429) {
-    throw new Error(`${body.model} is rate limited on this account. Retry later.`);
-  }
-  if (!response.ok) {
-    throw new Error(`Anthropic ${response.status}: ${text.slice(0, 300)}`);
-  }
-  return JSON.parse(text);
+}
+
+function retryDelayMs(response: Response): number {
+  const seconds = Number(response.headers.get("retry-after"));
+  const delay = response.headers.has("retry-after") && Number.isFinite(seconds) ? seconds * 1000 : RETRY_DELAY_MS;
+  return Math.min(Math.max(delay, 0), MAX_RETRY_DELAY_MS);
+}
+
+function apiError(response: Response, text: string): string {
+  const parsed = response.headers.get("content-type")?.includes("json") ? JSON.parse(text) : undefined;
+  if (!isRecord(parsed) || !isRecord(parsed.error)) return `Anthropic ${response.status}: ${text.slice(0, 300)}`;
+  const requestId = typeof parsed.request_id === "string" ? ` (${parsed.request_id})` : "";
+  return `Anthropic ${response.status} ${parsed.error.type}: ${parsed.error.message}${requestId}`;
 }
 
 function withIdentity(body: Record<string, unknown>): Record<string, unknown> {
