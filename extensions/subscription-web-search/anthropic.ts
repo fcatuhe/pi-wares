@@ -10,6 +10,8 @@ export const MAX_QUERY_CHARS = 400;
 const SEARCH_MAX_TOKENS = 300;
 const SUMMARY_MAX_TOKENS = 2048;
 const REQUEST_TIMEOUT_MS = 120_000;
+const THINKING_OFF = { type: "disabled" };
+const CLAUDE_CODE_IDENTITY = { type: "text", text: "You are Claude Code, Anthropic's official CLI for Claude." };
 
 export interface Worker {
   model: Model<Api>;
@@ -66,13 +68,18 @@ export async function resolveWorker(ctx: ExtensionContext): Promise<Worker> {
 }
 
 export function authHeaders(apiKey: string): Record<string, string> {
-  return apiKey.includes("sk-ant-oat") ? oauthHeaders(apiKey) : { "x-api-key": apiKey };
+  return isOAuth(apiKey) ? oauthHeaders(apiKey) : { "x-api-key": apiKey };
+}
+
+function isOAuth(apiKey: string): boolean {
+  return apiKey.includes("sk-ant-oat");
 }
 
 export function searchRequest(model: string, query: string): Record<string, unknown> {
   return {
     model,
     max_tokens: SEARCH_MAX_TOKENS,
+    thinking: THINKING_OFF,
     messages: [
       {
         role: "user",
@@ -87,6 +94,7 @@ export function summaryRequest(model: string, url: string, markdown: string, pro
   return {
     model,
     max_tokens: SUMMARY_MAX_TOKENS,
+    thinking: THINKING_OFF,
     system: [
       {
         type: "text",
@@ -164,7 +172,7 @@ export async function postMessages(worker: Worker, body: Record<string, unknown>
       ...authHeaders(worker.apiKey),
       ...worker.headers,
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify(isOAuth(worker.apiKey) ? withIdentity(body) : body),
   });
   const text = await response.text();
   if (response.status === 429) {
@@ -174,6 +182,11 @@ export async function postMessages(worker: Worker, body: Record<string, unknown>
     throw new Error(`Anthropic ${response.status}: ${text.slice(0, 300)}`);
   }
   return JSON.parse(text);
+}
+
+function withIdentity(body: Record<string, unknown>): Record<string, unknown> {
+  const system = Array.isArray(body.system) ? body.system : [];
+  return { ...body, system: [CLAUDE_CODE_IDENTITY, ...system] };
 }
 
 function contentBlocks(response: unknown): Array<Record<string, unknown>> {

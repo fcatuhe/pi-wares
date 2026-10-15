@@ -7,6 +7,7 @@ import {
   formatResults,
   parseSearchResults,
   parseText,
+  postMessages,
   resolveWorker,
   searchRequest,
   summaryRequest,
@@ -184,6 +185,29 @@ test("OAuth tokens go as Bearer with the OAuth beta and API keys in x-api-key, s
     "anthropic-beta": "oauth-2025-04-20",
   });
   assert.deepEqual(authHeaders("sk-ant-api03-abc"), { "x-api-key": "sk-ant-api03-abc" });
+});
+
+// From Haiku 5.5 on, a subscription request without Claude Code's identity block is refused as a bare 429 "Error".
+test("an OAuth request opens its system prompt with Claude Code's identity, an API key request is sent as built", async () => {
+  const sent: Record<string, unknown>[] = [];
+  stub((_url, init) => {
+    sent.push(JSON.parse(String(init?.body)));
+    return new Response(JSON.stringify({ content: [] }), { status: 200 });
+  });
+  const worker = (apiKey: string) => ({ model: haiku, apiKey, baseUrl: "https://api.anthropic.com" });
+  const summary = summaryRequest("claude-haiku-5-5", "https://x.example/a", "# Page", "List the prices.");
+  await postMessages(worker("sk-ant-oat01-abc"), searchRequest("claude-haiku-5-5", "zig"));
+  await postMessages(worker("sk-ant-oat01-abc"), summary);
+  await postMessages(worker("sk-ant-api03-abc"), summary);
+  const identity = { type: "text", text: "You are Claude Code, Anthropic's official CLI for Claude." };
+  assert.deepEqual(sent[0].system, [identity]);
+  assert.deepEqual(sent[1].system, [identity, ...(summary.system as unknown[])]);
+  assert.deepEqual(sent[2].system, summary.system);
+});
+
+test("both side calls turn thinking off, as Claude Code does, so the token cap goes to the search and the answer", () => {
+  assert.deepEqual(searchRequest("claude-haiku-5-5", "zig").thinking, { type: "disabled" });
+  assert.deepEqual(summaryRequest("claude-haiku-5-5", "https://x.example/a", "# Page", "List.").thinking, { type: "disabled" });
 });
 
 test("the billed worker is a preferred cheap model, else the cheapest anthropic one, never another provider", async () => {
