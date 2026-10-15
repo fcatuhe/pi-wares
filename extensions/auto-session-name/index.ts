@@ -40,10 +40,11 @@ export default function (pi: ExtensionAPI) {
         {
           messages: [{ role: "user", content: [{ type: "text", text: NAME_PROMPT(exchange) }], timestamp: Date.now() }],
         },
-        { maxTokens: MAX_REPLY_TOKENS },
+        { maxTokens: MAX_REPLY_TOKENS, effort: "low" },
       );
       const name = toSessionName(extractText(reply.content));
       if (name && !pi.getSessionName()) pi.setSessionName(name);
+      else pending = !pi.getSessionName();
     } catch {
       pending = !pi.getSessionName();
     }

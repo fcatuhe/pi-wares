@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import autoSessionName from "./index.ts";
 import { buildExchange, MAX_CHARS, toSessionName } from "./naming.ts";
 
 const user = { role: "user", content: [{ type: "text", text: "the auth token expires mid-session" }] };
@@ -36,4 +37,57 @@ test("a narrating model puts the label last, and four words are cut to three", (
 test("words drop, never characters, until one word is all that is left", () => {
   assert.equal(toSessionName("interoperability standardization council"), "interoperability");
   assert.ok(toSessionName("unmaintainable-internationalization-machinery").length <= MAX_CHARS);
+});
+
+type Reply = { stopReason: string; content: { type: string; text?: string; thinking?: string }[] };
+
+type Options = { maxTokens: number; effort?: string };
+
+function session(complete: (options: Options) => Reply) {
+  const handlers = new Map<string, (event: unknown, ctx?: unknown) => unknown>();
+  let name: string | undefined;
+  const pi = {
+    on: (event: string, handler: (event: unknown, ctx?: unknown) => unknown) => handlers.set(event, handler),
+    getSessionName: () => name,
+    setSessionName: (value: string) => {
+      name = value;
+    },
+  };
+  const ctx = {
+    hasUI: true,
+    sessionManager: { getBranch: () => [user, assistant].map((message) => ({ type: "message", message })) },
+    modelRegistry: {
+      getAvailable: () => [{ provider: "anthropic", id: "claude-haiku-5-5", cost: { input: 0.1 } }],
+      complete: async (_model: unknown, _context: unknown, options: Options) => complete(options),
+    },
+  };
+  autoSessionName(pi as never);
+  handlers.get("session_start")?.({}, ctx);
+  return {
+    settle: () => handlers.get("agent_settled")?.({}, ctx),
+    name: () => name,
+  };
+}
+
+// Haiku 5.5 cannot turn thinking off: at pi's default high effort it thinks about 200 tokens before naming, at low it answers in under 20.
+test("a model that thinks before it answers is asked for low effort, so the name fits the cap", async () => {
+  const run = session(({ maxTokens, effort }) =>
+    (effort === "low" ? 20 : 200) < maxTokens
+      ? { stopReason: "stop", content: [{ type: "text", text: "token-refresh" }] }
+      : { stopReason: "length", content: [{ type: "thinking", thinking: "..." }] },
+  );
+  await run.settle();
+  assert.equal(run.name(), "token-refresh");
+});
+
+test("a reply with no name in it leaves the session to be named on the next turn", async () => {
+  const replies: Reply[] = [
+    { stopReason: "length", content: [{ type: "thinking", thinking: "..." }] },
+    { stopReason: "stop", content: [{ type: "text", text: "token-refresh" }] },
+  ];
+  const run = session(() => replies.shift()!);
+  await run.settle();
+  assert.equal(run.name(), undefined);
+  await run.settle();
+  assert.equal(run.name(), "token-refresh");
 });
