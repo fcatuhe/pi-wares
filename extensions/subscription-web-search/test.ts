@@ -4,11 +4,13 @@ import type { Api, Model } from "@earendil-works/pi-ai";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
   authHeaders,
+  domainFilter,
   formatResults,
   parseSearchResults,
   parseText,
   postMessages,
   resolveWorker,
+  SUMMARY_MAX_TOKENS,
   searchRequest,
   summaryRequest,
   usageTokens,
@@ -123,19 +125,13 @@ ${"<p>call asyncio.run(main()) here</p>".repeat(5)}
 </article><footer><a href="/tos">Terms</a></footer></body></html>`;
 let markdown = "";
 
-test("only well-formed results survive, titles trimmed, and a null page_age dropped rather than printed", () => {
+test("only well-formed results survive, titles trimmed, one url and title per line as Claude Code keeps them", () => {
   const results = parseSearchResults(searchResponse);
   assert.deepEqual(results, [
-    { title: "0.16.0 Released", url: "https://ziglang.org/news/", pageAge: "1 day" },
+    { title: "0.16.0 Released", url: "https://ziglang.org/news/" },
     { title: "Zig downloads", url: "https://ziglang.org/download/" },
   ]);
-
-  const formatted = formatResults(results, 3210);
-  assert.match(formatted, /^2 results in 3\.2s$/m);
-  assert.match(formatted, /^ 1\. 0\.16\.0 Released \(1 day\)$/m);
-  assert.match(formatted, /^ {4}https:\/\/ziglang\.org\/news\/$/m);
-  assert.match(formatted, /^ 2\. Zig downloads$/m);
-  assert.match(formatted, /Read a result with webfetch\./);
+  assert.equal(formatResults(results), "https://ziglang.org/news/ 0.16.0 Released\nhttps://ziglang.org/download/ Zig downloads");
 });
 
 test("a turn that never called the server tool is a failure the caller must retry, not an empty result set", () => {
@@ -172,6 +168,23 @@ test("the query is tag-delimited rather than quoted, since a quoted phrase in it
   assert.match(JSON.stringify(request.messages), /<query>zig \\"0\.16\\"<\/query>/);
 });
 
+test("the search tool is forced, as Claude Code does, so the model cannot answer without searching", () => {
+  assert.deepEqual(searchRequest("claude-haiku-5-5", "zig").tool_choice, { type: "tool", name: "web_search" });
+});
+
+test("domain filters reach the search tool as Claude Code passes them: one kind at a time, empty lists dropped", () => {
+  const tool = (filter: object) => (searchRequest("claude-haiku-5-5", "zig", filter).tools as object[])[0];
+  assert.deepEqual(tool(domainFilter(["ziglang.org"], [])), {
+    type: "web_search_20250305",
+    name: "web_search",
+    max_uses: 1,
+    allowed_domains: ["ziglang.org"],
+  });
+  assert.deepEqual(domainFilter(undefined, ["spam.example"]), { blocked_domains: ["spam.example"] });
+  assert.deepEqual(domainFilter([], undefined), {});
+  assert.throws(() => domainFilter(["a.example"], ["b.example"]), /Cannot specify both allowed_domains and blocked_domains/);
+});
+
 test("an overloaded or rate-limited call is retried once, after the delay the API asks for", async () => {
   const statuses = [529, 200];
   stub(() => {
@@ -191,6 +204,14 @@ test("an API error is reported with its own type, message and request id, never 
   await assert.rejects(postMessages(worker, searchRequest("claude-haiku-5-5", "zig")), {
     message: "Anthropic 429 rate_limit_error: Error (req_1)",
   });
+});
+
+test("an answer stopped by the token cap says so, rather than passing for a complete one", () => {
+  assert.equal(parseText({ stop_reason: "end_turn", content: [{ type: "text", text: "all" }] }), "all");
+  assert.equal(
+    parseText({ stop_reason: "max_tokens", content: [{ type: "text", text: "half" }] }),
+    `half\n\n[Answer cut at ${SUMMARY_MAX_TOKENS} tokens. Ask for less.]`,
+  );
 });
 
 test("the summary request carries no tools, so it only reads what was fetched", () => {

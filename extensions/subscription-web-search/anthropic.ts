@@ -8,7 +8,7 @@ const ANTHROPIC_VERSION = "2023-06-01";
 const SEARCH_TOOL = { type: "web_search_20250305", name: "web_search", max_uses: 1 };
 export const MAX_QUERY_CHARS = 400;
 const SEARCH_MAX_TOKENS = 300;
-const SUMMARY_MAX_TOKENS = 2048;
+export const SUMMARY_MAX_TOKENS = 8192;
 const REQUEST_TIMEOUT_MS = 120_000;
 const RETRY_DELAY_MS = 500;
 const MAX_RETRY_DELAY_MS = 10_000;
@@ -33,20 +33,15 @@ export interface UsageTokens {
 export interface SearchResult {
   title: string;
   url: string;
-  pageAge?: string;
 }
 
-export function formatResults(results: SearchResult[], elapsedMs: number): string {
-  const lines = results.map((result, index) => {
-    const age = result.pageAge ? ` (${result.pageAge})` : "";
-    return `${String(index + 1).padStart(2)}. ${result.title}${age}\n    ${result.url}`;
-  });
-  const head = `${results.length} results in ${formatDuration(elapsedMs)}`;
-  return [head, "", ...lines, "", "Titles and URLs only. Read a result with webfetch."].join("\n");
+export interface DomainFilter {
+  allowed_domains?: string[];
+  blocked_domains?: string[];
 }
 
-export function formatDuration(ms: number): string {
-  return `${(ms / 1000).toFixed(1)}s`;
+export function formatResults(results: SearchResult[]): string {
+  return results.map((result) => `${result.url} ${result.title}`).join("\n");
 }
 
 export async function resolveWorker(ctx: ExtensionContext): Promise<Worker> {
@@ -78,7 +73,17 @@ function isOAuth(apiKey: string): boolean {
   return apiKey.includes("sk-ant-oat");
 }
 
-export function searchRequest(model: string, query: string): Record<string, unknown> {
+export function domainFilter(allowed: string[] | undefined, blocked: string[] | undefined): DomainFilter {
+  if (allowed?.length && blocked?.length) {
+    throw new Error("Cannot specify both allowed_domains and blocked_domains in the same request");
+  }
+  return {
+    ...(allowed?.length ? { allowed_domains: allowed } : {}),
+    ...(blocked?.length ? { blocked_domains: blocked } : {}),
+  };
+}
+
+export function searchRequest(model: string, query: string, filter: DomainFilter = {}): Record<string, unknown> {
   return {
     model,
     max_tokens: SEARCH_MAX_TOKENS,
@@ -89,7 +94,8 @@ export function searchRequest(model: string, query: string): Record<string, unkn
         content: `Use the web_search tool once, with the text between the tags as the whole query.\n<query>${query}</query>\nThen reply DONE.`,
       },
     ],
-    tools: [SEARCH_TOOL],
+    tools: [{ ...SEARCH_TOOL, ...filter }],
+    tool_choice: { type: "tool", name: SEARCH_TOOL.name },
   };
 }
 
@@ -130,11 +136,7 @@ export function parseSearchResults(response: unknown): SearchResult[] {
   const results: SearchResult[] = [];
   for (const item of content) {
     if (!isRecord(item) || typeof item.title !== "string" || typeof item.url !== "string") continue;
-    results.push({
-      title: item.title.trim(),
-      url: item.url,
-      ...(typeof item.page_age === "string" ? { pageAge: item.page_age } : {}),
-    });
+    results.push({ title: item.title.trim(), url: item.url });
   }
   if (results.length === 0) {
     throw new Error("The search returned no results. Retry with different terms.");
@@ -151,7 +153,8 @@ export function parseText(response: unknown): string {
   if (!text) {
     throw new Error("The model returned no text for this page.");
   }
-  return text;
+  const cut = isRecord(response) && response.stop_reason === "max_tokens";
+  return cut ? `${text}\n\n[Answer cut at ${SUMMARY_MAX_TOKENS} tokens. Ask for less.]` : text;
 }
 
 export function usageTokens(response: unknown): UsageTokens {

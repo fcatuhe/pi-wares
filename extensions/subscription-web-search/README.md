@@ -2,9 +2,9 @@
 
 Two tools, `websearch` and `webfetch`, that run on the Anthropic subscription pi is logged in with. No API key, no search vendor, no MCP server.
 
-`websearch` returns titles and URLs, no page text. `webfetch` fetches one URL, converts it to markdown and has a small model answer the prompt from it, so ask for the facts you need: the page itself never reaches the conversation. Both work whatever model the session runs.
+`websearch` returns one `url title` line per result, no page text, and takes Claude Code's `allowed_domains` or `blocked_domains`, never both. `webfetch` fetches one URL, converts it to markdown and has a small model answer the prompt from it, so ask for the facts you need: the page itself never reaches the conversation. Both work whatever model the session runs.
 
-Each call is a side request to `claude-haiku-5-5`, or the cheapest authenticated anthropic model by input cost when haiku is not on offer, and its tokens and cost are added to pi's totals. On the subscription, the system prompt opens with Claude Code's identity line, without which Haiku 5.5 and later answer a bare 429 `Error`, and thinking is off, as Claude Code sends both side calls. A search costs about a cent, a large page a few cents, where the same page in a frontier model's context costs dollars. The native `web_search` server tool stays out of the main request on purpose: it adds about 2.8k input tokens to every request, and pi drops its result blocks, so the model searches again on later turns.
+Each call is a side request to `claude-haiku-5-5`, or the cheapest authenticated anthropic model by input cost when haiku is not on offer, and its tokens and cost are added to pi's totals. On the subscription, the system prompt opens with Claude Code's identity line, without which Haiku 5.5 and later answer a bare 429 `Error`, and thinking is off, as Claude Code sends both side calls. The search tool is forced, as there, so the model cannot answer without searching. A search costs about a cent, a large page a few cents, where the same page in a frontier model's context costs dollars. The native `web_search` server tool stays out of the main request on purpose: it adds about 2.8k input tokens to every request, and pi drops its result blocks, so the model searches again on later turns.
 
 Fetching follows Claude Code 2.1.222's limits, so a page reads the same here as there:
 
@@ -21,6 +21,6 @@ Interactive pi leaves stdout to its TUI, so any library printing during conversi
 
 A transport failure names its cause (`ENOTFOUND`, a refused connection, an expired certificate) instead of undici's bare `fetch failed`, and is retried once after 250ms. Timeouts and aborts are never retried. The domain check times out at 10s, the model call at 120s. A model call refused with 429 or 529 is retried once, after the API's `retry-after` capped at 10s, else 500ms, and any other API error is reported with its own type, message and request id.
 
-A result opens with `8 results in 3.2s` or `Received 479.3KB (200 OK) in 24.1s`, timing the whole tool call.
+Only the model reads a result, so it carries what the model acts on and nothing else: no timing, no status, no counts. Claude Code's summary of the search results, its cite-your-sources reminder and its eight searches per call are left out for the same reason, since the model fetches what it needs and can search again. A page cut before reading opens with `[Page truncated before reading]`, and an answer that hits the 8192-token cap ends with a line saying so.
 
 Neither name has an underscore: pi-ai canonicalizes `websearch` to the first-party `WebSearch`, which the subscription transport accepts as is, where `web_search` would go out aliased by [`subscription-tool-alias`](../subscription-tool-alias/).

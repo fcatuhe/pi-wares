@@ -1,8 +1,8 @@
 import { type Api, calculateCost, type Model, Type, type Usage } from "@earendil-works/pi-ai";
-import { defineTool, type ExtensionAPI, formatSize } from "@earendil-works/pi-coding-agent";
+import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { stripTerminalSequences, Text } from "@earendil-works/pi-tui";
 import {
-  formatDuration,
+  domainFilter,
   formatResults,
   MAX_QUERY_CHARS,
   parseSearchResults,
@@ -39,15 +39,17 @@ export const websearch = defineTool({
       maxLength: MAX_QUERY_CHARS,
       description: "Search query, as you would type it into a search engine",
     }),
+    allowed_domains: Type.Optional(Type.Array(Type.String(), { description: "Only include search results from these domains" })),
+    blocked_domains: Type.Optional(Type.Array(Type.String(), { description: "Never include search results from these domains" })),
   }),
 
   async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-    const started = performance.now();
+    const filter = domainFilter(params.allowed_domains, params.blocked_domains);
     const worker = await resolveWorker(ctx);
-    const response = await postMessages(worker, searchRequest(worker.model.id, params.query), signal);
+    const response = await postMessages(worker, searchRequest(worker.model.id, params.query, filter), signal);
     const results = parseSearchResults(response);
     return {
-      content: [{ type: "text", text: formatResults(results, performance.now() - started) }],
+      content: [{ type: "text", text: formatResults(results) }],
       details: { query: params.query, results },
       usage: usageOf(worker.model, response),
     };
@@ -74,16 +76,14 @@ export const webfetch = defineTool({
   }),
 
   async execute(_toolCallId, params, signal, onUpdate, ctx) {
-    const started = performance.now();
     const worker = await resolveWorker(ctx);
     onUpdate?.({ content: [{ type: "text", text: `Fetching ${params.url}` }], details: {} });
     const page = await fetchPage(params.url, signal);
     const request = summaryRequest(worker.model.id, page.url, page.markdown, params.prompt);
     const response = await postMessages(worker, request, signal);
-    const cut = page.truncated ? ", truncated before reading" : "";
-    const head = `Received ${formatSize(page.bytes)} (${page.status} ${page.statusText}${cut}) in ${formatDuration(performance.now() - started)}`;
+    const answer = parseText(response);
     return {
-      content: [{ type: "text", text: `${head}\n\n${parseText(response)}` }],
+      content: [{ type: "text", text: page.truncated ? `[Page truncated before reading]\n\n${answer}` : answer }],
       details: { url: page.url, status: page.status, bytes: page.bytes, contentType: page.contentType },
       usage: usageOf(worker.model, response),
     };
