@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test extensions/*/test.ts extensions/policies/*/test.ts lib/test.ts",
+    "test": "node --test extensions/*/test.ts extensions/policies/*/test.ts skills/*/test.ts lib/test.ts",
     "format": "biome format --write ."
   },
   "dependencies": {

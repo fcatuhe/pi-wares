@@ -49,22 +49,25 @@ Everything runs in one headed browser on the profile `agent-browser`. Each agent
    agent-browser --session <you> --cdp "$CDP" snapshot -i
    ```
 
-   `<you>` is your own name for this task, `hire-friedbert` or `docs-review`, never one already in `session list`: the session owns the tab, so two agents on one name overwrite each other. `--pin-tab` on the first command starts a fresh tab. Without it you adopt whatever tab is there, the keeper or another agent's page. A later command without `--cdp` launches a second Chrome instead of attaching: it collides with the locked profile, exits, and leaves a stray keeper tab.
+   `<you>` is your own name for this task, `hire-friedbert` or `docs-review`, never one already in `session list`: the session owns the tab, so two agents on one name overwrite each other. `--pin-tab`, which `config.json` also sets, gives a new session a fresh tab of its own. Without it you adopt whatever tab is there, the keeper or another agent's page. A later command without `--cdp` launches a second Chrome instead of attaching: it collides with the locked profile, exits, and leaves stray keeper tabs.
 
-3. Close your tab when the task ends. Not optional, the browser is shared:
+   A session's first command opens its tab, whatever that command is, so make it `open <url>` and never start a session only to look around. To see the tabs without opening one, list them with the session that owns each, `(keeper)` for the keeper and `(none)` for a tab left behind:
 
    ```bash
-   agent-browser --session <you> --cdp "$CDP" tab close
-   agent-browser --session <you> --cdp "$CDP" close
-   dir=${XDG_RUNTIME_DIR:+$XDG_RUNTIME_DIR/agent-browser}
-   rm -f "${dir:-$HOME/.agent-browser}"/<you>.*
+   ~/.pi/agent/git/github.com/fcatuhe/pi-wares/skills/agent-browser/tabs.sh
    ```
 
-   `close` detaches only your session, the browser and the other agents survive. The `rm` clears the session state it leaves, since a stale `.target` rebinds your next command to a dead tab. That state lives in `$XDG_RUNTIME_DIR/agent-browser`, or in `~/.agent-browser` where `XDG_RUNTIME_DIR` is unset, as on macOS.
+3. Leave when the task ends. Not optional, the browser is shared:
+
+   ```bash
+   ~/.pi/agent/git/github.com/fcatuhe/pi-wares/skills/agent-browser/leave.sh <you>
+   ```
+
+   It closes your tab, detaches your session over `--cdp` and clears the state the session leaves, since a stale `.target` rebinds your next command to a dead tab. The browser and the other agents survive. Never leave with a bare `close`: it keeps your tab open and, without `--cdp`, launches a second Chrome.
 
 ## Rules
 
-- Never `close --all`. Never close a session or tab you did not open, keeper tab included.
+- Never `close --all`. Never close a session or tab you did not open, keeper tab included. A `(none)` tab in `tabs.sh` belongs to no one: tell the user, do not close it.
 - Use the `agent-browser` session for step 1 only. It owns the browser process, `--cdp` on it hangs, and navigating with it acts on the last opened tab, possibly another agent's.
 - Never pass `--profile`, `--restore`, `--headed`, `--executable-path` or `--args`. They live in `config.json`, and a different flag set relaunches the browser under everyone.
 - **Never `--restore` on a profile.** The stale auth store overwrites the live cookies on launch and logs the profile out.
@@ -77,5 +80,5 @@ Everything runs in one headed browser on the profile `agent-browser`. Each agent
 
 - Two agents starting the browser in the same second both fail with a daemon startup error. Wait a second and retry, one of them has it up by then.
 - `tab_gone`, or CDP connect refused: your tab or the window went away. Re-run step 1, then `agent-browser --session <you> --cdp "$CDP" tab new <url>` to rebind.
-- A command hangs with no output: your session daemon is wedged. Kill the pid in `<you>.pid` from the state directory of step 3, remove `<you>.*` there, redo step 2. Never kill another session's daemon.
+- A command hangs with no output: your session daemon is wedged. Kill the pid in `<you>.pid` and rerun the command: a fresh daemon reattaches to your tab. The state directory is `$XDG_RUNTIME_DIR/agent-browser`, or `~/.agent-browser` where `XDG_RUNTIME_DIR` is unset, as on macOS. Never kill another session's daemon, and never remove `<you>.*` by hand: without its `.target`, your tab is left open with no owner.
 - `read <url>` fetches outside the browser with no profile cookies, so a logged-in site returns a login page or an error (LinkedIn: HTTP 999). Use `open`, then `get text` or `snapshot`.
