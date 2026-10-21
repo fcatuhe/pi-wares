@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync } from "node:fs";
+import { existsSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -82,6 +82,30 @@ test("git wt checks out a new or existing branch in ~/fcode/worktrees/<repo>/<br
   assert.notEqual(slash.status, 0);
   assert.match(slash.stderr, /no \/ in the branch/);
   assert.equal(existsSync(join(home, "fcode", "worktrees", "app", "feat")), false);
+});
+
+test("git wt branches from a fresh origin/HEAD whatever the main checkout holds, and tracks nothing so the first push sets the upstream", () => {
+  const home = mkdtempSync(join(tmpdir(), "policy-git-home-"));
+  const upstream = join(home, "upstream");
+  const repo = join(home, "fcode", "app");
+  const env = { ...process.env, HOME: home, GIT_CONFIG_GLOBAL: join(import.meta.dirname, "../../../config/git/config") };
+  const git = (cwd: string, ...args: string[]) => execFileSync("git", args, { cwd, env, encoding: "utf8" }).trim();
+  const commit = (cwd: string, message: string) => git(cwd, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", message);
+  execFileSync("git", ["init", "-q", "-b", "main", upstream]);
+  commit(upstream, "init");
+  execFileSync("git", ["clone", "-q", upstream, repo]);
+  git(repo, "checkout", "-q", "-b", "feat-elsewhere");
+  writeFileSync(join(repo, "wip.txt"), "uncommitted");
+  commit(upstream, "landed on main after the clone");
+
+  const fresh = git(repo, "wt", "feat-fresh");
+  assert.equal(git(fresh, "log", "-1", "--format=%s"), "landed on main after the clone");
+  assert.equal(existsSync(join(fresh, "wip.txt")), false);
+  assert.equal(spawnSync("git", ["rev-parse", "--abbrev-ref", "feat-fresh@{upstream}"], { cwd: repo, env }).status, 128);
+
+  const based = git(repo, "wt", "feat-based", "origin/main");
+  assert.equal(git(based, "log", "-1", "--format=%s"), "landed on main after the clone");
+  assert.equal(spawnSync("git", ["rev-parse", "--abbrev-ref", "feat-based@{upstream}"], { cwd: repo, env }).status, 128);
 });
 
 test("git worktree add is refused in favour of git wt, which owns the worktree directory", () => {
