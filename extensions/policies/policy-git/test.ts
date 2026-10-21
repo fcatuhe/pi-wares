@@ -108,6 +108,24 @@ test("git wt branches from a fresh origin/HEAD whatever the main checkout holds,
   assert.equal(spawnSync("git", ["rev-parse", "--abbrev-ref", "feat-based@{upstream}"], { cwd: repo, env }).status, 128);
 });
 
+test("git wt checks out a branch that exists only on origin, tracking it, rather than starting a new one", () => {
+  const home = mkdtempSync(join(tmpdir(), "policy-git-home-"));
+  const upstream = join(home, "upstream");
+  const repo = join(home, "fcode", "app");
+  const env = { ...process.env, HOME: home, GIT_CONFIG_GLOBAL: join(import.meta.dirname, "../../../config/git/config") };
+  const git = (cwd: string, ...args: string[]) => execFileSync("git", args, { cwd, env, encoding: "utf8" }).trim();
+  const commit = (cwd: string, message: string) => git(cwd, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", message);
+  execFileSync("git", ["init", "-q", "-b", "main", upstream]);
+  commit(upstream, "init");
+  execFileSync("git", ["clone", "-q", upstream, repo]);
+  git(upstream, "checkout", "-q", "-b", "docs-pushed-elsewhere");
+  commit(upstream, "pushed from another machine");
+
+  const checkedOut = git(repo, "wt", "docs-pushed-elsewhere");
+  assert.equal(git(checkedOut, "log", "-1", "--format=%s"), "pushed from another machine");
+  assert.equal(git(repo, "rev-parse", "--abbrev-ref", "docs-pushed-elsewhere@{upstream}"), "origin/docs-pushed-elsewhere");
+});
+
 test("git worktree add is refused in favour of git wt, which owns the worktree directory", () => {
   for (const command of ["git worktree add ../app-x -b feat-x", "git -C ~/fcode/app worktree add /tmp/x main"]) {
     assert.match(refusal(command)?.reason ?? "", /git wt <type>-<slug>/, command);

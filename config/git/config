@@ -5,9 +5,9 @@
 		case $branch in ''|-*|*/*) echo 'usage: git wt <type>-<slug> [base], no / in the branch' >&2; return 1;; esac; \
 		main=$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\") || return 1; \
 		dir=$HOME/fcode/worktrees/$(basename \"$main\")/$branch; \
-		if git show-ref --verify --quiet \"refs/heads/$branch\"; then git worktree add --quiet \"$dir\" \"$branch\"; \
+		if git remote get-url origin >/dev/null 2>&1; then git fetch --quiet origin >&2 || return 1; fi; \
+		if git show-ref --verify --quiet \"refs/heads/$branch\" || git show-ref --verify --quiet \"refs/remotes/origin/$branch\"; then git worktree add --quiet \"$dir\" \"$branch\"; \
 		else \
-			if git remote get-url origin >/dev/null 2>&1; then git fetch --quiet origin >&2 || return 1; fi; \
 			base=${2:-HEAD}; \
 			if [ -z \"$2\" ] && git rev-parse --verify --quiet refs/remotes/origin/HEAD >/dev/null; then base=origin/HEAD; fi; \
 			git worktree add --quiet --no-track -b \"$branch\" \"$dir\" \"$base\"; \
