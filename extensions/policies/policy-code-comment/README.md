@@ -8,7 +8,7 @@ Code comment policy refused 2 comments in extensions/thing/index.ts:
     // walks the chain down to the reason a reader can act on
   38 words, over the 25-word budget:
     // INFO: fc 22aug26 undici reports every transport failure as TypeError "fetch failed" and hangs...
-Send the call again without them. A fact code cannot express is one tagged line inside the budget, the rest is the README's.
+Send the call again without them. Write a fact the code cannot show as one plain tagged sentence of at most 25 words. Anything longer goes in the README.
 ```
 
 The check refuses untagged prose, a malformed tag, a note over budget, a second consecutive comment line, and commented-out code. In a test file, one with `test` or `spec` in its directory or file name, one untagged line passes.

@@ -84,7 +84,7 @@ export function refusal(path: string, offences: Offence[]): { block: true; reaso
       `Code comment policy refused ${counted(offences.length)} in ${path}:`,
       ...listed,
       ...(rest > 0 ? [`  and ${counted(rest)} more.`] : []),
-      "Send the call again without them. A fact code cannot express is one tagged line inside the budget, the rest is the README's.",
+      `Send the call again without them. Write a fact the code cannot show as one plain tagged sentence of at most ${BUDGET_WORDS} words. Anything longer goes in the README.`,
     ].join("\n"),
   };
 }

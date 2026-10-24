@@ -25,6 +25,22 @@ Per-task totals are dominated by bold-led bullets, which the policy does not add
 
 ## Results
 
+### claude-opus-5-5, high, 24oct26
+
+This run checks the policy after its rewrite in plain English, with full sentences instead of fragments. The other policies were rewritten the same way, so the `none` column changed too. 15 tasks, 3 replies each.
+
+| Tell | none | policy |
+|---|---|---|
+| dash, arrow, smart quote, semicolon, `---` | 44 | 0 |
+| filler adverb | 7 | 0 |
+| possessive inversion, slogan pair, buzz label | 7 | 0 |
+| mirrored halves | 5 | 3 |
+| bullet led by a bold term | 130 | 70 |
+| chat reply opening on a heading or label | 4/15 | 0/15 |
+| mean words | 317 | 255 |
+
+The rewrite kept every result of the 23oct26 run. The three mirrored halves left with the policy are real lists, such as `their services, their alerts` and `your data, your models and your audit logs`. The one service closer, `I can also adapt to your schedule`, belongs to a meeting request.
+
 ### claude-opus-5-5, high, 23oct26
 
 The first run after adding the rules from a slide deck review (actor first, one statement per heading, no recap, no buzz label) and the five B2B tasks. Four tells were added for them. 15 tasks, 3 replies each.

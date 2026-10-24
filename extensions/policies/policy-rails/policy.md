@@ -1,21 +1,21 @@
 # Rails policy
 
-Ruby 4, Rails 8.1 or later, Hotwire, Importmap, Propshaft, Solid Trifecta, Minitest. When in doubt, check the [Rails guides](https://guides.rubyonrails.org/) and [Code I Like](https://dev.37signals.com/series/code-i-like/).
+The stack is Ruby 4, Rails 8.1 or later, Hotwire, Importmap, Propshaft, the Solid Trifecta and Minitest. When in doubt, check the [Rails guides](https://guides.rubyonrails.org/) and [Code I Like](https://dev.37signals.com/series/code-i-like/).
 
 ## Convention over configuration
 
-- **Generators first.** `bin/rails g model|controller|migration|job|mailer`. Do not hand-write what Rails generates.
-- **Migration version bracket.** The app's Rails version from `Gemfile.lock`, `ActiveRecord::Migration[8.1]` on 8.1, never bare.
-- **Naming.** Models singular (`User`), controllers plural (`UsersController`), tables plural (`users`), foreign keys `user_id`, join tables alphabetical (`groups_users`).
-- Config through credentials or `config.x`, never `ENV["X"]` read at the call site.
+- **Use generators first:** `bin/rails g model|controller|migration|job|mailer`. Do not hand-write what Rails generates.
+- **Put the Rails version in the migration bracket.** Take it from `Gemfile.lock`, such as `ActiveRecord::Migration[8.1]` on 8.1. Never leave the bracket out.
+- **Follow Rails naming.** Models are singular (`User`), controllers plural (`UsersController`) and tables plural (`users`). Foreign keys are `user_id`, and join tables are alphabetical (`groups_users`).
+- Read config from credentials or `config.x`, never from `ENV["X"]` at the call site.
 
 ## Controllers
 
-- **CRUD only.** `index`, `show`, `new`, `create`, `edit`, `update`, `destroy`. An action that maps to none of them is a new resource, not a custom action.
-- **Controllers talk to models directly.** Plain Active Record for simple cases, an intention-revealing model method for complex ones: `@bundle.deliver`.
-- **Strong params** in a private method, always `require().permit()`.
-- `form_with`, never `form_for` or `form_tag`.
-- `redirect_to` after a mutation, `render` on validation failure.
+- **Use CRUD actions only:** `index`, `show`, `new`, `create`, `edit`, `update` and `destroy`. An action that fits none of them is a new resource, not a custom action.
+- **Call models directly from controllers.** Use plain Active Record for simple cases, and a model method that names the intent for complex ones: `@bundle.deliver`.
+- Put **strong params** in a private method, and always use `require().permit()`.
+- Use `form_with`, never `form_for` or `form_tag`.
+- Call `redirect_to` after a change, and `render` when validation fails.
 
 ```ruby
 # no: custom action
@@ -31,13 +31,13 @@ end
 
 ## Models
 
-- **Rich models.** All business logic lives in models, persistence and domain blended. No service objects, no `app/services/`, no interactors. The caller always sees the model: `mail_account.collect_now`, not `MailAccountCollectionService.new(mail_account).call`.
-- **POROs belong in `app/models/` too.** Form objects, value objects, operation objects are domain models without a table.
-- Validations in models, never in controllers.
-- Scopes for reusable queries, class methods for complex ones.
-- Enums for any fixed set of values. String-backed: string column, `.index_by(&:itself)`, `suffix:` or `prefix:` when it reads better.
-- `encrypts :field` for sensitive attributes.
-- No raw SQL. Active Record query interface, Arel when it is not enough.
+- **Keep models rich.** Put all business logic in models, mixing persistence and domain. Do not write service objects, `app/services/` or interactors. Callers always call the model: `mail_account.collect_now`, not `MailAccountCollectionService.new(mail_account).call`.
+- **Put POROs in `app/models/` too.** Form objects, value objects and operation objects are domain models without a table.
+- Put validations in models, never in controllers.
+- Use scopes for reusable queries and class methods for complex ones.
+- Use an enum for any fixed set of values. Back it with a string column and `.index_by(&:itself)`, and add `suffix:` or `prefix:` when it reads better.
+- Use `encrypts :field` for sensitive attributes.
+- Do not write raw SQL. Use the Active Record query interface, and Arel when that is not enough.
 
 ```ruby
 add_column :posts, :status, :string, null: false
@@ -46,88 +46,88 @@ enum :status, %w[draft published archived].index_by(&:itself), suffix: true
 
 ### Concerns
 
-Two kinds: shared across models in `app/models/concerns/` (`Taggable`), model-specific in `app/models/<model>/` (`MailAccount::Collecting`).
+Put concerns shared across models in `app/models/concerns/` (`Taggable`), and concerns for one model in `app/models/<model>/` (`MailAccount::Collecting`).
 
-- Every concern has genuine "has trait" or "acts as" semantics, one cohesive responsibility. Not a bucket for leftovers.
-- The model file is mostly declarations: associations, validations, scopes, includes.
-- Complex operations delegate from the concern to a PORO. The model is a facade over a subsystem.
-- A thin concern can be a gateway onto composed POROs: `user.notifications.granularity.choice`.
+- Give each concern one responsibility: a real trait, something the model "has" or "acts as". Never use a concern as a place for leftovers.
+- Make the model file mostly declarations: associations, validations, scopes and includes.
+- Hand complex operations from the concern to a PORO, so the model stays a facade over a subsystem.
+- A thin concern can give access to a group of POROs: `user.notifications.granularity.choice`.
 
 ### Callbacks
 
-- Callback decides whether work is needed, then a job does the work. Never block the request.
-- Two steps: `after_save` to inspect dirty attributes inside the transaction, `after_commit` to trigger work after it. Prefer `after_create_commit` and friends for specificity.
-- Every callback system needs an opt-out for imports, copies and seeds: `Mention::Eavesdropper.suppressed { import_old_data }`.
+- In a callback, decide whether work is needed, then hand the work to a job. Never block the request.
+- Use `after_save` to inspect changed attributes inside the transaction, and `after_commit` to start work after it. Prefer the specific forms, such as `after_create_commit`.
+- Give every callback system a way to turn it off for imports, copies and seeds: `Mention::Eavesdropper.suppressed { import_old_data }`.
 
 ### Current
 
-`Current` holds request-scoped context (account, user, request details) instead of threading it through five layers. Keep it small.
+Keep request context, such as the account, the user and request details, in `Current` instead of passing it through five layers. Keep `Current` small.
 
 ## Associations
 
 - Declare both sides.
-- `dependent:` on every `has_many` and `has_one`: `destroy`, `delete_all`, `nullify`, or `restrict_with_error`.
-- `has_many :through`, never `has_and_belongs_to_many`.
+- Set `dependent:` on every `has_many` and `has_one`: `destroy`, `delete_all`, `nullify` or `restrict_with_error`.
+- Use `has_many :through`, never `has_and_belongs_to_many`.
 
 ## Migrations
 
-- One concern per migration. Never mix table creation with data manipulation.
-- Reversible: `change`, or `up`/`down`. Test the rollback.
-- Index foreign keys and anything you query.
+- Give each migration one concern. Never mix creating a table with changing data.
+- Make migrations reversible with `change`, or with `up` and `down`. Test the rollback.
+- Index foreign keys and every column you query.
 - Never edit a migration that has been pushed. Write a new one.
 
 ## Routes
 
-- `resources` and `resource`, not hand-written `get`/`post`.
-- One level of nesting. Shallow nesting once the child has its own identity.
-- `only:` / `except:` to limit what is exposed.
-- Singular `resource` for things that exist once per user: session, settings, profile.
+- Use `resources` and `resource`, not hand-written `get` and `post`.
+- Nest one level at most. Use shallow nesting once the child has its own identity.
+- Use `only:` or `except:` to limit what is exposed.
+- Use singular `resource` for things that exist once per user, such as a session, settings or a profile.
 
 ## Jobs
 
-Shallow jobs: `perform` calls a model method, the logic stays in the model. `_later` enqueues, `_now` executes.
+Keep jobs shallow. Have `perform` call a model method, and keep the logic in the model. Name the method that enqueues the job `<verb>_later`, and the one that runs it now `<verb>_now`.
 
 ## Scripts
 
-Everything around the app is Ruby: setup, CI, one-offs, data fixes. No bash, no Python, no Node. Exception: the shipped `bin/dev` and `bin/docker-entrypoint`, which run before Ruby is usable.
+Write everything around the app in Ruby, including setup, CI, one-off scripts and data fixes. Do not use bash, Python or Node. The only exceptions are the shipped `bin/dev` and `bin/docker-entrypoint`, which run before Ruby is usable.
 
-- Logic lives in a class under `lib/`. The entry point only parses `ARGV` and calls it.
-- Needs Rails loaded: `lib/tasks/*.rake`, run as `bin/rails sitemap:check`. Does not: `bin/`, `#!/usr/bin/env ruby`, booting gems only.
-- Expose a simple script both ways, `bin/smart_quotes find` and `rake smart_quotes:find`, so CI can call the fast one.
+- Put the logic in a class under `lib/`. Keep the entry point to parsing `ARGV` and calling that class.
+- Write a script that needs Rails as a rake task in `lib/tasks/*.rake`, run as `bin/rails sitemap:check`. Put a script that does not need Rails in `bin/` with `#!/usr/bin/env ruby`, and load only its gems.
+- Expose a simple script both ways, as `bin/smart_quotes find` and `rake smart_quotes:find`, so CI can call the fast one.
 
 ## Views
 
-- Partials for reuse, prefixed `_`, locals passed explicitly. No instance variables in partials.
-- View logic in helpers, not in templates and not in models.
-- Turbo Frames for partial updates, Turbo Streams for multi-target updates, Stimulus for behavior.
+- Use partials for reuse. Name them with a `_` prefix and pass locals explicitly. Never use instance variables in partials.
+- Put view logic in helpers, not in templates or models.
+- Use Turbo Frames for partial updates, Turbo Streams to update several targets, and Stimulus for behavior.
 
 ## Tests
 
-- Minitest and fixtures. No RSpec, no FactoryBot, no mocks, no stubs, no production code bent to be testable.
-- External HTTP is the one exception: VCR cassettes over WebMock, recorded once against the real service, replayed everywhere else. Never hand-write a response stub.
-- Webhooks enter through the front door: an integration test posts a signed request (`post_stripe_webhook`), with `vcr_stripe_webhook` driving the real Stripe CLI at record time.
-- Hit the real database, let callbacks run, render real views. Half a second for a model test is fine.
-- Fixtures are a shared world of characters to pull from. Objects specific to one test are created inline.
+- Use Minitest and fixtures. Do not use RSpec, FactoryBot, mocks or stubs, and do not bend production code to make it testable.
+- External HTTP is the one exception. Use VCR cassettes on top of WebMock: record them once against the real service, then replay them everywhere else. Never hand-write a response stub.
+- Test webhooks the way they arrive: post a signed request from an integration test (`post_stripe_webhook`). At record time, `vcr_stripe_webhook` drives the real Stripe CLI.
+- Use the real database, let callbacks run and render real views. A model test that takes half a second is fine.
+- Fixtures are a shared cast of characters that any test can use. Create objects that only one test needs inside that test.
 - Test one aspect, not one assertion. Two to four assertions per test is normal. `assert` and `assert_equal` cover almost everything.
-- Controller tests are integration tests: request, response, HTML assertion.
-- Mirror the app tree: `app/models/user.rb` to `test/models/user_test.rb`, `Recording::Lockable` to `test/models/recording/lock_test.rb`.
-- System tests with Capybara for user flows that need JS.
+- Write controller tests as integration tests: send a request and assert on the response HTML.
+- Mirror the app tree: `app/models/user.rb` is tested in `test/models/user_test.rb`, and `Recording::Lockable` in `test/models/recording/lock_test.rb`.
+- Write system tests with Capybara for user flows that need JS.
 
 ## Authentication
 
-`bin/rails generate authentication`: `has_secure_password`, `Session` model, `Current.user`. Do not roll your own. Do not add Devise.
+Run `bin/rails generate authentication`, which gives you `has_secure_password`, a `Session` model and `Current.user`. Do not build your own, and do not add Devise.
 
 ## Frontend
 
-- Importmap. No Node, no bundler.
-- Propshaft. No Sprockets, so no `application.css` manifest and no CSS `@import`, which fails silently.
-- `stylesheet_link_tag :app` bulk-loads `app/assets/stylesheets/`, one `<link>` per file.
-- Declare the `@layer` order in `_global.css`, which sorts first.
+- Use Importmap, with no Node and no bundler.
+- Use Propshaft, not Sprockets. Do not write an `application.css` manifest or a CSS `@import`, because `@import` fails silently.
+- `stylesheet_link_tag :app` loads every file in `app/assets/stylesheets/`, with one `<link>` per file.
+- Declare the `@layer` order in `_global.css`, which loads first.
 
 ## Ruby style
 
-- Two-space indent, double quotes, `%i[]` and `%w[]`, hash shorthand `{ x:, y: }`, endless methods for one-liners.
-- **Expanded conditionals over guard clauses.** A guard is fine only at the very top of a method whose body is several lines.
+- Indent with two spaces. Use double quotes, `%i[]` and `%w[]`, hash shorthand `{ x:, y: }`, and endless methods for one-liners.
+- **Prefer expanded conditionals to guard clauses.** A guard is fine only at the very top of a method whose body is several lines long.
 
 ```ruby
 # no
@@ -142,7 +142,7 @@ else
 end
 ```
 
-- **Method order in a class:** class methods, then public with `initialize` first, then private.
-- **No newline under a visibility modifier**, indent what follows it. A module that is entirely private marks `private` at the top, adds a blank line, and does not indent.
-- **`!` only for a method that has a counterpart without it.** Not a marker for destructive.
-- `Rails.logger.debug`, never `puts` or `p`, for debugging.
+- **Order methods in a class** this way: class methods, then public methods with `initialize` first, then private methods.
+- **Leave no blank line under a visibility modifier**, and indent the methods that follow it. In a module that is entirely private, put `private` at the top, add a blank line, and do not indent.
+- **Use `!` only on a method that also has a version without it.** Do not use `!` to mark a destructive method.
+- Debug with `Rails.logger.debug`, never with `puts` or `p`.

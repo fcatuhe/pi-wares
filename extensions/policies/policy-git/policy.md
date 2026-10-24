@@ -2,32 +2,32 @@
 
 ## Never commit or push unless told to
 
-- No `commit`, no `push` without an explicit instruction in the current turn. Green tests, a finished feature, a tidy tree: none of those is permission. Stage the work as described below and say it is ready.
-- Permission is spent once: it covers the commits named in that instruction, not the next batch. In doubt, ask, in one line.
-- One exception: a CI-fix loop the owner asked for covers every push needed to get that run green.
+- Never `commit` or `push` unless the owner tells you to in the current turn. Passing tests, a finished feature or a clean tree do not count as permission. Stage the work as described below and say it is ready.
+- Permission covers only the commits named in that instruction, not the next batch. If in doubt, ask in one line.
+- One exception: when the owner asks you to fix CI, you may push as often as needed to make the run pass.
 
 ## Branch and staging
 
-- Branch as the repo asks (AGENTS.md, CONTRIBUTING, protected branches), before the first edit, then pull request and the owner merges. No such rule: work on and push to `main`.
-- A branch name has no `/`: `<type>-<slug>`, as in `feat-exempt-user-role`.
-- A worktree comes from `git wt <type>-<slug> [base]`, or from `herdr_worktree_jump`, both landing in `~/fcode/worktrees/<repo>/<branch>`. Never `git worktree add`.
-- In a new worktree, run the repo's setup as its AGENTS.md says, before anything else: it links what git leaves behind, such as `config/master.key`.
-- `git wt` missing: ask the owner, then `git config --global --add include.path ~/.pi/agent/git/github.com/fcatuhe/pi-wares/config/git/config`.
-- First pass done: stage the files you touched, and only those. Another agent may be working in the same tree. Staged is a review baseline, not a commit.
-- Everything after that stays unstaged: follow-ups, review fixes, second thoughts. The unstaged diff is the owner's view of what changed since the baseline.
-- Stage again only once the owner says they have seen the diff.
+- If the repo asks for branches (AGENTS.md, CONTRIBUTING, protected branches), create one before the first edit, then open a pull request for the owner to merge. Otherwise, work on `main` and push to it.
+- Name a branch `<type>-<slug>`, with no `/`, as in `feat-exempt-user-role`.
+- Create a worktree with `git wt <type>-<slug> [base]` or with `herdr_worktree_jump`. Both put it in `~/fcode/worktrees/<repo>/<branch>`. Never use `git worktree add`.
+- In a new worktree, run the repo's setup first, as its AGENTS.md describes. The setup links files that git does not track, such as `config/master.key`.
+- If `git wt` is missing, ask the owner, then run `git config --global --add include.path ~/.pi/agent/git/github.com/fcatuhe/pi-wares/config/git/config`.
+- When the first pass is done, stage the files you touched, and only those. Another agent may be working in the same tree. The staged state is a baseline for review, not a commit.
+- Leave everything after that unstaged, such as follow-ups, review fixes and second thoughts. The unstaged diff shows the owner what changed since the baseline.
+- Stage again only after the owner says they have seen the diff.
 
 ## Commits
 
-- Conventional Commits, types `feat|fix|ui|content|refactor|test|docs|perf|infra|deps`.
-- One concern per commit. Small, reviewable diffs.
-- English for everything in the repo and on GitHub: commits, branches, PRs, issues, reviews. Translated site content is content, not repo prose.
+- Write Conventional Commits with the types `feat|fix|ui|content|refactor|test|docs|perf|infra|deps`.
+- Keep one concern per commit, in a small diff that is easy to review.
+- Write everything in the repo and on GitHub in English, including commits, branches, PRs, issues and reviews. Keep translated site content in its own language.
 
 ## Safety
 
-- No destructive operation without consent: `reset --hard`, `clean`, `rm`, force push, branch deletion, history rewrite.
+- Never run a destructive operation without consent, such as `reset --hard`, `clean`, `rm`, a force push, deleting a branch or rewriting history.
 
 ## GitHub
 
-- Given an issue, PR or CI run URL, use `gh`, never web search. PR review comments: `gh api .../comments --paginate`.
-- Opening a PR, or writing its title or description: read the `pull-request` skill first.
+- For an issue, PR or CI run URL, use `gh`, never a web search. Read PR review comments with `gh api .../comments --paginate`.
+- Before you open a PR or write its title or description, read the `pull-request` skill.
