@@ -27,3 +27,7 @@ directory = "~/fcode/worktrees"
 [ui]
 prompt_new_tab_name = false
 pane_scrollbars = false
+
+# A blank row between spaces in the sidebar, so each space reads as its own block
+[ui.sidebar.spaces]
+row_gap = 1
