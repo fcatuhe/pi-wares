@@ -11,9 +11,9 @@ node extensions/policies/policy-writing/eval/eval.ts run --model anthropic/claud
 node extensions/policies/policy-writing/eval/eval.ts score /tmp/policy-writing-eval-XXXXXX
 ```
 
-`run` prints the tables below and the directory that holds every reply. `score` recounts a directory, for a tell added after the run. The defaults make 60 pi calls, about 6 minutes. Each call runs in a fresh copy of [`eval/fixture/`](./eval/fixture/) with `git init`, so `policy-git` loads and the code task has a file to edit. `subscription-tool-alias` is loaded too, so an Anthropic subscription accepts the call.
+`run` prints the tables below and the directory that holds every reply. `score` recounts a directory, for a tell added after the run. The defaults make 90 pi calls, about 10 minutes. Each call runs in a fresh copy of [`eval/fixture/`](./eval/fixture/) with `git init`, so `policy-git` loads and the code task has a file to edit. `subscription-tool-alias` is loaded too, so an Anthropic subscription accepts the call.
 
-The tasks cover a concept question, a trade-off, a stack trace, a code change with tools, a commit message, a README, a code review, a PR body, landing page copy and an outbound email.
+The tasks cover a concept question, a trade-off, a stack trace, a code change with tools, a commit message, a README, a code review, a PR body, landing page copy and an outbound email. Five B2B tasks, where slogans and ownership framings show up most, cover a pitch deck, a product sheet, an internal announcement, a LinkedIn post and a proposal summary.
 
 How to read a run:
 
@@ -24,6 +24,29 @@ How to read a run:
 Per-task totals are dominated by bold-led bullets, which the policy does not address, so read the tell table first.
 
 ## Results
+
+### claude-opus-5-5, high, 23oct26
+
+The first run after adding the rules from a slide deck review (actor first, one statement per heading, no recap, no buzz label) and the five B2B tasks. Four tells were added for them. 15 tasks, 3 replies each.
+
+| Tell | none | policy |
+|---|---|---|
+| possessive inversion | 3 | 0 |
+| slogan pair heading | 2 | 0 |
+| mirrored halves | 13 | 1 |
+| buzz label | 1 | 0 |
+| dash, arrow, semicolon, `---` | 40 | 0 |
+| filler adverb | 8 | 1 |
+| emoji | 6 | 0 |
+| bullet led by a bold term | 134 | 70 |
+| chat reply opening on a heading or label | 5/15 | 2/15 |
+| mean words | 303 | 249 |
+
+- **Kept:** the four new rules. The B2B tasks produced `Your engineers' rules stay yours`, `You built the platform. Don't route around it.`, `your data, your models` and `data-driven` without the policy, and none of them with it. The one mirrored pair left, `their services, their alerts`, lists what product teams own.
+- **Unmeasured:** recaps have no tell.
+- **Detector noise:** both chat openings flagged with the policy are whole bold sentences that carry the answer, not labels.
+- **Side effect:** with the policy, every landing heading opens on `Tally` plus a verb: plainer and repetitive.
+- **Totals:** the B2B tasks came out shorter with the policy, proposal 370 to 165 words, onepager 281 to 186.
 
 ### claude-opus-5-5, high, 29sep26
 
