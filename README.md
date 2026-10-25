@@ -134,7 +134,7 @@ Upstream copies, so one install covers them. They drift: resync deliberately.
 
 | Ware | What it does | Upstream, copied at |
 |---|---|---|
-| [`extensions/handoff/`](./extensions/handoff/) | `/handoff <goal>` starts a new linked session with an LLM-written brief. | pi's [`examples/extensions/handoff.ts`](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/handoff.ts), verbatim, at pi `0.87.1`. |
+| [`extensions/handoff/`](./extensions/handoff/) | `/handoff <goal>` starts a new linked session with an LLM-written brief. Off inside Paseo, which has `paseo-handoff`. | pi's [`examples/extensions/handoff.ts`](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/handoff.ts), verbatim as `handoff.ts`, at pi `0.87.1`. |
 | [`skills/gog/`](./skills/gog/SKILL.md) | Google Workspace automation through `gog`: auth state, JSON output, scoped reads and writes. | [openclaw/gogcli](https://github.com/openclaw/gogcli) `.agents/skills/gog/SKILL.md` (MIT), verbatim, at `v0.41.0`. Resync when `gog --version` moves. |
 | [`skills-available/brave-search/`](./skills-available/brave-search/SKILL.md) | Web search and page-to-markdown extraction through the Brave Search API. | [badlogic/pi-skills](https://github.com/badlogic/pi-skills) `brave-search/` (MIT), verbatim, at `90bb51c`. Its own `package.json`: run `npm install` in the folder once before switching it on. |
 

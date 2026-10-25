@@ -10,4 +10,6 @@
 
 The brief covers the current branch, prior compactions included, and opens in your editor before the new session starts. It needs interactive mode and a selected model.
 
-Vendored verbatim from pi's [`examples/extensions/handoff.ts`](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/handoff.ts), identical at pi 0.87.1. Resync by copying that file out of the installed package.
+Inert inside Paseo (`PASEO_AGENT_ID` set), where the `paseo-handoff` skill hands the task to a new Paseo agent instead.
+
+`handoff.ts` is vendored verbatim from pi's [`examples/extensions/handoff.ts`](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/handoff.ts), identical at pi 0.87.1. Resync by copying that file over `handoff.ts`. `index.ts` only adds the Paseo guard.

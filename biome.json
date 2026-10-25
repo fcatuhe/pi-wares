@@ -9,7 +9,7 @@
       "!**/package-lock.json",
       "!skills/gog",
       "!skills-available/brave-search",
-      "!extensions/handoff"
+      "!extensions/handoff/handoff.ts"
     ]
   },
   "formatter": {
