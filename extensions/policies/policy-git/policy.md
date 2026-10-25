@@ -10,7 +10,7 @@
 
 - If the repo asks for branches (AGENTS.md, CONTRIBUTING, protected branches), create one before the first edit, then open a pull request for the owner to merge. Otherwise, work on `main` and push to it.
 - Name a branch `<type>-<slug>`, with no `/`, as in `feat-exempt-user-role`.
-- Create a worktree with `git wt <type>-<slug> [base]` or with `herdr_worktree_jump`. Both put it in `~/fcode/worktrees/<repo>/<branch>`. Never use `git worktree add`.
+- Create a worktree with `git wt <type>-<slug> [base]` or with `herdr_worktree_jump`. Both put it in `~/fcode/worktrees/<repo>/<branch>`. Inside Paseo, call `create_workspace` with `isolation: "worktree"` and `baseBranch: "origin/main"` instead, so the app lists the worktree and archives it. Never use `git worktree add`.
 - In a new worktree, run the repo's setup first, as its AGENTS.md describes. The setup links files that git does not track, such as `config/master.key`.
 - If `git wt` is missing, ask the owner, then run `git config --global --add include.path ~/.pi/agent/git/github.com/fcatuhe/pi-wares/config/git/config`.
 - When the first pass is done, stage the files you touched, and only those. Another agent may be working in the same tree. The staged state is a baseline for review, not a commit.

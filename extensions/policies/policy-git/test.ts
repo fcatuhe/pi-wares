@@ -135,7 +135,7 @@ test("git worktree add is refused in favour of git wt, which owns the worktree d
   assert.equal(refusal("git worktree list && git worktree remove ../app-x"), undefined);
 });
 
-test("the extension checks bash only, and only where the git policy loads", async () => {
+test("the extension checks bash and the worktree tools, and only where the git policy loads", async () => {
   const handlers: Record<string, (event: unknown) => Promise<unknown>> = {};
   process.chdir(mkdtempSync(join(tmpdir(), "policy-git-")));
   const load = (await import("./index.ts")).default;
@@ -150,4 +150,7 @@ test("the extension checks bash only, and only where the git policy loads", asyn
   assert.equal(((await call("herdr_worktree_jump", { branch: "feat/x" })) as { block: boolean }).block, true);
   assert.equal(await call("herdr_worktree_jump", { branch: "feat-x" }), undefined);
   assert.equal(await call("herdr_worktree_jump", {}), undefined);
+  assert.equal(((await call("mcp__paseo__create_workspace", { branchName: "feat/x" })) as { block: boolean }).block, true);
+  assert.equal(await call("mcp__paseo__create_workspace", { branchName: "feat-x" }), undefined);
+  assert.equal(await call("mcp__paseo__create_workspace", { mode: "checkout-branch", branch: "dependabot/npm/x" }), undefined);
 });
