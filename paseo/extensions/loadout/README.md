@@ -1,4 +1,4 @@
-# paseo-loadout
+# loadout
 
 Inside Paseo, declares Paseo's agent, workspace and browser tools to the model, and drops the pi wares they replace.
 

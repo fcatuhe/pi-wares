@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test extensions/*/test.ts extensions/policies/*/test.ts skills/*/test.ts lib/test.ts",
+    "test": "node --test extensions/*/test.ts extensions/policies/*/test.ts skills/*/test.ts paseo/extensions/*/test.ts lib/test.ts",
     "format": "biome format --write ."
   },
   "dependencies": {
@@ -26,6 +26,7 @@
     "extensions": [
       "extensions",
       "extensions/policies/policy-*",
+      "paseo/extensions",
       "node_modules/@ogulcancelik/pi-codex-subagents/index.ts",
       "node_modules/@ogulcancelik/pi-herdr-worktree-jump/index.ts"
     ],

@@ -49,6 +49,10 @@ On a machine with no browser, [`subscription-token-login/`](./extensions/subscri
 
 [`herdr-app/`](./herdr-app/) builds `~/Applications/Herdr.app`, a Ghostty bundle rebranded as Herdr that opens straight into the herdr session. pi loads nothing from it: run `./herdr-app/build.sh` once per Mac, and again when the launcher or the logo changes.
 
+## Paseo
+
+[`paseo/`](./paseo/README.md) holds the pi extensions that adapt pi to [Paseo](https://paseo.sh).
+
 ## Wares
 
 Each ware has a README beside its code.
@@ -78,7 +82,6 @@ Each ware has a README beside its code.
 | [`auto-session-name/`](./extensions/auto-session-name/) | Names an unnamed session `two-words` with haiku after the first turn, once. |
 | [`radio/`](./extensions/radio/) | `radio_call` calls another agent session on this machine: the message lands in its transcript as a named peer, not as its owner typing. |
 | [`model-shortcuts/`](./extensions/model-shortcuts/) | Slash shortcuts for model and thinking level: `/<name>`, `/<name>:high`, `/high`. |
-| [`paseo-loadout/`](./extensions/paseo-loadout/) | Inside Paseo, declares Paseo's agent, workspace and browser tools, and drops the subagents, the worktree jump and the `agent-browser` skill they replace. |
 | [`bang-zsh/`](./extensions/bang-zsh/) | Hands a `!` command bash cannot find to an interactive zsh, so your zsh aliases and functions resolve. |
 
 ### Transcript
@@ -170,6 +173,7 @@ pi-wares/
   skills/               one folder per skill, each a SKILL.md
   skills-available/     same shape, unlisted: opt in by path
   herdr-app/            macOS app that launches herdr, not a ware
+  paseo/                pi extensions for Paseo
   node_modules/         bundled external extensions (gitignored)
 ```
 
