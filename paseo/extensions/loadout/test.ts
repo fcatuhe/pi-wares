@@ -3,12 +3,22 @@ import { test } from "node:test";
 
 import { PASEO_TOOLS, paseoLoadout, paseoSkills } from "./loadout.ts";
 
-const active = ["read", "bash", "spawn_agent", "wait_agent", "list_agents", "herdr_worktree_jump", "radio_call"];
+const active = [
+  "read",
+  "bash",
+  "spawn_agent",
+  "wait_agent",
+  "list_agents",
+  "herdr_worktree_jump",
+  "radio_agents",
+  "radio_call",
+  "websearch",
+];
 
-test("once Paseo's tools are registered, its core tools replace the subagents and the worktree jump", () => {
+test("once Paseo's tools are registered, its core tools replace the subagents, the worktree jump and the radio", () => {
   const next = paseoLoadout(active, ["read", "bash", ...PASEO_TOOLS]);
 
-  assert.deepEqual(next, ["read", "bash", "radio_call", ...PASEO_TOOLS]);
+  assert.deepEqual(next, ["read", "bash", "websearch", ...PASEO_TOOLS]);
 });
 
 test("before Paseo's MCP server connects, the active tools stay as they are", () => {

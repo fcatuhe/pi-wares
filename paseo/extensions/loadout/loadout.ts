@@ -44,6 +44,8 @@ export const REPLACED_TOOLS = [
   "send_message",
   "interrupt_agent",
   "herdr_worktree_jump",
+  "radio_agents",
+  "radio_call",
 ];
 
 export const REPLACED_SKILLS = ["agent-browser"];

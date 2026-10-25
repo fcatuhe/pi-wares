@@ -7,7 +7,7 @@ Paseo starts pi with an extension that registers its MCP server as `paseo` witho
 At the start of each prompt, once Paseo's tools are registered, it:
 
 - declares `create_agent`, `send_agent_prompt`, `get_agent_status`, `get_agent_activity`, `list_agents`, `list_profiles`, `list_models`, `create_workspace`, `list_workspaces` and the core browser tools: `list_tabs`, `new_tab`, `navigate`, `snapshot`, `click`, `fill`, `type`, `keypress`, `wait`, `screenshot` and `logs`. The other Paseo tools stay reachable from codemode.
-- removes from the active tools the `pi-codex-subagents` tools (`spawn_agent`, `wait_agent`, `wait_all_agents`, `list_agents`, `read_agent_response`, `send_message`, `interrupt_agent`) and `herdr_worktree_jump`. They stay registered, so `/tools` can switch them back on.
+- removes from the active tools the `pi-codex-subagents` tools (`spawn_agent`, `wait_agent`, `wait_all_agents`, `list_agents`, `read_agent_response`, `send_message`, `interrupt_agent`) `herdr_worktree_jump`, and the radio (`radio_agents`, `radio_call`), since `send_agent_prompt` reaches Paseo's agents. They stay registered, so `/tools` can switch them back on.
 - drops the `agent-browser` skill from the system prompt, only when Paseo's browser tools are registered.
 
 A tool the host disabled in its `paseoTools` policy is not declared. Before Paseo's server connects, nothing changes.

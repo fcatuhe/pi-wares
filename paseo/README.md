@@ -4,7 +4,7 @@ What runs inside [Paseo](https://paseo.sh), the app that hosts these pi sessions
 
 | Ware | Runs in | What it does |
 |---|---|---|
-| [`extensions/loadout/`](./extensions/loadout/) | pi | Inside Paseo, declares Paseo's agent, workspace and browser tools, and drops the subagents, the worktree jump and the `agent-browser` skill they replace. |
+| [`extensions/loadout/`](./extensions/loadout/) | pi | Inside Paseo, declares Paseo's agent, workspace and browser tools, and drops the subagents, the worktree jump, the radio and the `agent-browser` skill they replace. |
 | [`plugins/page-scroll/`](./plugins/page-scroll/OVERVIEW.md) | Paseo app | Page Up and Page Down scroll the agent chat, even while the message box has focus. |
 
 ## Install a plugin
