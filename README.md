@@ -112,7 +112,7 @@ Loaded on demand rather than injected, so they can be as long as they need. The 
 | [`agent-browser/`](./skills/agent-browser/SKILL.md) | Headed Chrome on a shared logged-in profile, one tab per agent, for the `agent-browser` CLI. |
 | [`rails-review/`](./skills/rails-review/SKILL.md) | Rails review that cites the repo's own patterns, the gem source for the version in `Gemfile.lock`, and Fizzy, Campfire and Writebook. |
 
-The [`/rails-review [base ref or paths]`](./prompts/rails-review.md) prompt sends a resolved scope, by default the uncommitted changes, to the [`rails-review`](./config/pi/pi-codex-subagents/agents/rails-review.md) subagent and reports what it found.
+The [`/rails-review [base ref or paths]`](./prompts/rails-review.md) prompt sends a resolved scope, by default the uncommitted changes, to the [`rails-review`](./config/pi/pi-codex-subagents/agents/rails-review.md) subagent, or to a new Paseo agent inside Paseo, and reports what it found.
 
 ## Skills available
 

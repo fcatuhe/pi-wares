@@ -1,9 +1,9 @@
 ---
-description: Send a scope to the rails-review subagent and report what it finds
+description: Send a scope to the rails-review reviewer, a pi or Paseo subagent, and report what it finds
 argument-hint: "[base ref or paths]"
 ---
-Spawn the `rails-review` subagent (`spawn_agent` with `agent_type: "rails-review"`) on: ${@:-the uncommitted changes, staged and unstaged}.
+Start the `rails-review` reviewer, as the `rails-review` skill's "Start the reviewer" section says, on: ${@:-the uncommitted changes, staged and unstaged}.
 
-Resolve the scope yourself before spawning: settle the base ref, list the files it covers, and name both in the message. The reviewer reads the code itself, so send the scope, not a diff. If there is nothing to review, say so and do not spawn.
+If there is nothing to review, say so and start nothing.
 
-Wait for it, then report its findings as written, severity first. Change nothing unless I ask for a fix.
+Wait for its answer, then report its findings as written, severity first. Change nothing unless I ask for a fix.

@@ -1,6 +1,6 @@
 ---
 name: rails-review
-description: Review Rails code the 37signals way, against evidence from the Fizzy, Campfire and Writebook sources, the Rails guides, and the installed gem source. Use when reviewing a Rails diff, PR, file or design, and when running as the rails-review subagent.
+description: Review Rails code the 37signals way, against evidence from the Fizzy, Campfire and Writebook sources, the Rails guides, and the installed gem source. Use when reviewing a Rails diff, PR, file or design, and when running as the rails-review reviewer.
 ---
 
 # Rails review
@@ -73,13 +73,30 @@ Smaller change: move the two writes into Card#move! and drop the after_save.
 
 Do not report: what the formatter or linter owns, an abstraction with no second caller, a preference you cannot cite. Say "no findings" when that is the answer.
 
-## As a subagent
+## Start the reviewer
 
-The `rails-review` template carries the model, the read-only tools, this skill and the prompt:
+Resolve the scope first: settle the base ref and list the paths. The reviewer reads the code itself, so send the scope, not a diff. Then start it with the subagent tool declared to you.
+
+With `spawn_agent` (pi-codex-subagents), the `rails-review` template carries the model, the read-only tools and this skill:
 
 ```
 spawn_agent(agent_type: "rails-review", task_name: "rails-review/cards-move",
             message: "Review app/models/card*, app/controllers/cards* against main...HEAD.")
 ```
 
-The message carries the scope. Without a base ref or paths, the subagent asks for them.
+With `create_agent` (Paseo), there is no template. Call `list_profiles` and use a profile whose notes cover review. Without one, use `provider: "pi/anthropic/claude-opus-5-5"` and `settings.thinkingOptionId: "high"`. Leave `workspaceId` out, so the reviewer works in your checkout:
+
+```
+create_agent(title: "rails-review cards-move", provider: "pi/anthropic/claude-opus-5-5",
+             settings: { thinkingOptionId: "high" },
+             initialPrompt: "Read the rails-review skill and review as its 'As the reviewer' section says. Scope: app/models/card*, app/controllers/cards* against main...HEAD.")
+```
+
+Paseo cannot take tools away from a pi agent, so read-only holds only through the section below. Its answer comes back as a finish notification: read it with `get_agent_activity`.
+
+## As the reviewer
+
+- Read only. No edits, no commits, no `bundle install`, no migrations, nothing that touches a database.
+- Read the repo's `AGENTS.md`, `CLAUDE.md` and `CONTRIBUTING.md` yourself. They are rank 1, and a subagent may start without context files.
+- The message carries the scope. Without a base ref or paths, ask for them instead of reviewing the whole repo.
+- Answer with the findings, severity first. When there are none, say so and name what you checked.
