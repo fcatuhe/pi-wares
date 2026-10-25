@@ -6,7 +6,7 @@
       "**/*.js",
       "**/*.json",
       "!**/node_modules",
-      "!package-lock.json",
+      "!**/package-lock.json",
       "!skills/gog",
       "!skills-available/brave-search",
       "!extensions/handoff"
