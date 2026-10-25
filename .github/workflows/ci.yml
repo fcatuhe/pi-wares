@@ -22,3 +22,5 @@ jobs:
       - run: npx biome ci .
       # the wares' self-checks; node strips the types, so the @earendil-works peers are not needed
       - run: npm test
+      # each Paseo plugin is its own npm project, typechecked against the Paseo SDK it pins
+      - run: for plugin in paseo/plugins/*/; do (cd "$plugin" && npm ci && npm run typecheck) || exit 1; done

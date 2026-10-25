@@ -51,7 +51,7 @@ On a machine with no browser, [`subscription-token-login/`](./extensions/subscri
 
 ## Paseo
 
-[`paseo/`](./paseo/README.md) holds the pi extensions that adapt pi to [Paseo](https://paseo.sh).
+[`paseo/`](./paseo/README.md) holds the pi extensions that adapt pi to [Paseo](https://paseo.sh) and the Paseo plugins that change the app.
 
 ## Wares
 
@@ -173,7 +173,7 @@ pi-wares/
   skills/               one folder per skill, each a SKILL.md
   skills-available/     same shape, unlisted: opt in by path
   herdr-app/            macOS app that launches herdr, not a ware
-  paseo/                pi extensions for Paseo
+  paseo/                pi extensions for Paseo, and Paseo plugins
   node_modules/         bundled external extensions (gitignored)
 ```
 
