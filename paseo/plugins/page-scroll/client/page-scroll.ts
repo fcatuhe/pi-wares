@@ -30,3 +30,19 @@ export function separatorOffset(viewportHeight: number, up: boolean): number {
   const overlap = viewportHeight - pageStep(viewportHeight);
   return up ? overlap / 2 : viewportHeight - overlap / 2;
 }
+
+export interface PageTurn {
+  viewportHeight: number;
+  scrollTop: number;
+  scrollHeight: number;
+  scrolled: number;
+  up: boolean;
+}
+
+export function separatorOffsets({ viewportHeight, scrollTop, scrollHeight, scrolled, up }: PageTurn): number[] {
+  const offsets: number[] = [];
+  if (scrolled !== 0) offsets.push(separatorOffset(viewportHeight, up) - scrolled);
+  if (scrollTop > 0) offsets.push(separatorOffset(viewportHeight, true));
+  if (scrollTop + viewportHeight < scrollHeight - 1) offsets.push(separatorOffset(viewportHeight, false));
+  return offsets.filter((offset, index) => offsets.findIndex((other) => Math.abs(other - offset) < 2) === index);
+}
