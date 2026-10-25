@@ -51,6 +51,7 @@ function bareMachine(): string {
   const home = mkdtempSync(join(tmpdir(), "wares-doctor-"));
   process.env.PI_CODING_AGENT_DIR = join(home, "agent");
   process.env.XDG_CONFIG_HOME = join(home, "config");
+  process.env.PASEO_HOME = join(home, "paseo");
   return home;
 }
 
@@ -175,15 +176,23 @@ test("a bare machine reports every target as a warning to create, one row per fi
   const bare = report("", everything);
   assert.deepEqual(
     bare.notes.map((note) => note.tone),
-    ["warning", "text", "text", "text", "text", "text"],
+    ["warning", "text", "text", "text", "text", "text", "text"],
     "the notes changed tone",
   );
   assert.deepEqual(
     bare.notes.map((note) => note.text),
-    ["5 to add. /wares-doctor:apply writes them.", "  pi settings", "  model shortcuts", "  subagents", "  rails-review agent", "  herdr"],
+    [
+      "6 to add. /wares-doctor:apply writes them.",
+      "  pi settings",
+      "  model shortcuts",
+      "  subagents",
+      "  rails-review agent",
+      "  herdr",
+      "  paseo",
+    ],
     "a bare machine did not list every target it would create",
   );
-  assert.equal(bare.rows.length, 5, "the report is no longer one row per file");
+  assert.equal(bare.rows.length, 6, "the report is no longer one row per file");
   assert.equal(bare.rows[0].label.trim(), "pi settings");
   assert.equal(bare.rows[0].state.trim(), "create");
   assert.equal(bare.rows[0].tone, "warning", "a file that does not exist yet renders in default colour");
@@ -192,7 +201,7 @@ test("a bare machine reports every target as a warning to create, one row per fi
 
 test("apply creates every target as the reference, then nothing is left to report", () => {
   const applied = report(APPLY, everything);
-  assert.equal(applied.rows.length, 5, "apply printed more than one row per file");
+  assert.equal(applied.rows.length, 6, "apply printed more than one row per file");
   assert.equal(applied.rows[0].state.trim(), "created");
   assert.equal(applied.rows[0].tone, "warning", "a file just written needs a reload, so it is not plain text");
   assert.match(applied.rows[0].path, /settings\.json$/);
@@ -201,11 +210,16 @@ test("apply creates every target as the reference, then nothing is left to repor
   assert.deepEqual(settled.notes, [], "the applied config still reports work");
   assert.deepEqual(
     settled.rows.map((row) => row.tone),
-    [undefined, undefined, undefined, undefined, undefined],
+    [undefined, undefined, undefined, undefined, undefined, undefined],
     "a machine with nothing left to do still colours its rows",
   );
-  for (const file of ["agent/settings.json", "agent/model-shortcuts/config.json", `agent/${RAILS_REVIEW}`, "config/herdr/config.toml"]) {
-    const source = file.startsWith("agent/") ? `config/pi/${file.slice("agent/".length)}` : "config/herdr/config.toml";
+  for (const [file, source] of [
+    ["agent/settings.json", "config/pi/settings.json"],
+    ["agent/model-shortcuts/config.json", "config/pi/model-shortcuts/config.json"],
+    [`agent/${RAILS_REVIEW}`, `config/pi/${RAILS_REVIEW}`],
+    ["config/herdr/config.toml", "config/herdr/config.toml"],
+    ["paseo/config.json", "config/paseo/config.json"],
+  ]) {
     assert.equal(readFileSync(join(home, file), "utf-8"), readFileSync(join(ROOT, source), "utf-8"), `${file} is not the reference`);
   }
 });
@@ -241,7 +255,7 @@ test("force says what it replaced, has nothing left to keep, and a second force 
   assert.equal(replaced.rows[0].hint, "  (restart pi)", "force wrote the file and said nothing about reloading");
   assert.deepEqual(replaced.notes, [], "force still offers to take what it just took");
   assert.match(readFileSync(settings, "utf-8"), /"defaultThinkingLevel": "high"/, "force did not write the reference value");
-  assert.equal(report(FORCE, everything).rows.length, 5, "a forced machine still has work to do");
+  assert.equal(report(FORCE, everything).rows.length, 6, "a forced machine still has work to do");
 });
 
 test("a machine one key and one model short lists each key with the value that would land", () => {
@@ -274,7 +288,11 @@ test("a value parsed but not written as a plain key is manual, an error no comma
   const forcedInline = report(FORCE, everything);
   const manual = forcedInline.notes;
   assert.equal(manual[0].tone, "error", "a gap no command can close is only a warning");
-  assert.equal(forcedInline.rows.at(-1)!.tone, "error", "the file holding a stuck key reads like any other file");
+  assert.equal(
+    forcedInline.rows.find((row) => row.label.trim() === "herdr")!.tone,
+    "error",
+    "the file holding a stuck key reads like any other file",
+  );
   assert.equal(manual[0].text, "1 manual. No command writes these, edit the file.");
   assert.match(
     manual[1].text,
@@ -373,7 +391,7 @@ test("models whose provider is not logged in are skipped, named once, and land o
   );
   assert.deepEqual(
     report("", anthropicOnly).rows.map((row) => row.tone),
-    [undefined, undefined, undefined, undefined, undefined],
+    [undefined, undefined, undefined, undefined, undefined, undefined],
   );
 
   report(APPLY, everything);

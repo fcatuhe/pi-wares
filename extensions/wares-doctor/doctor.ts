@@ -177,6 +177,7 @@ function show(value: unknown): string {
 function targets(): Target[] {
   const pi = agentDir();
   const herdr = join(process.env.XDG_CONFIG_HOME ?? join(homedir(), ".config"), "herdr");
+  const paseo = process.env.PASEO_HOME ?? join(homedir(), ".paseo");
   return [
     {
       label: "pi settings",
@@ -209,6 +210,12 @@ function targets(): Target[] {
       reference: "config/herdr/config.toml",
       path: join(herdr, "config.toml"),
       hint: "herdr server reload-config",
+    },
+    {
+      label: "paseo",
+      reference: "config/paseo/config.json",
+      path: join(paseo, "config.json"),
+      hint: "paseo reload, then reload the agents",
     },
   ];
 }

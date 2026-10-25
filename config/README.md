@@ -1,6 +1,6 @@
 # config
 
-The pi and herdr configuration these wares assume, one reference file per target, laid out like the paths it lands in. [`/wares-doctor`](../extensions/wares-doctor/) reports how a machine differs, `:apply` adds what is missing, `:force` also overwrites what differs.
+The pi, herdr and Paseo configuration these wares assume, one reference file per target, laid out like the paths it lands in. [`/wares-doctor`](../extensions/wares-doctor/) reports how a machine differs, `:apply` adds what is missing, `:force` also overwrites what differs.
 
 | Reference | Target | Why it is here |
 |---|---|---|
@@ -9,6 +9,7 @@ The pi and herdr configuration these wares assume, one reference file per target
 | [`pi/pi-codex-subagents/config.json`](./pi/pi-codex-subagents/config.json) | `~/.pi/agent/pi-codex-subagents/config.json` | Without `modelsFromEnabledModels` the subagents extension silently drops its per-spawn `model` argument. Without `defaults.extensions` a spawn starts with `--no-extensions` and writes code under no house policy. |
 | [`pi/pi-codex-subagents/agents/rails-review.md`](./pi/pi-codex-subagents/agents/rails-review.md) | `~/.pi/agent/pi-codex-subagents/agents/rails-review.md` | The `rails-review` subagent: read-only tools, the `rails-review` skill, its prompt, and Opus at high thinking. `model: opus` is a pattern pi resolves to the newest undated Opus, and a caller's own `model` and `thinking` still win. |
 | [`herdr/config.toml`](./herdr/config.toml) | `~/.config/herdr/config.toml` | The keybindings every machine agrees on, omarchy's `prefix+` chords plus pane focus and resize, the worktree directory, then two `[ui]` defaults and a blank row between sidebar spaces. |
+| [`paseo/config.json`](./paseo/config.json) | `~/.paseo/config.json` | Paseo's tools reach the agents, and its browser tools with them. Without `browserTools`, an agent on a remote daemon has no browser, since the browser runs in the desktop app. |
 
 [`git/config`](./git/config) is not reconciled but included, so `pi update --extensions` keeps it current. It holds `git wt <type>-<slug> [base]`, which checks the branch out in `~/fcode/worktrees/<repo>/<branch>`, the folder herdr's `worktrees.directory` also creates in. It fetches origin first, so a branch pushed from elsewhere is checked out tracking its remote. A branch that exists nowhere is created after a fetch from `base`, else from `origin/HEAD`, else from `HEAD` in a repo without a remote, so neither a stale `main` nor a dirty main checkout leaks into it. It tracks nothing, and the first `git push` sets its upstream through the `push.autoSetupRemote` the same file turns on. Install it once per machine:
 
@@ -20,6 +21,6 @@ JSON and TOML targets are reconciled key by key. The markdown template is one un
 
 The herdr reference holds only the bindings shared with [omarchy's](https://github.com/basecamp/omarchy/blob/quattro/config/herdr/config.toml), so each machine keeps its own bindings beyond those. A list of chords is merged member by member, never replaced, so dropping a chord needs `herdr config reset-keys` first.
 
-`~/.pi/agent` follows `PI_CODING_AGENT_DIR` and `~/.config` follows `XDG_CONFIG_HOME` when set. The extension paths inside the subagents config are values, not targets, so they spell out `~/.pi/agent/git/github.com/fcatuhe/pi-wares/...`: move the agent directory and edit them by hand, or a spawn fails naming the missing path.
+`~/.pi/agent` follows `PI_CODING_AGENT_DIR`, `~/.config` follows `XDG_CONFIG_HOME` and `~/.paseo` follows `PASEO_HOME` when set. The extension paths inside the subagents config are values, not targets, so they spell out `~/.pi/agent/git/github.com/fcatuhe/pi-wares/...`: move the agent directory and edit them by hand, or a spawn fails naming the missing path.
 
 Editing a reference changes what the doctor asks for on the next run. Adding a target is one entry in `targets()` in [`extensions/wares-doctor/doctor.ts`](../extensions/wares-doctor/doctor.ts).

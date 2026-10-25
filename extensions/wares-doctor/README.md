@@ -15,8 +15,9 @@
 | subagents | `pi/pi-codex-subagents/config.json` | `~/.pi/agent/pi-codex-subagents/config.json` | restart pi |
 | rails-review agent | `pi/pi-codex-subagents/agents/rails-review.md` | `~/.pi/agent/pi-codex-subagents/agents/rails-review.md` | restart pi |
 | herdr | `herdr/config.toml` | `~/.config/herdr/config.toml` | `herdr server reload-config` |
+| paseo | `paseo/config.json` | `~/.paseo/config.json` | `paseo reload`, then reload the agents |
 
-`~/.pi/agent` follows `PI_CODING_AGENT_DIR` and `~/.config` follows `XDG_CONFIG_HOME`. A missing file is copied. JSON and TOML are compared key by key and edited in place, comments and order kept. The `.md` template is compared whole.
+`~/.pi/agent` follows `PI_CODING_AGENT_DIR`, `~/.config` follows `XDG_CONFIG_HOME` and `~/.paseo` follows `PASEO_HOME`. A missing file is copied. JSON and TOML are compared key by key and edited in place, comments and order kept. The `.md` template is compared whole.
 
 `:apply` only adds. A value you set differently is `kept`, and `:force` replaces it. Keys and array members the reference does not list always stay. A reference array is members to add, so `new_tab = "ctrl+alt+t"` against `["prefix+c", "ctrl+alt+t"]` becomes `["ctrl+alt+t", "prefix+c"]`. `:force` keeps a trailing comment next to a value it replaces, which may then describe the old one.
 

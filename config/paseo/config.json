@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "daemon": {
+    "mcp": {
+      "injectIntoAgents": true
+    },
+    "browserTools": {
+      "enabled": true
+    }
+  }
+}
