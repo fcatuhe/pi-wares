@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 export type Markers = { paths?: string[]; files?: RegExp };
@@ -11,9 +11,10 @@ export function policy(dir: string, markers?: Markers) {
   return function (pi: ExtensionAPI): boolean {
     if (markers && !triggered(markers)) return false;
     const text = readFileSync(join(dir, "policy.md"), "utf8").trim();
-    pi.on("before_agent_start", async (event) => ({
-      systemPrompt: `${event.systemPrompt}\n\n${text}`,
-    }));
+    const section = basename(dir);
+    pi.on("before_agent_start", (event) => {
+      event.systemPromptOptions.sections[section] = text;
+    });
     return true;
   };
 }

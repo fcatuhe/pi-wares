@@ -1,6 +1,8 @@
 # policies
 
-House rules appended to the system prompt, identical every turn so they cache once per session.
+House rules added to the system prompt, identical every turn so they cache once per session.
+
+Each policy sets its own prompt section, named after its directory, in `before_agent_start`. It never returns a whole `systemPrompt`: pi would send that text instead of the prompt it builds, losing what other extensions changed in it, as the Paseo loadout's skill list, and pi's `mcp_servers` section.
 
 Each policy is its own extension, `policy-<name>/index.ts` plus its `policy.md`, so `pi config` turns them on and off one by one.
 

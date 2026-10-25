@@ -5,13 +5,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-async function injected(name: string): Promise<string> {
+type PromptEvent = { systemPromptOptions: { sections: Record<string, string>; skills: Array<{ name: string }> } };
+
+const promptEvent = (): PromptEvent => ({ systemPromptOptions: { sections: {}, skills: [{ name: "gog" }] } });
+
+async function injected(name: string): Promise<string | undefined> {
   const load = (await import(`./${name}/index.ts`)).default;
   let handler: any;
   load({ on: (event: string, fn: unknown) => event === "before_agent_start" && (handler = fn) } as never);
-  if (!handler) return "";
-  const { systemPrompt } = await handler({ systemPrompt: "BASE" });
-  return systemPrompt;
+  if (!handler) return undefined;
+  const event = promptEvent();
+  await handler(event);
+  return event.systemPromptOptions.sections[name];
 }
 
 type Scratch = { files: Record<string, string>; repo: boolean; cwd?: string };
@@ -100,18 +105,18 @@ for (const [which, { git, frontend, rails, ...setup }] of Object.entries(CASES))
     const expected = { git, frontend, rails };
 
     for (const name of ALWAYS) {
-      assert.ok((await injected(name)).startsWith("BASE\n\n"), `${which}: ${name} loads everywhere`);
+      assert.ok(await injected(name), `${which}: ${name} loads everywhere`);
     }
     for (const marker of ["git", "frontend", "rails"] as const) {
-      const prompt = await injected(`policy-${marker}`);
-      assert.equal(prompt.startsWith("BASE\n\n"), expected[marker], `${which}: policy-${marker}`);
+      const section = await injected(`policy-${marker}`);
+      assert.equal(section !== undefined, expected[marker], `${which}: policy-${marker}`);
     }
   });
 }
 
 test("a subagent, started with --no-extensions, gets every policy that applies and the comment check through one path", async () => {
   const root = scratch({ files: { "config/application.rb": "", "index.html": "" }, repo: true });
-  const handlers: Array<(event: { systemPrompt: string }) => Promise<{ systemPrompt: string }>> = [];
+  const handlers: Array<(event: PromptEvent) => unknown> = [];
   const events: string[] = [];
   const loadAll = (await import("./subagent-policies/index.ts")).default;
   await loadAll({
@@ -119,12 +124,26 @@ test("a subagent, started with --no-extensions, gets every policy that applies a
   } as never);
   assert.ok(events.includes("tool_call"), "the comment check never reaches a subagent");
 
-  let aggregate = "BASE";
-  for (const handler of handlers) aggregate = (await handler({ systemPrompt: aggregate })).systemPrompt;
+  const event = promptEvent();
+  for (const handler of handlers) await handler(event);
+  const aggregate = Object.values(event.systemPromptOptions.sections).join("\n\n");
 
   for (const name of [...ALWAYS, "policy-git", "policy-frontend", "policy-rails"]) {
     const headline = readFileSync(join(import.meta.dirname, name, "policy.md"), "utf8").split("\n")[0];
     assert.ok(aggregate.includes(headline), `${name} never reaches a subagent`);
   }
   assert.equal(handlers.length, 6, `a policy directory was added without a subagent reaching it (${root})`);
+});
+
+// A returned systemPrompt replaced pi's whole prompt, so the model lost the loadout's skill list and the mcp_servers section.
+test("a policy adds its own prompt section and leaves the rest of the prompt to pi", async () => {
+  scratch({ files: {}, repo: false });
+  const load = (await import("./policy-writing/index.ts")).default;
+  let handler: any;
+  load({ on: (event: string, fn: unknown) => event === "before_agent_start" && (handler = fn) } as never);
+  const event = promptEvent();
+
+  assert.equal(await handler(event), undefined);
+  assert.deepEqual(Object.keys(event.systemPromptOptions.sections), ["policy-writing"]);
+  assert.deepEqual(event.systemPromptOptions.skills, [{ name: "gog" }]);
 });
