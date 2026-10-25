@@ -90,7 +90,8 @@ test("git wt branches from a fresh origin/HEAD whatever the main checkout holds,
   const repo = join(home, "fcode", "app");
   const env = { ...process.env, HOME: home, GIT_CONFIG_GLOBAL: join(import.meta.dirname, "../../../config/git/config") };
   const git = (cwd: string, ...args: string[]) => execFileSync("git", args, { cwd, env, encoding: "utf8" }).trim();
-  const commit = (cwd: string, message: string) => git(cwd, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", message);
+  const commit = (cwd: string, message: string) =>
+    git(cwd, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", message);
   execFileSync("git", ["init", "-q", "-b", "main", upstream]);
   commit(upstream, "init");
   execFileSync("git", ["clone", "-q", upstream, repo]);
@@ -114,7 +115,8 @@ test("git wt checks out a branch that exists only on origin, tracking it, rather
   const repo = join(home, "fcode", "app");
   const env = { ...process.env, HOME: home, GIT_CONFIG_GLOBAL: join(import.meta.dirname, "../../../config/git/config") };
   const git = (cwd: string, ...args: string[]) => execFileSync("git", args, { cwd, env, encoding: "utf8" }).trim();
-  const commit = (cwd: string, message: string) => git(cwd, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", message);
+  const commit = (cwd: string, message: string) =>
+    git(cwd, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", message);
   execFileSync("git", ["init", "-q", "-b", "main", upstream]);
   commit(upstream, "init");
   execFileSync("git", ["clone", "-q", upstream, repo]);

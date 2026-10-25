@@ -56,7 +56,8 @@ const TELLS: Record<string, RegExp> = {
   "praise tail": /, (?:ensuring|allowing for|making it (?:ideal|easy|easier))/gi,
   "staged reveal": /(?:^|\. )the (?:result|catch|fix|problem|kicker|upshot)[?:]/gim,
   "contrast frame": /not just [^.]{1,40}, but|isn't [^.]{1,30}\. it's|it's not about/gi,
-  "possessive inversion": /(?:\b(?:is|are|stays?|remains?)|'s|'re)(?: still)? (?:ours|yours|theirs)\b|\bwhat (?:matters|counts) (?:is|here)\b/gi,
+  "possessive inversion":
+    /(?:\b(?:is|are|stays?|remains?)|'s|'re)(?: still)? (?:ours|yours|theirs)\b|\bwhat (?:matters|counts) (?:is|here)\b/gi,
   "slogan pair heading": /^(?:#{1,6} |\*\*)(?!\d+\. )[^\n.!?]{1,40}[.!?]\s+[^\n.!?]{1,40}[.!?]\**\s*$/gm,
   "mirrored halves": /\b(your|our|their|one|every|no|more|less|same|new) [\w-]+, \1 [\w-]+/gi,
   "buzz label":
