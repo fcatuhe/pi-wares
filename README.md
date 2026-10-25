@@ -78,6 +78,7 @@ Each ware has a README beside its code.
 | [`auto-session-name/`](./extensions/auto-session-name/) | Names an unnamed session `two-words` with haiku after the first turn, once. |
 | [`radio/`](./extensions/radio/) | `radio_call` calls another agent session on this machine: the message lands in its transcript as a named peer, not as its owner typing. |
 | [`model-shortcuts/`](./extensions/model-shortcuts/) | Slash shortcuts for model and thinking level: `/<name>`, `/<name>:high`, `/high`. |
+| [`paseo-loadout/`](./extensions/paseo-loadout/) | Inside Paseo, declares Paseo's agent, workspace and browser tools, and drops the subagents, the worktree jump and the `agent-browser` skill they replace. |
 | [`bang-zsh/`](./extensions/bang-zsh/) | Hands a `!` command bash cannot find to an interactive zsh, so your zsh aliases and functions resolve. |
 
 ### Transcript
