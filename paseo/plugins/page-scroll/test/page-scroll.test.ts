@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { nearestTo, pageStep, type TreeNode } from "../client/page-scroll.ts";
+import { nearestTo, pageStep, separatorOffset, type TreeNode } from "../client/page-scroll.ts";
 
 function node(parentNode: TreeNode | null = null, name = ""): TreeNode & { name: string } {
   return { parentNode, name };
@@ -30,4 +30,10 @@ test("picks nothing when no chat is visible", () => {
 test("pages like the browser does", () => {
   assert.equal(pageStep(200), 175);
   assert.equal(pageStep(800), 760);
+});
+
+// The 40px both pages share has the separator in its middle, 20px from the edge that was left behind.
+test("draws the separator in the middle of the lines both pages show", () => {
+  assert.equal(separatorOffset(800, false), 780);
+  assert.equal(separatorOffset(800, true), 20);
 });

@@ -25,3 +25,8 @@ export function nearestTo<T extends TreeNode>(candidates: T[], focus: TreeNode |
 export function pageStep(viewportHeight: number): number {
   return Math.max(viewportHeight * 0.875, viewportHeight - 40);
 }
+
+export function separatorOffset(viewportHeight: number, up: boolean): number {
+  const overlap = viewportHeight - pageStep(viewportHeight);
+  return up ? overlap / 2 : viewportHeight - overlap / 2;
+}
