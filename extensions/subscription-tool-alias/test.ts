@@ -234,6 +234,36 @@ test("a canonicalized name is left alone in history for an unadvertised tool, an
   assert.equal(historyCall.content[0]!.name, "ls");
 });
 
+// Anthropic rejects a tool change naming a tool that `tools` only declares under its alias.
+test("mid-conversation tool changes follow the alias, native typed definitions passing through", () => {
+  const changeMaps = createAliasMaps();
+  const changeOut = transformPayload(
+    {
+      tools: [{ name: "spawn_agent", input_schema: {} }],
+      messages: [
+        {
+          role: "system",
+          content: [
+            { type: "text", text: "tools changed" },
+            { type: "tool_removal", tool: { type: "tool_reference", name: "spawn_agent" } },
+            { type: "tool_addition", tool: { type: "tool_definition", definition: { name: "wait_agent", input_schema: {} } } },
+            {
+              type: "tool_addition",
+              tool: { type: "tool_definition", definition: { type: "web_search_20250305", name: "web_search" } },
+            },
+          ],
+        },
+      ],
+    },
+    candidates,
+    changeMaps,
+  );
+  const changes = (changeOut.messages as any)[0].content;
+  assert.equal(changes[1].tool.name, "mcp__codex_subagents__spawn_agent");
+  assert.equal(changes[2].tool.definition.name, "mcp__codex_subagents__wait_agent");
+  assert.equal(changes[3].tool.definition.name, "web_search");
+});
+
 test("client-name phrases from the stock prompt are neutralized", () => {
   assert.equal(
     rewritePromptText("You are an expert coding assistant operating inside pi, a coding agent harness."),

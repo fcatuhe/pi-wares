@@ -157,6 +157,11 @@ function remapHistoryBlock(block: unknown, resolve: AliasResolver): unknown {
     return alias ? { ...block, name: alias } : block;
   }
 
+  if ((block.type === "tool_removal" || block.type === "tool_addition") && isPlainObject(block.tool)) {
+    const tool = remapToolChange(block.tool, resolve);
+    return tool === block.tool ? block : { ...block, tool };
+  }
+
   if (block.type === "tool_result" && Array.isArray(block.content)) {
     return {
       ...block,
@@ -171,6 +176,19 @@ function remapHistoryBlock(block: unknown, resolve: AliasResolver): unknown {
   }
 
   return block;
+}
+
+function remapToolChange(tool: Record<string, unknown>, resolve: AliasResolver): Record<string, unknown> {
+  if (tool.type === "tool_reference" && typeof tool.name === "string") {
+    const alias = resolve(tool.name);
+    return alias ? { ...tool, name: alias } : tool;
+  }
+
+  const definition = tool.definition;
+  if (tool.type !== "tool_definition" || !isPlainObject(definition)) return tool;
+  if (typeof definition.name !== "string" || typeof definition.type === "string") return tool;
+  const alias = resolve(definition.name);
+  return alias ? { ...tool, definition: { ...definition, name: alias } } : tool;
 }
 
 export function unaliasToolCalls(message: unknown, maps: AliasMaps): boolean {
