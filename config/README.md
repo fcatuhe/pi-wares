@@ -11,7 +11,7 @@ The pi, herdr and Paseo configuration these wares assume, one reference file per
 | [`herdr/config.toml`](./herdr/config.toml) | `~/.config/herdr/config.toml` | The keybindings every machine agrees on, omarchy's `prefix+` chords plus pane focus and resize, the worktree directory, then two `[ui]` defaults and a blank row between sidebar spaces. |
 | [`paseo/config.json`](./paseo/config.json) | `~/.paseo/config.json` | Paseo's tools reach the agents, and its browser tools with them. Without `browserTools`, an agent on a remote daemon has no browser, since the browser runs in the desktop app. |
 
-[`git/config`](./git/config) is not reconciled but included, so `pi update --extensions` keeps it current. It holds `git wt <type>-<slug> [base]`, which checks the branch out in `~/fcode/worktrees/<repo>/<branch>`, the folder herdr's `worktrees.directory` also creates in. It fetches origin first, so a branch pushed from elsewhere is checked out tracking its remote. A branch that exists nowhere is created after a fetch from `base`, else from `origin/HEAD`, else from `HEAD` in a repo without a remote, so neither a stale `main` nor a dirty main checkout leaks into it. It tracks nothing, and the first `git push` sets its upstream through the `push.autoSetupRemote` the same file turns on. Install it once per machine:
+[`git/config`](./git/config) is not reconciled but included, so `pi update --extensions` keeps it current. It turns on `push.autoSetupRemote`, so the first `git push` from a new worktree branch, which tracks nothing, sets its upstream. Paseo's `create_workspace` makes the worktrees, in `~/.paseo/worktrees`. Install it once per machine:
 
 ```sh
 git config --global --add include.path ~/.pi/agent/git/github.com/fcatuhe/pi-wares/config/git/config

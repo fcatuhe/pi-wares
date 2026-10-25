@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
-import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -60,77 +59,9 @@ test("a hyphenated branch, or a slash anywhere but a new branch name, passes", (
   }
 });
 
-test("git wt checks out a new or existing branch in ~/fcode/worktrees/<repo>/<branch>, and refuses a slash", () => {
-  const home = mkdtempSync(join(tmpdir(), "policy-git-home-"));
-  const repo = join(home, "fcode", "app");
-  const env = { ...process.env, HOME: home, GIT_CONFIG_GLOBAL: join(import.meta.dirname, "../../../config/git/config") };
-  const git = (cwd: string, ...args: string[]) => execFileSync("git", args, { cwd, env, encoding: "utf8" }).trim();
-  execFileSync("git", ["init", "-q", "-b", "main", repo]);
-  git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "init");
-  git(repo, "branch", "fix-existing");
-
-  const created = git(repo, "wt", "feat-x");
-  assert.equal(created, join(home, "fcode", "worktrees", "app", "feat-x"));
-  assert.equal(git(created, "branch", "--show-current"), "feat-x");
-  assert.equal(
-    git(created, "wt", "fix-existing"),
-    join(home, "fcode", "worktrees", "app", "fix-existing"),
-    "named after the main checkout, even from a worktree",
-  );
-
-  const slash = spawnSync("git", ["wt", "feat/y"], { cwd: repo, env, encoding: "utf8" });
-  assert.notEqual(slash.status, 0);
-  assert.match(slash.stderr, /no \/ in the branch/);
-  assert.equal(existsSync(join(home, "fcode", "worktrees", "app", "feat")), false);
-});
-
-test("git wt branches from a fresh origin/HEAD whatever the main checkout holds, and tracks nothing so the first push sets the upstream", () => {
-  const home = mkdtempSync(join(tmpdir(), "policy-git-home-"));
-  const upstream = join(home, "upstream");
-  const repo = join(home, "fcode", "app");
-  const env = { ...process.env, HOME: home, GIT_CONFIG_GLOBAL: join(import.meta.dirname, "../../../config/git/config") };
-  const git = (cwd: string, ...args: string[]) => execFileSync("git", args, { cwd, env, encoding: "utf8" }).trim();
-  const commit = (cwd: string, message: string) =>
-    git(cwd, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", message);
-  execFileSync("git", ["init", "-q", "-b", "main", upstream]);
-  commit(upstream, "init");
-  execFileSync("git", ["clone", "-q", upstream, repo]);
-  git(repo, "checkout", "-q", "-b", "feat-elsewhere");
-  writeFileSync(join(repo, "wip.txt"), "uncommitted");
-  commit(upstream, "landed on main after the clone");
-
-  const fresh = git(repo, "wt", "feat-fresh");
-  assert.equal(git(fresh, "log", "-1", "--format=%s"), "landed on main after the clone");
-  assert.equal(existsSync(join(fresh, "wip.txt")), false);
-  assert.equal(spawnSync("git", ["rev-parse", "--abbrev-ref", "feat-fresh@{upstream}"], { cwd: repo, env }).status, 128);
-
-  const based = git(repo, "wt", "feat-based", "origin/main");
-  assert.equal(git(based, "log", "-1", "--format=%s"), "landed on main after the clone");
-  assert.equal(spawnSync("git", ["rev-parse", "--abbrev-ref", "feat-based@{upstream}"], { cwd: repo, env }).status, 128);
-});
-
-test("git wt checks out a branch that exists only on origin, tracking it, rather than starting a new one", () => {
-  const home = mkdtempSync(join(tmpdir(), "policy-git-home-"));
-  const upstream = join(home, "upstream");
-  const repo = join(home, "fcode", "app");
-  const env = { ...process.env, HOME: home, GIT_CONFIG_GLOBAL: join(import.meta.dirname, "../../../config/git/config") };
-  const git = (cwd: string, ...args: string[]) => execFileSync("git", args, { cwd, env, encoding: "utf8" }).trim();
-  const commit = (cwd: string, message: string) =>
-    git(cwd, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", message);
-  execFileSync("git", ["init", "-q", "-b", "main", upstream]);
-  commit(upstream, "init");
-  execFileSync("git", ["clone", "-q", upstream, repo]);
-  git(upstream, "checkout", "-q", "-b", "docs-pushed-elsewhere");
-  commit(upstream, "pushed from another machine");
-
-  const checkedOut = git(repo, "wt", "docs-pushed-elsewhere");
-  assert.equal(git(checkedOut, "log", "-1", "--format=%s"), "pushed from another machine");
-  assert.equal(git(repo, "rev-parse", "--abbrev-ref", "docs-pushed-elsewhere@{upstream}"), "origin/docs-pushed-elsewhere");
-});
-
-test("git worktree add is refused in favour of git wt, which owns the worktree directory", () => {
+test("git worktree add is refused in favour of create_workspace, so Paseo lists and archives the worktree", () => {
   for (const command of ["git worktree add ../app-x -b feat-x", "git -C ~/fcode/app worktree add /tmp/x main"]) {
-    assert.match(refusal(command)?.reason ?? "", /git wt <type>-<slug>/, command);
+    assert.match(refusal(command)?.reason ?? "", /create_workspace/, command);
   }
   assert.equal(refusal("git worktree list && git worktree remove ../app-x"), undefined);
 });

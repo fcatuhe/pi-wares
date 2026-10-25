@@ -47,7 +47,7 @@ function worktreeRefusal(command: string): Refusal | undefined {
   return {
     block: true,
     reason:
-      "Git policy refused git worktree add: create the worktree with `git wt <type>-<slug> [base]`, which places it in ~/fcode/worktrees/<repo>/<branch>.",
+      "Git policy refused git worktree add: create the worktree with Paseo's create_workspace, isolation worktree and baseBranch origin/main, or herdr_worktree_jump outside Paseo.",
   };
 }
 
