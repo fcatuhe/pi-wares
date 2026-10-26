@@ -211,12 +211,16 @@ function targets(): Target[] {
       path: join(herdr, "config.toml"),
       hint: "herdr server reload-config",
     },
-    {
-      label: "paseo",
-      reference: "config/paseo/config.json",
-      path: join(paseo, "config.json"),
-      hint: "paseo reload, then reload the agents",
-    },
+    ...(existsSync(paseo)
+      ? [
+          {
+            label: "paseo",
+            reference: "config/paseo/config.json",
+            path: join(paseo, "config.json"),
+            hint: "paseo reload, then reload the agents",
+          },
+        ]
+      : []),
   ];
 }
 

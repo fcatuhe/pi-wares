@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { test } from "node:test";
@@ -47,11 +47,12 @@ const toml = reconcileToml(USER_TOML, REFERENCE_TOML);
 
 const state = (findings: any[], path: string) => findings.find((f) => f.path.join(".") === path)?.state;
 
-function bareMachine(): string {
+function bareMachine({ paseo = true } = {}): string {
   const home = mkdtempSync(join(tmpdir(), "wares-doctor-"));
   process.env.PI_CODING_AGENT_DIR = join(home, "agent");
   process.env.XDG_CONFIG_HOME = join(home, "config");
   process.env.PASEO_HOME = join(home, "paseo");
+  if (paseo) mkdirSync(process.env.PASEO_HOME);
   return home;
 }
 
@@ -400,6 +401,13 @@ test("models whose provider is not logged in are skipped, named once, and land o
     Object.keys(JSON.parse(readFileSync(shortcutsFile, "utf-8"))).length,
     Object.keys(JSON.parse(readFileSync(join(ROOT, "config/pi/model-shortcuts/config.json"), "utf-8"))).length,
   );
+});
+
+test("a machine where Paseo never ran gets no paseo row, and apply creates no Paseo home", () => {
+  const noPaseoHome = bareMachine({ paseo: false });
+  const labels = report(APPLY, everything).rows.map((row) => row.label.trim());
+  assert.deepEqual(labels, ["pi settings", "model shortcuts", "subagents", "rails-review agent", "herdr"]);
+  assert.equal(existsSync(join(noPaseoHome, "paseo")), false, "apply installed a Paseo config on a machine without Paseo");
 });
 
 test("one command per mode, so the palette shows all three rather than hiding two behind an argument", () => {
