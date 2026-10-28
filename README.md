@@ -1,6 +1,6 @@
 # pi-wares
 
-A personal toolkit of extensions and skills for [pi-coding-agent](https://github.com/earendil-works/pi), plus the pi and herdr config they run on.
+A personal toolkit of extensions and skills for [pi-coding-agent](https://github.com/earendil-works/pi), plus the pi, herdr and Paseo config they run on.
 
 ## Prerequisites
 
@@ -31,7 +31,7 @@ Some skills drive CLIs this package does not install:
 
 ## Configuration
 
-[`config/`](./config/README.md) holds the reference pi and herdr config, and [`/wares-doctor`](./extensions/wares-doctor/) compares this machine against it:
+[`config/`](./config/README.md) holds the reference pi, herdr and Paseo config, and [`/wares-doctor`](./extensions/wares-doctor/) compares this machine against it:
 
 ```text
 /wares-doctor         # report what is missing
