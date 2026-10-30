@@ -29,6 +29,7 @@ export function toneColor(theme: PluginTheme, tone: Tone): string {
 }
 
 export function paceColor(theme: PluginTheme, pace: Pace): string {
+  if (pace.stage === "on_pace") return theme.colors.foreground;
   return pace.stage === "deficit" ? theme.colors.statusDanger : theme.colors.statusSuccess;
 }
 
@@ -47,7 +48,6 @@ export function UsageMeter({
   height?: number;
   style?: StyleProp<ViewStyle>;
 }) {
-  const marker = pace && pace.stage !== "on_pace" ? pace : null;
   const styles = useMemo(
     () => ({
       frame: { height: height + 4, justifyContent: "center" as const },
@@ -58,18 +58,18 @@ export function UsageMeter({
         overflow: "hidden" as const,
       },
       fill: { height: "100%" as const, borderRadius: height / 2, backgroundColor: fill, width: `${clamp(percent)}%` as const },
-      marker: marker && {
+      marker: pace && {
         position: "absolute" as const,
         top: 0,
         bottom: 0,
         width: 2,
         marginLeft: -1,
         borderRadius: 1,
-        left: `${clamp(marker.expectedPct)}%` as const,
-        backgroundColor: paceColor(theme, marker),
+        left: `${clamp(pace.expectedPct)}%` as const,
+        backgroundColor: paceColor(theme, pace),
       },
     }),
-    [fill, height, marker, percent, theme],
+    [fill, height, pace, percent, theme],
   );
   return (
     <View style={[styles.frame, style]}>
