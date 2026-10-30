@@ -7,6 +7,7 @@ What runs inside [Paseo](https://paseo.sh), the app that hosts these pi sessions
 | [`extensions/loadout/`](./extensions/loadout/) | pi | Inside Paseo, declares Paseo's agent, workspace and browser tools, and drops the subagents, the worktree jump, the radio and the `agent-browser` skill they replace. |
 | [`extensions/pi-shutdown-workaround/`](./extensions/pi-shutdown-workaround/) | pi | Temporary workaround for a pi bug: in RPC mode, lets pi finish a shutdown it started, so Paseo's close does not lose a refreshed MCP token and get the connection revoked. |
 | [`plugins/page-scroll/`](./plugins/page-scroll/OVERVIEW.md) | Paseo app | Page Up and Page Down scroll the agent chat, even while the message box has focus. |
+| [`plugins/usage-pace/`](./plugins/usage-pace/OVERVIEW.md) | Paseo app and daemon | Account usage in the sidebar, with a pace marker that says whether each limit lasts until it resets. |
 
 ## Install a plugin
 

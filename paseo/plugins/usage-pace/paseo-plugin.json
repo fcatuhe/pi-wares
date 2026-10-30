@@ -1,0 +1,8 @@
+{
+  "id": "usage-pace",
+  "requirements": {
+    "paseo": ">=0.14.0"
+  },
+  "name": "Usage pace",
+  "description": "Account usage in the sidebar, with a pace marker that says whether each limit lasts until it resets"
+}
