@@ -6,7 +6,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { readJson, writeAtomic } from "../lib/files.ts";
 import { agentDir } from "../lib/paths.ts";
 
-const AHEAD_MS = 20 * 60_000;
+const AHEAD_MS = 10 * 60_000;
 const REQUEST_TIMEOUT_MS = 15_000;
 const LOCK_WAIT_MS = 30_000;
 const LOCK_RETRY_MS = 100;

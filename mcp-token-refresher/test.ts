@@ -55,9 +55,9 @@ const rotated: Answer = {
   body: { access_token: "A1", token_type: "Bearer", expires_in: 3600, refresh_token: "R1", scope: "read" },
 };
 
-test("a token that expires within 20 minutes is refreshed with its client and resource, and saved with its new expiry", async () => {
+test("a token that expires within 10 minutes is refreshed with its client and resource, and saved with its new expiry", async () => {
   const endpoint = await tokenEndpoint(rotated);
-  const agent = agentWith(endpoint.base, { tokensExpireAt: Date.now() + 10 * MINUTE });
+  const agent = agentWith(endpoint.base, { tokensExpireAt: Date.now() + 5 * MINUTE });
 
   const failures = await refreshDueTokens(agent.dir);
   endpoint.close();
@@ -73,9 +73,9 @@ test("a token that expires within 20 minutes is refreshed with its client and re
   assert.ok(Math.abs(agent.stored().tokensExpireAt - (Date.now() + 60 * MINUTE)) < MINUTE);
 });
 
-test("a token with more than 20 minutes left is not refreshed", async () => {
+test("a token with more than 10 minutes left is not refreshed", async () => {
   const endpoint = await tokenEndpoint(rotated);
-  const agent = agentWith(endpoint.base, { tokensExpireAt: Date.now() + 30 * MINUTE });
+  const agent = agentWith(endpoint.base, { tokensExpireAt: Date.now() + 15 * MINUTE });
 
   await refreshDueTokens(agent.dir);
   endpoint.close();
@@ -90,7 +90,7 @@ test("a server signed in through a client metadata document refreshes as pi's do
     endpoint.base,
     {
       clientInformation: undefined,
-      tokensExpireAt: Date.now() + 10 * MINUTE,
+      tokensExpireAt: Date.now() + 5 * MINUTE,
       discovery: {
         authorizationServerUrl: endpoint.base,
         authorizationServerMetadata: { token_endpoint: `${endpoint.base}/token`, authorization_response_iss_parameter_supported: true },
@@ -107,7 +107,7 @@ test("a server signed in through a client metadata document refreshes as pi's do
 
 test("a refused refresh keeps the stored tokens and counts as a failure", async () => {
   const endpoint = await tokenEndpoint({ status: 400, body: { error: "invalid_grant", error_description: "used before" } });
-  const agent = agentWith(endpoint.base, { tokensExpireAt: Date.now() + 10 * MINUTE });
+  const agent = agentWith(endpoint.base, { tokensExpireAt: Date.now() + 5 * MINUTE });
 
   const failures = await refreshDueTokens(agent.dir);
   endpoint.close();
@@ -119,7 +119,7 @@ test("a refused refresh keeps the stored tokens and counts as a failure", async 
 // The refresh lock is pi's, so a token pi rotated while the script waited is not sent again.
 test("while pi holds the refresh lock, the script waits and then leaves pi's fresh token alone", async () => {
   const endpoint = await tokenEndpoint(rotated);
-  const agent = agentWith(endpoint.base, { tokensExpireAt: Date.now() + 10 * MINUTE });
+  const agent = agentWith(endpoint.base, { tokensExpireAt: Date.now() + 5 * MINUTE });
   mkdirSync(agent.refreshLock);
 
   const run = refreshDueTokens(agent.dir);
