@@ -53,9 +53,9 @@ On a machine with no browser, [`subscription-token-login/`](./extensions/subscri
 
 [`paseo/`](./paseo/README.md) holds the pi extensions that adapt pi to [Paseo](https://paseo.sh) and the Paseo plugins that change the app.
 
-## MCP sign-ins
+## Sign-ins
 
-[`mcp-token-refresher/`](./mcp-token-refresher/README.md) is a systemd timer that refreshes pi's MCP OAuth tokens before they expire, so a pi that Paseo kills never holds a rotated refresh token unsaved. pi loads nothing from it: enable the timer once per machine.
+[`pi-token-refresher/`](./pi-token-refresher/README.md) is a systemd timer that refreshes pi's OAuth logins and MCP tokens before they expire, so a pi that Paseo kills never holds a rotated refresh token unsaved. pi loads nothing from it: enable the timer once per machine.
 
 ## Wares
 

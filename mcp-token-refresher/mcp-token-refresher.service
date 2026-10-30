@@ -1,7 +1,0 @@
-[Unit]
-Description=Refresh pi's MCP OAuth tokens before they expire
-
-[Service]
-Type=oneshot
-ExecStart=%h/.local/share/mise/shims/node %h/.pi/agent/git/github.com/fcatuhe/pi-wares/mcp-token-refresher/refresh.ts
-Environment="PATH=%h/.local/share/mise/shims:/usr/local/bin:/usr/bin:/bin"

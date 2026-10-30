@@ -1,5 +1,5 @@
 [Unit]
-Description=Refresh pi's MCP OAuth tokens every 3 minutes
+Description=Refresh pi's OAuth logins and MCP tokens every 3 minutes
 
 [Timer]
 OnBootSec=1min

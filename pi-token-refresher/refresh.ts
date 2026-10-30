@@ -1,18 +1,22 @@
+import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdirSync, rmdirSync, statSync, utimesSync } from "node:fs";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { promisify } from "node:util";
 
 import { readJson, writeAtomic } from "../lib/files.ts";
 import { agentDir } from "../lib/paths.ts";
 
 const AHEAD_MS = 10 * 60_000;
 const REQUEST_TIMEOUT_MS = 15_000;
-const LOCK_WAIT_MS = 30_000;
+const PI_TIMEOUT_MS = 60_000;
+const LOCK_WAIT_MS = 45_000;
 const LOCK_RETRY_MS = 100;
 const LOCK_TOUCH_MS = 5_000;
 const REFRESH_LOCK_STALE_MS = 20_000;
 const FILE_LOCK_STALE_MS = 10_000;
+const AUTH_LOCK_STALE_MS = 30_000;
 const CLIENT_METADATA_BASE_URL = "https://pi.dev/oauth";
 
 type Tokens = { access_token: string; refresh_token?: string; expires_in?: number; scope?: string };
@@ -30,13 +34,38 @@ type State = {
 };
 type States = Record<string, State>;
 type Servers = Record<string, { oauth?: { clientRegistration?: string } }>;
+type Logins = Record<string, { type?: string; refresh?: string; expires?: number }>;
 
 if (import.meta.main) {
-  const failures = await refreshDueTokens(agentDir());
+  const dir = agentDir();
+  const failures = (await refreshDueLogins(dir)) + (await refreshDueMcpTokens(dir));
   if (failures > 0) process.exitCode = 1;
 }
 
-export async function refreshDueTokens(dir: string): Promise<number> {
+export async function refreshDueLogins(dir: string): Promise<number> {
+  const authPath = join(dir, "auth.json");
+  const logins = await withLock(authPath, AUTH_LOCK_STALE_MS, () => readJson<Logins>(authPath) ?? {});
+  let failures = 0;
+
+  for (const [provider, login] of Object.entries(logins)) {
+    if (login.type !== "oauth" || !login.refresh || login.expires === undefined) continue;
+    if (login.expires - Date.now() > AHEAD_MS) continue;
+    try {
+      await promisify(execFile)("pi", ["auth", "print-bearer-token", "--provider", provider, "--min-expiry", `${AHEAD_MS / 60_000}m`], {
+        env: { ...process.env, PI_CODING_AGENT_DIR: dir },
+        timeout: PI_TIMEOUT_MS,
+      });
+      const expires = (await withLock(authPath, AUTH_LOCK_STALE_MS, () => readJson<Logins>(authPath)))?.[provider]?.expires;
+      console.log(`${provider}: refreshed the login, it now expires at ${expires ? new Date(expires).toISOString() : "an unknown time"}`);
+    } catch (error) {
+      failures++;
+      console.error(`${provider}: ${(error as { stderr?: string }).stderr?.trim() || (error as Error).message}`);
+    }
+  }
+  return failures;
+}
+
+export async function refreshDueMcpTokens(dir: string): Promise<number> {
   const authPath = join(dir, "mcp-auth.json");
   const servers = readJson<{ mcpServers?: Servers }>(join(dir, "mcp.json"))?.mcpServers ?? {};
   const keys = Object.keys(await withLock(authPath, FILE_LOCK_STALE_MS, () => readStates(authPath)));

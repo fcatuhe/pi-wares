@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, rmdirSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmdirSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { refreshDueTokens } from "./refresh.ts";
+import { refreshDueLogins, refreshDueMcpTokens } from "./refresh.ts";
 
 const MINUTE = 60_000;
 
@@ -30,7 +30,7 @@ async function tokenEndpoint(answer: Answer) {
 }
 
 function agentWith(base: string, entry: Record<string, unknown>, mcpServers: Record<string, unknown> = { wiki: { url: `${base}/mcp` } }) {
-  const dir = mkdtempSync(join(tmpdir(), "mcp-token-refresher-"));
+  const dir = mkdtempSync(join(tmpdir(), "pi-token-refresher-"));
   const key = `mcp__wiki|${base}/mcp`;
   const state = {
     serverUrl: `${base}/mcp`,
@@ -59,7 +59,7 @@ test("a token that expires within 10 minutes is refreshed with its client and re
   const endpoint = await tokenEndpoint(rotated);
   const agent = agentWith(endpoint.base, { tokensExpireAt: Date.now() + 5 * MINUTE });
 
-  const failures = await refreshDueTokens(agent.dir);
+  const failures = await refreshDueMcpTokens(agent.dir);
   endpoint.close();
 
   assert.equal(failures, 0);
@@ -77,7 +77,7 @@ test("a token with more than 10 minutes left is not refreshed", async () => {
   const endpoint = await tokenEndpoint(rotated);
   const agent = agentWith(endpoint.base, { tokensExpireAt: Date.now() + 15 * MINUTE });
 
-  await refreshDueTokens(agent.dir);
+  await refreshDueMcpTokens(agent.dir);
   endpoint.close();
 
   assert.equal(endpoint.requests.length, 0);
@@ -99,7 +99,7 @@ test("a server signed in through a client metadata document refreshes as pi's do
     { wiki: { url: `${endpoint.base}/mcp`, oauth: { clientRegistration: "cimd" } } },
   );
 
-  await refreshDueTokens(agent.dir);
+  await refreshDueMcpTokens(agent.dir);
   endpoint.close();
 
   assert.equal(endpoint.requests[0].get("client_id"), "https://pi.dev/oauth/client.json");
@@ -109,7 +109,7 @@ test("a refused refresh keeps the stored tokens and counts as a failure", async 
   const endpoint = await tokenEndpoint({ status: 400, body: { error: "invalid_grant", error_description: "used before" } });
   const agent = agentWith(endpoint.base, { tokensExpireAt: Date.now() + 5 * MINUTE });
 
-  const failures = await refreshDueTokens(agent.dir);
+  const failures = await refreshDueMcpTokens(agent.dir);
   endpoint.close();
 
   assert.equal(failures, 1);
@@ -122,7 +122,7 @@ test("while pi holds the refresh lock, the script waits and then leaves pi's fre
   const agent = agentWith(endpoint.base, { tokensExpireAt: Date.now() + 5 * MINUTE });
   mkdirSync(agent.refreshLock);
 
-  const run = refreshDueTokens(agent.dir);
+  const run = refreshDueMcpTokens(agent.dir);
   await new Promise((resolve) => setImmediate(resolve));
   const fresh = { ...agent.stored(), tokens: { ...agent.stored().tokens, refresh_token: "R1" }, tokensExpireAt: Date.now() + 60 * MINUTE };
   writeFileSync(agent.authPath, JSON.stringify({ [agent.key]: fresh }));
@@ -132,4 +132,52 @@ test("while pi holds the refresh lock, the script waits and then leaves pi's fre
 
   assert.equal(endpoint.requests.length, 0);
   assert.equal(agent.stored().tokens.refresh_token, "R1");
+});
+
+async function withFakePi(logins: Record<string, unknown>, fails: boolean, run: (dir: string) => Promise<void>) {
+  const bin = mkdtempSync(join(tmpdir(), "fake-pi-"));
+  const fail = 'echo "Error: Failed to resolve credential" >&2; exit 1';
+  writeFileSync(join(bin, "pi"), `#!/bin/sh\necho "$*" >> "$PI_CODING_AGENT_DIR/pi-calls"\n${fails ? fail : "echo bearer-token"}\n`);
+  chmodSync(join(bin, "pi"), 0o755);
+  const dir = mkdtempSync(join(tmpdir(), "pi-token-refresher-"));
+  writeFileSync(join(dir, "auth.json"), JSON.stringify(logins));
+  const path = process.env.PATH;
+  process.env.PATH = `${bin}:${path}`;
+  try {
+    await run(dir);
+  } finally {
+    process.env.PATH = path;
+  }
+}
+
+const calls = (dir: string) => (existsSync(join(dir, "pi-calls")) ? readFileSync(join(dir, "pi-calls"), "utf8").trim().split("\n") : []);
+
+test("a login with a refresh token that expires within 10 minutes is refreshed by pi itself", async () => {
+  const logins = { openai: { type: "oauth", access: "A0", refresh: "R0", expires: Date.now() + 5 * MINUTE } };
+
+  await withFakePi(logins, false, async (dir) => {
+    assert.equal(await refreshDueLogins(dir), 0);
+    assert.deepEqual(calls(dir), ["auth print-bearer-token --provider openai --min-expiry 10m"]);
+  });
+});
+
+test("a long-lived login without a refresh token, and a login with more than 10 minutes left, are left alone", async () => {
+  const logins = {
+    anthropic: { type: "oauth", access: "sk-ant-oat01", refresh: "", expires: Date.now() + 5 * MINUTE },
+    openai: { type: "oauth", access: "A0", refresh: "R0", expires: Date.now() + 15 * MINUTE },
+    mistral: { type: "api_key", key: "k" },
+  };
+
+  await withFakePi(logins, false, async (dir) => {
+    assert.equal(await refreshDueLogins(dir), 0);
+    assert.deepEqual(calls(dir), []);
+  });
+});
+
+test("a login pi fails to refresh counts as a failure", async () => {
+  const logins = { anthropic: { type: "oauth", access: "A0", refresh: "R0", expires: Date.now() + 5 * MINUTE } };
+
+  await withFakePi(logins, true, async (dir) => {
+    assert.equal(await refreshDueLogins(dir), 1);
+  });
 });
