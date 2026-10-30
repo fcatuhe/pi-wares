@@ -13,9 +13,9 @@ Color is pace, not usage: green at or under pace plus 2 points of slack, yellow 
 | pi provider | Source |
 |---|---|
 | `anthropic` | `GET api.anthropic.com/api/oauth/usage`, `limits[]` kinds `session` (5h) and `weekly_all` (7d) |
-| `openai-codex` | `GET chatgpt.com/backend-api/wham/usage`, primary and secondary windows |
+| `openai-codex`, and `openai` signed in with ChatGPT | `GET chatgpt.com/backend-api/wham/usage`, primary and secondary windows |
 
-Both endpoints are unofficial. Tokens come from `~/.pi/agent/auth.json` only, and any other provider clears the status. The per-model weekly cap (`weekly_scoped`) is not shown, so a green `7d` does not promise the current model has weekly quota left.
+Both endpoints are unofficial. The Claude token comes from `~/.pi/agent/auth.json`. The Codex token comes from pi's legacy `openai-codex` login, or else from the Codex CLI's `~/.codex/auth.json`. Sign in with ChatGPT on pi's `openai` provider gives a token the usage endpoint refuses, so with only that login the footer says `no usage data: needs a Codex login, run codex login`. Any other provider clears the status. The per-model weekly cap (`weekly_scoped`) is not shown, so a green `7d` does not promise the current model has weekly quota left.
 
 It polls at session start, on model change and every 5 minutes, once per provider for the whole machine: sessions share the last good read in `~/.pi/agent/subscription-usage-pace/snapshot.json`, so a new session draws bars before its first poll. Windows past their reset are dropped.
 

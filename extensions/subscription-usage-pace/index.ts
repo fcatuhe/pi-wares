@@ -1,3 +1,4 @@
+import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
@@ -9,13 +10,17 @@ import {
   barCells,
   blockedNotice,
   type Cell,
+  type CodexCredentials,
+  codexCredentials,
   elapsedPercent,
   formatReset,
   paceColor,
   parseClaude,
   parseCodex,
+  type Provider,
   pollSlotTaken,
   retryAfterMs,
+  usageSource,
   type Window,
 } from "./usage.ts";
 
@@ -24,10 +29,7 @@ const REFRESH_MS = 5 * 60_000;
 const STALE_MS = 2 * REFRESH_MS;
 const REQUEST_TIMEOUT_MS = 5000;
 const GLYPH: Record<Cell, string> = { full: "━", empty: "─", mark: "╵" };
-const PROVIDERS: Record<string, Provider> = { anthropic: "claude", "openai-codex": "codex" };
 const ACCOUNT_SWITCHED = "subscription-switch:switched";
-
-type Provider = "claude" | "codex";
 
 function authJson(): Record<string, any> {
   return readJson<Record<string, any>>(join(agentDir(), "auth.json")) ?? {};
@@ -37,9 +39,9 @@ function claudeToken(): string | undefined {
   return authJson().anthropic?.access;
 }
 
-function codexToken(): { token: string; accountId?: string } | undefined {
-  const entry = authJson()["openai-codex"];
-  return entry?.access ? { token: entry.access, accountId: entry.accountId } : undefined;
+function codexToken(): CodexCredentials | undefined {
+  const codexHome = process.env.CODEX_HOME || join(homedir(), ".codex");
+  return codexCredentials(authJson(), readJson(join(codexHome, "auth.json")));
 }
 
 type Entry = { at: number; polledAt: number; blockedUntil: number; windows: Window[] };
@@ -72,7 +74,7 @@ type Poll = { windows: Window[]; blockedUntil?: number };
 async function fetchUsage(provider: Provider): Promise<Poll> {
   const signal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
   const res = provider === "claude" ? await fetchClaude(signal) : await fetchCodex(signal);
-  if (!res) throw new Error("not logged in");
+  if (!res) throw new Error(provider === "codex" ? "needs a Codex login, run codex login" : "not logged in");
   if (res.status === 429) {
     const now = Date.now();
     const wait = retryAfterMs(res.headers.get("retry-after"), now) ?? REFRESH_MS;
@@ -165,7 +167,7 @@ export default function (pi: ExtensionAPI) {
   }
 
   async function refresh(providerId: string | undefined, force = false): Promise<void> {
-    const provider = PROVIDERS[providerId ?? ""] ?? null;
+    const provider = usageSource(providerId, authJson());
     active = provider;
     if (!provider) return paint();
     try {

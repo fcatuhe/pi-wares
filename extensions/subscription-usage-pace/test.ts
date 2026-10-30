@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   barCells,
   blockedNotice,
+  codexCredentials,
   elapsedPercent,
   formatReset,
   paceColor,
@@ -10,6 +11,7 @@ import {
   parseCodex,
   pollSlotTaken,
   retryAfterMs,
+  usageSource,
 } from "./usage.ts";
 
 const HOUR = 3_600_000;
@@ -138,4 +140,23 @@ test("another session's fresh read holds the poll slot, an empty cache never doe
   assert.equal(pollSlotTaken({ ...held, polledAt: now - 6 * 60_000 }, now, 5 * 60_000), false);
   assert.equal(pollSlotTaken({ ...held, windows: [] }, now, 5 * 60_000), false);
   assert.equal(pollSlotTaken(undefined, now, 5 * 60_000), false);
+});
+
+test("pi's openai provider reads Codex usage only when signed in with ChatGPT, not with an API key", () => {
+  assert.equal(usageSource("anthropic", {}), "claude");
+  assert.equal(usageSource("openai-codex", {}), "codex");
+  assert.equal(usageSource("openai", { openai: { type: "oauth" } }), "codex");
+  assert.equal(usageSource("openai", { openai: { type: "api_key" } }), null);
+  assert.equal(usageSource("fireworks", {}), null);
+  assert.equal(usageSource(undefined, {}), null);
+});
+
+test("Codex usage takes pi's legacy login first, then the Codex CLI's, and never the Sign in with ChatGPT token", () => {
+  const cli = { tokens: { access_token: "cli", account_id: "cli-account" } };
+  assert.deepEqual(codexCredentials({ "openai-codex": { access: "legacy", accountId: "acct" } }, cli), {
+    token: "legacy",
+    accountId: "acct",
+  });
+  assert.deepEqual(codexCredentials({ openai: { type: "oauth", access: "chatgpt" } }, cli), { token: "cli", accountId: "cli-account" });
+  assert.equal(codexCredentials({ openai: { type: "oauth", access: "chatgpt" } }, undefined), undefined);
 });

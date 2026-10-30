@@ -2,12 +2,30 @@ export const HOUR = 3_600_000;
 export const BAR_WIDTH_CELLS = 10;
 
 export type Cell = "full" | "empty" | "mark";
+export type Provider = "claude" | "codex";
+export type CodexCredentials = { token: string; accountId?: string };
 
 export interface Window {
   label: string;
   usedPercent: number;
   resetsAt: number;
   durationMs: number;
+}
+
+export function usageSource(providerId: string | undefined, auth: Record<string, any>): Provider | null {
+  if (providerId === "anthropic") return "claude";
+  if (providerId === "openai-codex") return "codex";
+  if (providerId === "openai" && auth.openai?.type === "oauth") return "codex";
+  return null;
+}
+
+// INFO: fc 30oct26 pi's Sign in with ChatGPT token is refused by the usage endpoint, so only a Codex app login can read usage
+export function codexCredentials(auth: Record<string, any>, codexCliAuth: any): CodexCredentials | undefined {
+  const legacy = auth["openai-codex"];
+  if (legacy?.access) return { token: legacy.access, accountId: legacy.accountId };
+  const tokens = codexCliAuth?.tokens;
+  if (tokens?.access_token) return { token: tokens.access_token, accountId: tokens.account_id };
+  return undefined;
 }
 
 function clamp(value: number): number {
