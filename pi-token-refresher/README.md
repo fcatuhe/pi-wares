@@ -9,6 +9,8 @@ Every 3 minutes, `refresh.ts` does two things.
 - **Provider logins** in `~/.pi/agent/auth.json`: an OAuth login that holds a refresh token and expires within 10 minutes is refreshed by pi itself, with `pi auth print-bearer-token --provider <id> --min-expiry 10m`, under pi's own lock. The token it prints is discarded. A long-lived token without a refresh token, such as Anthropic's `sk-ant-oat01`, is left alone.
 - **MCP tokens** in `~/.pi/agent/mcp-auth.json`: pi has no command for these, so the script refreshes each entry that holds a refresh token and expires within 10 minutes as pi would: the same token endpoint, client, `resource` and scope. A server signed in with `"clientRegistration": "cimd"` refreshes as pi's client metadata document. It takes pi's own locks, `mcp-auth-refresh-<hash>.lock` around the refresh and `mcp-auth.json.lock` around each read and write, so it never refreshes alongside a pi.
 
+This timer works around a pi bug that pi fixed on its side in [earendil-works/pi#11812](https://github.com/earendil-works/pi/pull/11812), merged on 4 Nov 2026 after pi 1.5.0: pi now waits for a started OAuth refresh to be saved before it exits, and [#11752](https://github.com/earendil-works/pi/pull/11752) keeps a stdin close or a SIGTERM from cutting that wait short. Neither survives Paseo's SIGKILL two seconds later, so keep the timer until Paseo gives pi longer to exit or stops killing it.
+
 A refused refresh keeps the stored tokens and fails the run: pi then refreshes or asks for sign-in as before, and `journalctl --user -u pi-token-refresher` says why.
 
 The MCP half reads pi 1.4.0's storage: the `mcp__<server>|<url>` keys, `tokensExpireAt`, and the lock names. Check them again when pi changes its MCP OAuth code.

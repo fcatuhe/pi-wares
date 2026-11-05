@@ -8,7 +8,7 @@ A refresh is often in flight at that moment. Paseo starts a pi to probe its comm
 
 Once stdin closes or SIGTERM arrives, the extension ignores the other trigger and later SIGTERMs, so `dispose()` finishes and pi exits by itself. Paseo's SIGKILL still ends a pi that hangs.
 
-Delete it once pi's RPC mode lets a started shutdown finish (`packages/coding-agent/src/modes/rpc/rpc-mode.ts`, `shutdown()`).
+pi fixed this in [earendil-works/pi#11752](https://github.com/earendil-works/pi/pull/11752), merged on 3 Nov 2026 after pi 1.5.0: a started shutdown now finishes, and only a second signal forces the exit. Delete this extension once a pi release ships that fix.
 
 `test.ts` drives `fixture.ts`, a copy of that shutdown, through both orders.
 
