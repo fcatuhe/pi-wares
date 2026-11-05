@@ -82,7 +82,7 @@ Each ware has a README beside its code.
 
 | Ware | What it does |
 |---|---|
-| [`herdr-tab-title/`](./extensions/herdr-tab-title/) | Syncs the herdr tab label and the pi session name, both directions. |
+| [`tab-title/`](./extensions/tab-title/) | Syncs the herdr tab label and the pi session name, both directions, and names the Paseo agent after the session. |
 | [`auto-session-name/`](./extensions/auto-session-name/) | Names an unnamed session `two-words` with haiku after the first turn, once. |
 | [`radio/`](./extensions/radio/) | `radio_call` calls another agent session on this machine: the message lands in its transcript as a named peer, not as its owner typing. |
 | [`model-shortcuts/`](./extensions/model-shortcuts/) | Slash shortcuts for model and thinking level: `/<name>`, `/<name>:high`, `/high`. |

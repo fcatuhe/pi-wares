@@ -10,7 +10,7 @@ const REQUEST_TIMEOUT_MS = 1500;
 const RECONNECT_MS = 5000;
 const EVENT_SETTLE_MS = 300;
 
-export default function (pi: ExtensionAPI) {
+export function herdrTabTitle(pi: ExtensionAPI): void {
   if (!herdrEnabled() || !tabId) return;
 
   let started = false;
