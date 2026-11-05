@@ -1,6 +1,7 @@
 import type { UsageWindow } from "../shared/usage";
 
 export type PaceStage = "on_pace" | "reserve" | "deficit";
+export type PaceTone = "success" | "warning" | "danger";
 
 export interface Pace {
   expectedPct: number;
@@ -57,6 +58,11 @@ function oneMonthBefore(at: number): number {
 function stageOf(deltaPct: number): PaceStage {
   if (Math.abs(deltaPct) <= 2) return "on_pace";
   return deltaPct > 0 ? "deficit" : "reserve";
+}
+
+export function paceTone(pace: Pace): PaceTone {
+  if (pace.deltaPct <= 2) return "success";
+  return pace.deltaPct <= 12 ? "warning" : "danger";
 }
 
 function runsOutIn(actual: number, elapsed: number, untilReset: number): number | null {

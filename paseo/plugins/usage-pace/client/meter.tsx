@@ -1,55 +1,36 @@
 import type { PluginTheme } from "@getpaseo/plugin";
 import { useMemo } from "react";
 import { type StyleProp, View, type ViewStyle } from "react-native";
-import type { UsageWindow } from "../shared/usage";
-import { clamp, type Pace, usedPct } from "./pace";
+import { clamp, type Pace, paceTone } from "./pace";
 
-export type Tone = NonNullable<UsageWindow["tone"]>;
-
-export function windowTone(rateWindow: UsageWindow): Tone {
-  if (rateWindow.tone) return rateWindow.tone;
-  const used = usedPct(rateWindow);
-  if (used == null) return "default";
-  if (used > 90) return "danger";
-  if (used >= 70) return "warning";
-  return "default";
-}
-
-export function toneColor(theme: PluginTheme, tone: Tone): string {
-  switch (tone) {
-    case "ok":
+function fillColor(theme: PluginTheme, pace: Pace | null): string {
+  if (!pace) return theme.colors.foregroundMuted;
+  switch (paceTone(pace)) {
+    case "success":
       return theme.colors.statusSuccess;
     case "warning":
       return theme.colors.statusWarning;
     case "danger":
       return theme.colors.statusDanger;
-    default:
-      return theme.colors.foregroundMuted;
   }
-}
-
-export function paceColor(theme: PluginTheme, pace: Pace): string {
-  if (pace.stage === "on_pace") return theme.colors.foreground;
-  return pace.stage === "deficit" ? theme.colors.statusDanger : theme.colors.statusSuccess;
 }
 
 export function UsageMeter({
   theme,
   percent,
   pace,
-  fill,
   height = 4,
   style,
 }: {
   theme: PluginTheme;
   percent: number;
   pace: Pace | null;
-  fill: string;
   height?: number;
   style?: StyleProp<ViewStyle>;
 }) {
-  const styles = useMemo(
-    () => ({
+  const styles = useMemo(() => {
+    const fill = fillColor(theme, pace);
+    return {
       frame: { height: height + 4, justifyContent: "center" as const },
       track: {
         height,
@@ -66,11 +47,10 @@ export function UsageMeter({
         marginLeft: -1,
         borderRadius: 1,
         left: `${clamp(pace.expectedPct)}%` as const,
-        backgroundColor: paceColor(theme, pace),
+        backgroundColor: theme.colors.accent,
       },
-    }),
-    [fill, height, pace, percent, theme],
-  );
+    };
+  }, [height, pace, percent, theme]);
   return (
     <View style={[styles.frame, style]}>
       <View style={styles.track}>

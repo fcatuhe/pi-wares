@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { formatDuration, outlookLabel, paceLabel, windowDurationMs, windowPace } from "../client/pace.ts";
+import { formatDuration, outlookLabel, paceLabel, paceTone, windowDurationMs, windowPace } from "../client/pace.ts";
 import { resolveReport, summaryWindows } from "../client/report.ts";
 import type { UsageEntry } from "../shared/usage.ts";
 
@@ -32,6 +32,17 @@ test("within two points is on pace", () => {
   const pace = windowPace(weekly(51.5, 3.5 * DAY), now);
   assert.equal(pace?.stage, "on_pace");
   assert.equal(paceLabel(pace!), "On pace");
+});
+
+test("tones the bar green up to 2 points over pace, yellow up to 12, red beyond", () => {
+  // Half the week has elapsed, so the elapsed share is 50%.
+  const tone = (used: number) => paceTone(windowPace(weekly(used, 3.5 * DAY), now)!);
+  assert.equal(tone(20), "success");
+  assert.equal(tone(52), "success");
+  assert.equal(tone(53), "warning");
+  assert.equal(tone(62), "warning");
+  assert.equal(tone(63), "danger");
+  assert.equal(tone(95), "danger");
 });
 
 test("hides the pace early in the window, once exhausted, and for unknown windows", () => {

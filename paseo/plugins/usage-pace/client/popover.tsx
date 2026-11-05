@@ -4,7 +4,7 @@ import { Icon } from "@getpaseo/plugin/client/ui";
 import { useMemo } from "react";
 import { Pressable, Text, View } from "react-native";
 import type { UsageBalance, UsageEntry, UsageWindow } from "../shared/usage";
-import { toneColor, UsageMeter, windowTone } from "./meter";
+import { UsageMeter } from "./meter";
 import { agoLabel, outlookLabel, paceLabel, resetLabel, usedPct, windowPace } from "./pace";
 import { resolveReport } from "./report";
 import { useNow, useRefreshUsage, useUsage } from "./use-usage";
@@ -110,11 +110,10 @@ function WindowRow({ rateWindow, now, theme, styles }: { rateWindow: UsageWindow
           {reset ? <Text style={styles.muted}>{` · ${reset}`}</Text> : null}
         </Text>
       </View>
-      <UsageMeter theme={theme} percent={used ?? 0} pace={pace} fill={toneColor(theme, windowTone(rateWindow))} height={6} />
+      <UsageMeter theme={theme} percent={used ?? 0} pace={pace} height={6} />
       {pace ? (
         <Text style={styles.small} numberOfLines={1}>
-          {`Pace: ${paceLabel(pace)} · `}
-          <Text style={pace.runsOutInMs == null ? null : styles.danger}>{outlookLabel(pace)}</Text>
+          {`Pace: ${paceLabel(pace)} · ${outlookLabel(pace)}`}
         </Text>
       ) : null}
     </View>
@@ -158,7 +157,6 @@ function popoverStyles(theme: PluginTheme) {
     value: { flexShrink: 1, color: theme.colors.foreground, fontSize: 13, fontWeight: "500" as const },
     muted: { color: theme.colors.foregroundMuted, fontSize: 13, fontWeight: "400" as const },
     small,
-    danger: { color: theme.colors.statusDanger },
     error: { color: theme.colors.statusDanger, fontSize: 12, flexShrink: 1 },
     footer: { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, gap: 8 },
     refresh: { flexDirection: "row" as const, alignItems: "center" as const, gap: 4, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 6 },

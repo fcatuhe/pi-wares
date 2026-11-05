@@ -3,7 +3,7 @@ import { Icon } from "@getpaseo/plugin/client/ui";
 import { Fragment, useMemo } from "react";
 import { Pressable, type PressableStateCallbackType, Text, View } from "react-native";
 import { UsageMeter } from "./meter";
-import { type Pace, usedPct, windowPace } from "./pace";
+import { usedPct, windowPace } from "./pace";
 import { UsagePopover } from "./popover";
 import { summaryWindows } from "./report";
 import { useNow, useUsage } from "./use-usage";
@@ -60,11 +60,10 @@ export function UsageSidebarItem({ theme, host, openPopover }: PluginSidebarItem
                   theme={theme}
                   percent={usedPct(rateWindow) ?? 0}
                   pace={pace}
-                  fill={theme.colors.foregroundMuted}
                   height={6}
                   style={styles.meter}
                 />
-                <Text style={[styles.percent, runsOut(pace) && styles.danger]} numberOfLines={1}>
+                <Text style={styles.percent} numberOfLines={1}>
                   {formatPct(usedPct(rateWindow))}
                   {rateWindow.shortLabel === "" ? null : (
                     <Text style={styles.windowLabel}>{` ${rateWindow.shortLabel ?? rateWindow.label}`}</Text>
@@ -77,10 +76,6 @@ export function UsageSidebarItem({ theme, host, openPopover }: PluginSidebarItem
       ))}
     </Pressable>
   );
-}
-
-function runsOut(pace: Pace | null): boolean {
-  return pace?.runsOutInMs != null;
 }
 
 function formatPct(pct: number | null): string {
@@ -105,7 +100,6 @@ function sidebarStyles(theme: PluginSidebarItemProps["theme"]) {
     meter: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 16 },
     percent: { flexShrink: 0, color: theme.colors.foreground, fontSize: 13, fontVariant: ["tabular-nums" as const] },
     windowLabel: { color: theme.colors.foregroundMuted },
-    danger: { color: theme.colors.statusDanger },
     muted: { flexShrink: 1, color: theme.colors.foregroundMuted, fontSize: 13 },
   };
 }
