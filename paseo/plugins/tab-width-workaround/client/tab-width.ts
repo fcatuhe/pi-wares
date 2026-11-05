@@ -1,5 +1,7 @@
 export const MIN_TAB_WIDTH = 64;
 
+export const MAX_LABEL_CHARS = 30;
+
 const SUBPIXEL_SLACK = 1;
 
 export function tabWidths(natural: number[], budget: number, min = MIN_TAB_WIDTH): number[] | null {
@@ -26,9 +28,11 @@ export interface TabMeasure {
   handleContentWidth: number;
   labelWidth: number;
   labelFullWidth: number;
+  labelChars: number;
 }
 
 export function naturalWidth(tab: TabMeasure): number {
   const handleSlack = Math.max(0, tab.handleWidth - tab.handleContentWidth);
-  return tab.chipWidth - handleSlack - tab.labelWidth + tab.labelFullWidth + SUBPIXEL_SLACK;
+  const labelWidth = tab.labelFullWidth * Math.min(1, MAX_LABEL_CHARS / Math.max(1, tab.labelChars));
+  return tab.chipWidth - handleSlack - tab.labelWidth + labelWidth + SUBPIXEL_SLACK;
 }

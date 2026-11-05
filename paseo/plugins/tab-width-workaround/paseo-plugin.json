@@ -4,5 +4,5 @@
     "paseo": ">=0.15.0"
   },
   "name": "Tab width workaround",
-  "description": "Agent tabs grow to show their full name while the tab row has room, instead of stopping at 160 pixels"
+  "description": "Agent tabs grow to show up to 30 characters of their name instead of stopping at 160 pixels"
 }

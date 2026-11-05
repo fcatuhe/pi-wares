@@ -74,6 +74,7 @@ function measureNatural(chip: HTMLElement): number | undefined {
     handleContentWidth: parts.reduce((total, width) => total + width, 0) + gap * Math.max(parts.length - 1, 0),
     labelWidth: label.getBoundingClientRect().width,
     labelFullWidth: label.scrollWidth,
+    labelChars: [...(label.textContent ?? "")].length,
   });
 }
 
