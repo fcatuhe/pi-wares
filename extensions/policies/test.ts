@@ -115,7 +115,9 @@ for (const [which, { git, frontend, rails, ...setup }] of Object.entries(CASES))
 }
 
 test("a subagent, started with --no-extensions, gets every policy that applies and the comment check through one path", async () => {
-  const root = scratch({ files: { "config/application.rb": "", "index.html": "" }, repo: true });
+  const byline = JSON.stringify({ byline: "Kit writing for Ada", shortcode: ":owl:", emoji: "🦉" });
+  const root = scratch({ files: { "config/application.rb": "", "index.html": "", "agent/policy-byline/config.json": byline }, repo: true });
+  process.env.PI_CODING_AGENT_DIR = join(root, "agent");
   const handlers: Array<(event: PromptEvent) => unknown> = [];
   const events: string[] = [];
   const loadAll = (await import("./subagent-policies/index.ts")).default;
@@ -128,11 +130,11 @@ test("a subagent, started with --no-extensions, gets every policy that applies a
   for (const handler of handlers) await handler(event);
   const aggregate = Object.values(event.systemPromptOptions.sections).join("\n\n");
 
-  for (const name of [...ALWAYS, "policy-git", "policy-frontend", "policy-rails"]) {
+  for (const name of [...ALWAYS, "policy-byline", "policy-git", "policy-frontend", "policy-rails"]) {
     const headline = readFileSync(join(import.meta.dirname, name, "policy.md"), "utf8").split("\n")[0];
     assert.ok(aggregate.includes(headline), `${name} never reaches a subagent`);
   }
-  assert.equal(handlers.length, 6, `a policy directory was added without a subagent reaching it (${root})`);
+  assert.equal(handlers.length, 7, `a policy directory was added without a subagent reaching it (${root})`);
 });
 
 // A returned systemPrompt replaced pi's whole prompt, so the model lost the loadout's skill list and the mcp_servers section.
