@@ -2,7 +2,7 @@ import { Platform } from "react-native";
 import { naturalWidth, tabWidths } from "./tab-width";
 
 const TABS_SCROLL = '[data-testid="workspace-tabs-scroll"]';
-const TAB_CHIP = '[data-testid^="workspace-tab-"][aria-selected]';
+const AGENT_TAB_CHIP = '[data-testid^="workspace-tab-agent_"][aria-selected]';
 const TAB_HANDLE = "[data-status-bucket]";
 const TAB_LABEL = ':scope > [dir="auto"]';
 
@@ -41,7 +41,7 @@ export function widenTabs(): () => void {
 }
 
 function rowRules(scroll: HTMLElement): string[] {
-  const chips = [...scroll.querySelectorAll<HTMLElement>(TAB_CHIP)];
+  const chips = [...scroll.querySelectorAll<HTMLElement>(AGENT_TAB_CHIP)];
   const content = chips[0] && childOf(scroll, chips[0]);
   if (!content) return [];
 

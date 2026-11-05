@@ -1,8 +1,0 @@
-{
-  "id": "tab-width",
-  "requirements": {
-    "paseo": ">=0.15.0"
-  },
-  "name": "Tab width",
-  "description": "Workspace tabs grow to show their full name while the tab row has room, instead of stopping at 160 pixels"
-}
