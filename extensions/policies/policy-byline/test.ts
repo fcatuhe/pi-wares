@@ -10,11 +10,73 @@ const signed = "_:owl: Kit writing for Ada._\n\nHi";
 const codemode = (code: string) => refusal("mcp__local__codemode", { code }, byline);
 const bash = (command: string) => refusal("bash", { command }, byline);
 
-test("a Slack message, draft or Outline comment from codemode without the byline is refused, naming both icons", () => {
-  for (const tool of ["slack_send_message", "slack_send_message_draft", "slack_schedule_message", "create_comment"]) {
+const shellSends = {
+  "a chat message": [
+    "gog chat messages send spaces/1 --text Hi",
+    "gog chat messages create spaces/1 --text Hi",
+    "gog chat messages post spaces/1 --text Hi",
+    "gog chat dm send a@x.com --text Hi",
+    "gog chat dm post a@x.com --text Hi",
+  ],
+  "an email": [
+    'gog --account f@x.com gmail send --to a@x.com --subject S --body "Hi"',
+    "gog send --to a@x.com --body Hi",
+    "gog -a f@x.com --json send --to a@x.com --body Hi",
+    "gog mail send --to a@x.com --body-html Hi",
+    "gog email reply 1 --body Hi",
+    "gog gmail reply-all 1 --body Hi",
+    "gog gmail replyall 1 --body Hi",
+    "gog gmail forward 1 --to a@x.com --body Hi",
+    "gog gmail fwd 1 --to a@x.com --body Hi",
+    "gog gmail autoreply 'from:a@x.com' --body Hi",
+    "gog gmail drafts create --to a@x.com --body Hi",
+    "gog gmail draft new --to a@x.com --body Hi",
+    "gog gmail drafts add --to a@x.com --body Hi",
+    "gog gmail drafts update d1 --body Hi",
+    "gog gmail drafts edit d1 --body Hi",
+    "gog gmail drafts reply 1 --body Hi",
+    "gog gmail drafts reply-all 1 --body Hi",
+    "gog gmail drafts forward 1 --to a@x.com --body Hi",
+  ],
+  "a document comment": [
+    "gog docs comments add doc1 Hi",
+    "gog doc comments reply doc1 c1 Hi",
+    "gog drive comments create file1 Hi",
+    "gog drv comments update file1 c1 Hi",
+    "gog drive comments respond file1 c1 Hi",
+  ],
+  "an issue or pull request comment": [
+    'gh pr comment 12 --body "Hi"',
+    "gh issue comment 3 -b Hi",
+    'gh pr review 12 --comment -b "Hi"',
+    "gh pr review 12 --request-changes --body Hi",
+    "gh api repos/o/r/issues/3/comments -f body=Hi",
+    "gh api repos/o/r/pulls/12/comments --raw-field body=Hi -f path=a.rb",
+    "gh api -X POST repos/o/r/pulls/12/reviews -F body=Hi",
+  ],
+};
+
+for (const [kind, commands] of Object.entries(shellSends)) {
+  test(`${kind} sent from the shell without the byline is refused, and passes with it`, () => {
+    for (const command of commands) {
+      assert.equal(bash(command)?.block, true, command);
+      assert.equal(bash(command.replace("Hi", "'🦉 Kit writing for Ada.'")), undefined, command);
+    }
+  });
+}
+
+test("a Slack message, draft or schedule, or an Outline comment, from codemode without the byline is refused, naming both icons", () => {
+  for (const tool of ["slack_send_message", "slack_send_message_draft", "slack_schedule_message", "create_comment", "update_comment"]) {
     const code = `await tools.mcp__x__${tool}({ channel_id: "C1", message: "Hi" })`;
     assert.match(codemode(code)?.reason ?? "", /"_:owl: Kit writing for Ada\._" in Slack, or "_🦉 Kit writing for Ada\._" elsewhere/, tool);
     assert.equal(codemode(code.replace('"Hi"', JSON.stringify(signed))), undefined, tool);
+  }
+});
+
+test("a send tool called directly is judged by its input", () => {
+  for (const tool of ["mcp__slack_ridecell__slack_send_message", "mcp__outline_patoumatic__create_comment", "mcp__outline_patoumatic__update_comment"]) {
+    assert.equal(refusal(tool, { text: "Hi" }, byline)?.block, true, tool);
+    assert.equal(refusal(tool, { text: signed }, byline), undefined, tool);
   }
 });
 
@@ -28,40 +90,53 @@ test("a prompt to another agent passes without the byline", () => {
   assert.equal(codemode('await tools.mcp__paseo__send_agent_prompt({ agentId: "a1", prompt: "Hi" })'), undefined);
 });
 
-test("a send tool called directly is judged by its input", () => {
-  assert.equal(refusal("mcp__slack_ridecell__slack_send_message", { message: "Hi" }, byline)?.block, true);
-  assert.equal(refusal("mcp__slack_ridecell__slack_send_message", { message: signed }, byline), undefined);
-});
-
-test("a gog mail or chat send, and a gh comment, without the byline are refused", () => {
-  for (const command of [
-    'gog --account f@x.com gmail send --to a@x.com --subject S --body "Hi"',
-    "gog gmail reply 123 --body Hi",
-    "gog gmail drafts create --to a@x.com --body Hi",
-    "gog chat messages send spaces/1 --text Hi",
-    "gog chat dm send a@x.com --text Hi",
-    'gh pr comment 12 --body "Hi"',
-    'gh pr review 12 --comment -b "Hi"',
-  ]) {
-    assert.equal(bash(command)?.block, true, command);
-    assert.equal(bash(command.replace("Hi", "'🦉 Kit writing for Ada.'")), undefined, command);
-  }
-});
-
 test("a body file is read for the byline", () => {
   const dir = mkdtempSync(join(tmpdir(), "policy-byline-"));
-  writeFileSync(join(dir, "signed.txt"), signed);
-  writeFileSync(join(dir, "unsigned.txt"), "Hi");
-  assert.equal(bash(`gog gmail reply 1 --body-file ${join(dir, "signed.txt")}`), undefined);
-  assert.equal(bash(`gh issue comment 3 -F '${join(dir, "signed.txt")}'`), undefined);
-  assert.equal(bash(`gog gmail reply 1 --body-file=${join(dir, "unsigned.txt")}`)?.block, true);
-  assert.equal(bash("gog gmail send --to a@x.com --body-file missing.txt")?.block, true);
-});
-
-test("reading mail and chat, or approving a PR without a body, passes", () => {
-  for (const command of ["gog gmail search 'is:unread'", "gog chat messages list spaces/1", "gh pr review 12 --approve", "gh pr view 12 --comments"]) {
+  const signedFile = join(dir, "signed.txt");
+  const unsignedFile = join(dir, "unsigned.txt");
+  writeFileSync(signedFile, signed);
+  writeFileSync(unsignedFile, "Hi");
+  for (const command of [
+    `gog gmail reply 1 --body-file ${signedFile}`,
+    `gog gmail send --body-html-file ${signedFile}`,
+    `gh issue comment 3 -F '${signedFile}'`,
+    `gh pr review 12 --comment --body-file ${signedFile}`,
+    `gh api repos/o/r/issues/3/comments -F body=@${signedFile}`,
+  ]) {
     assert.equal(bash(command), undefined, command);
   }
+  for (const command of [
+    `gog gmail reply 1 --body-file=${unsignedFile}`,
+    `gh api repos/o/r/issues/3/comments -F body=@${unsignedFile}`,
+    "gog gmail send --to a@x.com --body-file missing.txt",
+  ]) {
+    assert.equal(bash(command)?.block, true, command);
+  }
+});
+
+test("reading, asking for help, sending a saved draft, or approving a PR without a body, passes", () => {
+  for (const command of [
+    "gog gmail search 'is:unread'",
+    "gog gmail drafts list",
+    "gog gmail drafts send d1",
+    "gog chat messages list spaces/1",
+    "gog docs comments list doc1",
+    "gog drive comments resolve file1 c1",
+    "gog gmail send --help",
+    "gog chat dm send -h",
+    "gh pr comment --help",
+    "gh pr review 12 --approve",
+    "gh pr view 12 --comments",
+    "gh api repos/o/r/issues/3/comments",
+    "gh api repos/o/r/issues/3/comments --jq '.[].body'",
+  ]) {
+    assert.equal(bash(command), undefined, command);
+  }
+});
+
+test("a send chained after a help call, or with a help flag inside its body, is still refused", () => {
+  assert.equal(bash("gog gmail send --help && gog gmail send --body Hi")?.block, true);
+  assert.equal(bash("gog gmail send --body 'run it with --help' --to a@x.com")?.block, true);
 });
 
 test("a config missing a field fails loudly, naming the file", () => {

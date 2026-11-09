@@ -9,12 +9,17 @@ type Refusal = { block: true; reason: string };
 
 const MCP_SEND = /(?:slack_send_message(?:_draft)?|slack_schedule_message|create_comment|update_comment)\b/;
 const CLI_SEND = [
-  /\bgog\b[^\n;&|]*?\s(?:gmail|mail|email)\s+(?:send|reply|reply-all|replyall|forward|fwd|autoreply|drafts?\s+(?:create|update))\b/,
-  /\bgog\b[^\n;&|]*?\schat\s+(?:messages|dm)\s+(?:send|create|post)\b/,
+  /\bgog(?:\s+-\S+(?:\s+[^-\s]\S*)?)*\s+send\b/,
+  /\bgog\b.*?\s(?:gmail|mail|email)\s+(?:send|reply|reply-all|replyall|forward|fwd|autoreply)\b/,
+  /\bgog\b.*?\s(?:gmail|mail|email)\s+drafts?\s+(?:create|add|new|update|edit|set|reply|reply-all|replyall|forward|fwd)\b/,
+  /\bgog\b.*?\schat\s+(?:messages|dm)\s+(?:send|create|post)\b/,
+  /\bgog\b.*?\s(?:docs?|drive|drv)\s+comments\s+(?:add|create|new|update|edit|set|reply|respond)\b/,
   /\bgh\s+(?:pr|issue)\s+comment\b/,
-  /\bgh\s+pr\s+review\b[^\n;&|]*\s(?:-b|--body|-F|--body-file)\b/,
+  /\bgh\s+pr\s+review\b.*\s(?:-b|--body|-F|--body-file)\b/,
+  /\bgh\s+api\b.*\s(?:-f|-F|--field|--raw-field)[=\s]+body=/,
 ];
-const BODY_FILE = /(?:--(?:body|body-html|text)-file|\s-F)[=\s]+(["']?)([^\s"']+)\1/g;
+const HELP = /\s(?:-h|--help)\s*$/;
+const BODY_FILE = /(?:--(?:body|body-html|text)-file|\s-F)[=\s]+(["']?)(?:body=@)?([^\s"']+)\1/g;
 
 export function parseByline(config: unknown, file: string): Byline {
   const { byline, shortcode, emoji } = (config ?? {}) as Partial<Byline>;
@@ -35,7 +40,8 @@ function mcpRefusal(code: string, byline: Byline): Refusal | undefined {
 }
 
 function cliRefusal(command: string, byline: Byline): Refusal | undefined {
-  if (!CLI_SEND.some((pattern) => pattern.test(command))) return;
+  const sends = command.split(/[\n;&|]/).filter((part) => !HELP.test(part) && CLI_SEND.some((pattern) => pattern.test(part)));
+  if (!sends.length) return;
   if (!bodyFiles(command).some((path) => signed(path, byline))) return bylineRefusal(command, byline);
 }
 
