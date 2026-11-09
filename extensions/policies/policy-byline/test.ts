@@ -22,6 +22,12 @@ test("codemode that only reads Slack passes", () => {
   assert.equal(codemode('await tools.mcp__slack_ridecell__slack_read_channel({ channel_id: "C1" })'), undefined);
 });
 
+test("a prompt to another agent passes without the byline", () => {
+  assert.equal(refusal("mcp__paseo__send_agent_prompt", { agentId: "a1", prompt: "Hi" }, byline), undefined);
+  assert.equal(refusal("mcp__paseo__create_agent", { title: "T", initialPrompt: "Hi" }, byline), undefined);
+  assert.equal(codemode('await tools.mcp__paseo__send_agent_prompt({ agentId: "a1", prompt: "Hi" })'), undefined);
+});
+
 test("a send tool called directly is judged by its input", () => {
   assert.equal(refusal("mcp__slack_ridecell__slack_send_message", { message: "Hi" }, byline)?.block, true);
   assert.equal(refusal("mcp__slack_ridecell__slack_send_message", { message: signed }, byline), undefined);
@@ -81,6 +87,7 @@ test("the extension loads only with a config, and then fills the policy and chec
   const section = options.systemPromptOptions.sections["policy-byline"];
   assert.match(section, /`_:owl: Kit writing for Ada\._`/);
   assert.match(section, /write `🦉` everywhere else/);
+  assert.match(section, /Leave it out of prompts and messages to other agents/);
   assert.doesNotMatch(section, /\{/);
   const call = (toolName: string, input: object) => handlers.tool_call({ toolName, input });
   assert.equal(((await call("bash", { command: "gog gmail send --body Hi" })) as { block: boolean }).block, true);

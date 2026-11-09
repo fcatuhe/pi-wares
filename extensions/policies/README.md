@@ -10,7 +10,7 @@ Each policy is its own extension, `policy-<name>/index.ts` plus its `policy.md`,
 |---|---|---|
 | [`policy-code-comment/`](./policy-code-comment/) | when a comment is allowed and its shape, refused at edit time | always |
 | [`policy-writing/`](./policy-writing/) | how replies, commits, docs and copy are written, measured by its own eval | always |
-| [`policy-byline/`](./policy-byline/) | the byline that opens every message the agent sends for you, refused without it | `~/.pi/agent/policy-byline/config.json` exists |
+| [`policy-byline/`](./policy-byline/) | the byline that opens every message the agent sends a person for you, refused without it | `~/.pi/agent/policy-byline/config.json` exists |
 | `policy-engineering/` | correctness, failure handling, trust boundaries, tests, hygiene | always |
 | `policy-git/` | commit and push permission, staging, commit format, a non-Conventional `git commit -m` refused | `.git` exists |
 | `policy-frontend/` | semantic markup, vanilla CSS and JS, `@layer`, tokens, no inline JS | a `.html`, `.erb` or `.slim` file is in the repository |
