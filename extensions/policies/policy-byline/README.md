@@ -14,4 +14,4 @@ The agent writes `_:owl: Kit writing for Ada._` in Slack, which turns the shortc
 
 ## Check
 
-[`check.ts`](./check.ts) refuses a message that does not carry the `byline` text. It covers the Slack send, draft and schedule tools and Outline comments, from codemode or called directly. It also covers `gog` mail and chat sends, and `gh` comments and reviews with a body. It reads a `--body-file`, `--body-html-file`, `--text-file` or `-F` file for the byline. It cannot see a body piped through stdin from a file, or a byline built at runtime in codemode.
+[`check.ts`](./check.ts) refuses a message that does not carry the `byline` text. It covers the Slack send, draft and schedule tools and Outline comments, from codemode or called directly. It also covers `gog` mail, draft and chat sends and Google Docs or Drive comments, and `gh` comments, reviews with a body and `gh api` calls that set a `body`. It lets a command through when it ends in `-h` or `--help`. It reads a `--body-file`, `--body-html-file`, `--text-file`, `-F` or `-F body=@` file for the byline. It cannot see a body piped through stdin from a file, or a byline built at runtime in codemode.
