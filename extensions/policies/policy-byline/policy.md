@@ -1,3 +1,3 @@
 # Byline policy
 
-Open every message you send or draft through a tool for a person to read with the byline `_{shortcode} {byline}._`. This covers chat messages, email, and comments on documents, issues or pull requests. Leave it out of messages to other agents. Write `{shortcode}` only in Slack, which turns it into the icon, and write `{emoji}` everywhere else. Use `<i>` in HTML mail and drop the underscores in plain-text mail.
+Open every message you send or draft for a person, never for an agent, with `_{shortcode} {byline}._`. Write `{shortcode}` only in Slack and `{emoji}` elsewhere. In mail, use `<i>` for HTML and no underscores for plain text.

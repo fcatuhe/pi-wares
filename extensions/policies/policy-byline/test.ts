@@ -86,8 +86,8 @@ test("the extension loads only with a config, and then fills the policy and chec
   await handlers.before_agent_start(options);
   const section = options.systemPromptOptions.sections["policy-byline"];
   assert.match(section, /`_:owl: Kit writing for Ada\._`/);
-  assert.match(section, /write `🦉` everywhere else/);
-  assert.match(section, /Leave it out of messages to other agents/);
+  assert.match(section, /`🦉` elsewhere/);
+  assert.match(section, /never for an agent/);
   assert.doesNotMatch(section, /\{/);
   const call = (toolName: string, input: object) => handlers.tool_call({ toolName, input });
   assert.equal(((await call("bash", { command: "gog gmail send --body Hi" })) as { block: boolean }).block, true);
