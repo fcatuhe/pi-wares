@@ -1,6 +1,6 @@
 # policy-byline
 
-Asks the agent to open every message it sends or drafts for you to a person with a byline that names it, so the reader knows an agent wrote it. Messages to other agents go without it. It loads only on a machine that configures it, so the byline stays personal.
+Asks the agent to open every message it sends or drafts for someone other than you with a byline that names it, so the reader knows an agent wrote it. Its chat replies to you and its messages to other agents go without it. It loads only on a machine that configures it, so the byline stays personal.
 
 ## Config
 

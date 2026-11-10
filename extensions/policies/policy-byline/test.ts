@@ -90,6 +90,14 @@ test("a prompt to another agent passes without the byline", () => {
   assert.equal(codemode('await tools.mcp__paseo__send_agent_prompt({ agentId: "a1", prompt: "Hi" })'), undefined);
 });
 
+test("work that reaches only the session owner passes without the byline", () => {
+  assert.equal(refusal("write", { path: "notes.md", content: "Hi" }, byline), undefined);
+  assert.equal(refusal("edit", { path: "notes.md", edits: [{ oldText: "a", newText: "Hi" }] }, byline), undefined);
+  assert.equal(bash("echo Hi"), undefined);
+  assert.equal(codemode('console.log("Hi")'), undefined);
+  assert.equal(codemode('await tools.mcp__paseo__get_agent_activity({ agentId: "a1" })'), undefined);
+});
+
 test("a body file is read for the byline", () => {
   const dir = mkdtempSync(join(tmpdir(), "policy-byline-"));
   const signedFile = join(dir, "signed.txt");
@@ -162,7 +170,8 @@ test("the extension loads only with a config, and then fills the policy and chec
   const section = options.systemPromptOptions.sections["policy-byline"];
   assert.match(section, /`_:owl: Kit writing for Ada\._`/);
   assert.match(section, /`🦉` elsewhere/);
-  assert.match(section, /never for an agent/);
+  assert.match(section, /for someone other than the session owner/);
+  assert.match(section, /Never use it in chat replies to the session owner or in messages to agents/);
   assert.doesNotMatch(section, /\{/);
   const call = (toolName: string, input: object) => handlers.tool_call({ toolName, input });
   assert.equal(((await call("bash", { command: "gog gmail send --body Hi" })) as { block: boolean }).block, true);
