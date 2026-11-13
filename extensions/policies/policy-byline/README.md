@@ -10,7 +10,7 @@ Write `~/.pi/agent/policy-byline/config.json`:
 { "byline": "Kit writing for Ada", "shortcode": ":owl:", "emoji": "🦉" }
 ```
 
-The agent writes `_:owl: Kit writing for Ada._` in Slack, which turns the shortcode into the icon, and `_🦉 Kit writing for Ada._` everywhere else. Without the file the policy adds nothing. A file without the three non-empty strings stops pi at load, naming the file.
+The agent writes `_:owl: Kit writing for Ada._` in Slack, which turns the shortcode into the icon, and `_🦉 Kit writing for Ada._` everywhere else. An optional `"skill"` names the path of a `SKILL.md`, which the policy then tells the agent to read before it writes for anyone but you, as [`azade`](../../../skills/azade/SKILL.md) does. Without the file the policy adds nothing. A file without the three non-empty strings, or with a `skill` path that does not exist, stops pi at load, naming the file.
 
 ## Check
 

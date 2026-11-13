@@ -169,6 +169,7 @@ test("a send chained after a help call, or with a help flag inside its body, is 
 test("a config missing a field fails loudly, naming the file", () => {
   assert.throws(() => parseByline({ byline: "Kit writing for Ada", shortcode: ":owl:" }, "/x/config.json"), /\/x\/config\.json needs/);
   assert.throws(() => parseByline([], "/x/config.json"), /needs/);
+  assert.throws(() => parseByline({ ...byline, skill: "/x/missing/SKILL.md" }, "/x/config.json"), /\/x\/config\.json names a skill/);
 });
 
 test("the extension loads only with a config, and then fills the policy and checks tool calls", async () => {
@@ -193,7 +194,23 @@ test("the extension loads only with a config, and then fills the policy and chec
   assert.match(section, /Leave it off a draft the session owner sends,/);
   assert.match(section, /Never use it in chat replies to the session owner or in messages to agents/);
   assert.doesNotMatch(section, /\{/);
+  assert.doesNotMatch(section, /read `/, "without a skill field the policy names no skill");
   const call = (toolName: string, input: object) => handlers.tool_call({ toolName, input });
   assert.equal(((await call("bash", { command: "gog gmail send --body Hi" })) as { block: boolean }).block, true);
   assert.equal(await call("write", { path: "x", content: "gog gmail send --body Hi" }), undefined);
+});
+
+test("a skill field makes the policy name the skill to read before writing for someone else", async () => {
+  const agent = mkdtempSync(join(tmpdir(), "policy-byline-skill-"));
+  const skill = join(agent, "SKILL.md");
+  writeFileSync(skill, "---\nname: kit\n---\n");
+  mkdirSync(join(agent, "policy-byline"));
+  writeFileSync(join(agent, "policy-byline", "config.json"), JSON.stringify({ ...byline, skill }));
+  process.env.PI_CODING_AGENT_DIR = agent;
+  const load = (await import("./index.ts")).default;
+  const handlers: Record<string, (event: unknown) => Promise<unknown>> = {};
+  load({ on: (event: string, fn: never) => (handlers[event] = fn) } as never);
+  const options = { systemPromptOptions: { sections: {} as Record<string, string> } };
+  await handlers.before_agent_start(options);
+  assert.match(options.systemPromptOptions.sections["policy-byline"], new RegExp(`read \`${skill}\` and follow it\.$`));
 });

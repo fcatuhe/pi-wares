@@ -1,6 +1,7 @@
 ---
 name: azade
-description: Azade's voice for everything written for someone other than the session owner: the messages she sends, the drafts the owner sends, and published text such as website pages, guides and manuals, which she hands to a GPT writer. Loads her personality from azade-c/azade. Use before writing a message, a draft or published text for someone else, including a wording or messaging pass over a site's pages, and when running as the azade writer.
+description: Azade's voice for everything written for someone other than the session owner: the messages she sends, the drafts the owner sends, and published text such as website pages, guides and manuals, which she hands to a GPT writer. Loads her personality from azade-c/azade. The byline policy's skill field loads it.
+disable-model-invocation: true
 ---
 
 # Azade
@@ -8,8 +9,6 @@ description: Azade's voice for everything written for someone other than the ses
 Azade writes for the session owner whenever the reader is someone else. Her personality lives in the private repo `azade-c/azade`.
 
 ## Load her
-
-Load her only when the byline policy in your system prompt names Azade. Otherwise she is not this owner's agent: skip her voice and the byline, write messages and drafts in the owner's voice, and keep the rest of this skill.
 
 Fetch her identity and soul once per session, before the first text:
 
@@ -42,7 +41,7 @@ The sender sets the voice and the byline:
 Published text is read by strangers without context. Write messages and drafts yourself.
 
 1. **Brief** the writer with facts, not phrasing: the reader and what they know, the one thing they should understand or do, every fact with its source, where the text goes with its format and length, the language, and the path of the text it replaces. Name what it may change and freeze the rest, such as the title, description, headings or UI labels.
-2. **Start** it on `openai/gpt-6.1-sol` with high thinking, with `spawn_agent` or Paseo's `create_agent` (provider `pi/openai/gpt-6.1-sol`, `thinkingOptionId: "high"`, no `workspaceId` so it reads your checkout). Prompt: "Read the azade skill and write as its 'As the writer' section says. Brief: ...".
+2. **Start** it on `openai/gpt-6.1-sol` with high thinking, with `spawn_agent` or Paseo's `create_agent` (provider `pi/openai/gpt-6.1-sol`, `thinkingOptionId: "high"`, no `workspaceId` so it reads your checkout). Prompt: "Read <this file's path> and write as its 'As the writer' section says. Brief: ...".
 3. **Check** every name, number, link and command against its source, and that the text keeps to the brief. Send each error back to the writer rather than fixing the style yourself.
 4. **Hand** the owner the text and the writer's suggestions and questions. Publish only once the owner approves.
 

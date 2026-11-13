@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 
 import { expandHome } from "../../../lib/paths.ts";
 
-export type Byline = { byline: string; shortcode: string; emoji: string };
+export type Byline = { byline: string; shortcode: string; emoji: string; skill?: string };
 
 type Refusal = { block: true; reason: string };
 
@@ -22,11 +22,15 @@ const HELP = /\s(?:-h|--help)\s*$/;
 const BODY_FILE = /(?:--(?:body|body-html|text)-file|\s-F)[=\s]+(["']?)(?:body=@)?([^\s"']+)\1/g;
 
 export function parseByline(config: unknown, file: string): Byline {
-  const { byline, shortcode, emoji } = (config ?? {}) as Partial<Byline>;
-  if ([byline, shortcode, emoji].every((value) => typeof value === "string" && value.trim())) {
-    return { byline, shortcode, emoji } as Byline;
+  const { byline, shortcode, emoji, skill } = (config ?? {}) as Partial<Byline>;
+  if (![byline, shortcode, emoji].every((value) => typeof value === "string" && value.trim())) {
+    throw new Error(`[policy-byline] ${file} needs non-empty strings byline, shortcode and emoji`);
   }
-  throw new Error(`[policy-byline] ${file} needs non-empty strings byline, shortcode and emoji`);
+  if (skill === undefined) return { byline, shortcode, emoji } as Byline;
+  if (typeof skill !== "string" || !existsSync(expandHome(skill))) {
+    throw new Error(`[policy-byline] ${file} names a skill that does not exist: ${skill}`);
+  }
+  return { byline, shortcode, emoji, skill } as Byline;
 }
 
 export function refusal(toolName: string, input: unknown, byline: Byline): Refusal | undefined {
