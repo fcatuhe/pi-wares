@@ -29,14 +29,6 @@ const shellSends = {
     "gog gmail forward 1 --to a@x.com --body Hi",
     "gog gmail fwd 1 --to a@x.com --body Hi",
     "gog gmail autoreply 'from:a@x.com' --body Hi",
-    "gog gmail drafts create --to a@x.com --body Hi",
-    "gog gmail draft new --to a@x.com --body Hi",
-    "gog gmail drafts add --to a@x.com --body Hi",
-    "gog gmail drafts update d1 --body Hi",
-    "gog gmail drafts edit d1 --body Hi",
-    "gog gmail drafts reply 1 --body Hi",
-    "gog gmail drafts reply-all 1 --body Hi",
-    "gog gmail drafts forward 1 --to a@x.com --body Hi",
   ],
   "a document comment": [
     "gog docs comments add doc1 Hi",
@@ -54,6 +46,13 @@ const shellSends = {
     "gh api repos/o/r/pulls/12/comments --raw-field body=Hi -f path=a.rb",
     "gh api -X POST repos/o/r/pulls/12/reviews -F body=Hi",
   ],
+  "an issue or pull request body": [
+    'gh pr create --title T --body "Hi"',
+    "gh issue create -t T -b Hi",
+    "gh pr edit 12 --body Hi",
+    "gh issue edit 3 --title T -b Hi",
+    "gh api -X POST repos/o/r/issues -f title=T -f body=Hi",
+  ],
 };
 
 for (const [kind, commands] of Object.entries(shellSends)) {
@@ -65,8 +64,8 @@ for (const [kind, commands] of Object.entries(shellSends)) {
   });
 }
 
-test("a Slack message, draft or schedule, or an Outline comment, from codemode without the byline is refused, naming both icons", () => {
-  for (const tool of ["slack_send_message", "slack_send_message_draft", "slack_schedule_message", "create_comment", "update_comment"]) {
+test("a Slack message or schedule, or an Outline comment, from codemode without the byline is refused, naming both icons", () => {
+  for (const tool of ["slack_send_message", "slack_schedule_message", "create_comment", "update_comment"]) {
     const code = `await tools.mcp__x__${tool}({ channel_id: "C1", message: "Hi" })`;
     assert.match(codemode(code)?.reason ?? "", /"_:owl: Kit writing for Ada\._" in Slack, or "_🦉 Kit writing for Ada\._" elsewhere/, tool);
     assert.equal(codemode(code.replace('"Hi"', JSON.stringify(signed))), undefined, tool);
@@ -98,6 +97,20 @@ test("work that reaches only the session owner passes without the byline", () =>
   assert.equal(codemode('await tools.mcp__paseo__get_agent_activity({ agentId: "a1" })'), undefined);
 });
 
+test("a draft the session owner sends passes without the byline", () => {
+  assert.equal(codemode('await tools.mcp__x__slack_send_message_draft({ channel_id: "C1", message: "Hi" })'), undefined);
+  assert.equal(refusal("mcp__slack_ridecell__slack_send_message_draft", { text: "Hi" }, byline), undefined);
+  for (const command of [
+    "gog gmail drafts create --to a@x.com --body Hi",
+    "gog gmail draft new --to a@x.com --body Hi",
+    "gog gmail drafts update d1 --body Hi",
+    "gog gmail drafts reply 1 --body Hi",
+    "gog gmail drafts forward 1 --to a@x.com --body Hi",
+  ]) {
+    assert.equal(bash(command), undefined, command);
+  }
+});
+
 test("a body file is read for the byline", () => {
   const dir = mkdtempSync(join(tmpdir(), "policy-byline-"));
   const signedFile = join(dir, "signed.txt");
@@ -109,6 +122,8 @@ test("a body file is read for the byline", () => {
     `gog gmail send --body-html-file ${signedFile}`,
     `gh issue comment 3 -F '${signedFile}'`,
     `gh pr review 12 --comment --body-file ${signedFile}`,
+    `gh pr create --title T --body-file ${signedFile}`,
+    `gh issue edit 3 -F ${signedFile}`,
     `gh api repos/o/r/issues/3/comments -F body=@${signedFile}`,
   ]) {
     assert.equal(bash(command), undefined, command);
@@ -116,13 +131,14 @@ test("a body file is read for the byline", () => {
   for (const command of [
     `gog gmail reply 1 --body-file=${unsignedFile}`,
     `gh api repos/o/r/issues/3/comments -F body=@${unsignedFile}`,
+    `gh issue create --title T --body-file ${unsignedFile}`,
     "gog gmail send --to a@x.com --body-file missing.txt",
   ]) {
     assert.equal(bash(command)?.block, true, command);
   }
 });
 
-test("reading, asking for help, sending a saved draft, or approving a PR without a body, passes", () => {
+test("reading, asking for help, sending a saved draft, or touching a PR or issue without a body, passes", () => {
   for (const command of [
     "gog gmail search 'is:unread'",
     "gog gmail drafts list",
@@ -134,6 +150,9 @@ test("reading, asking for help, sending a saved draft, or approving a PR without
     "gog chat dm send -h",
     "gh pr comment --help",
     "gh pr review 12 --approve",
+    "gh pr create --fill",
+    "gh pr edit 12 --add-label bug",
+    "gh issue edit 3 --add-label bug",
     "gh pr view 12 --comments",
     "gh api repos/o/r/issues/3/comments",
     "gh api repos/o/r/issues/3/comments --jq '.[].body'",
@@ -170,7 +189,8 @@ test("the extension loads only with a config, and then fills the policy and chec
   const section = options.systemPromptOptions.sections["policy-byline"];
   assert.match(section, /`_:owl: Kit writing for Ada\._`/);
   assert.match(section, /`🦉` elsewhere/);
-  assert.match(section, /for someone other than the session owner/);
+  assert.match(section, /send to someone other than the session owner/);
+  assert.match(section, /Leave it off a draft the session owner sends,/);
   assert.match(section, /Never use it in chat replies to the session owner or in messages to agents/);
   assert.doesNotMatch(section, /\{/);
   const call = (toolName: string, input: object) => handlers.tool_call({ toolName, input });

@@ -114,7 +114,7 @@ Loaded on demand rather than injected, so they can be as long as they need. The 
 |---|---|
 | [`pull-request/`](./skills/pull-request/SKILL.md) | Branch name, title convention and body structure for a pull request. |
 | [`agent-browser/`](./skills/agent-browser/SKILL.md) | Headed Chrome on a shared logged-in profile, one tab per agent, for the `agent-browser` CLI. |
-| [`azade/`](./skills/azade/SKILL.md) | Azade's voice, loaded from the private `azade-c/azade` repo, for every text written for someone other than you, with public text handed to a GPT writer. |
+| [`azade/`](./skills/azade/SKILL.md) | Azade's voice, loaded from the private `azade-c/azade` repo, for every text written for someone other than you, with published text, such as website pages, guides and manuals, handed to a GPT writer. |
 | [`rails-review/`](./skills/rails-review/SKILL.md) | Rails review that cites the repo's own patterns, the gem source for the version in `Gemfile.lock`, and Fizzy, Campfire and Writebook. |
 
 The [`/rails-review [base ref or paths]`](./prompts/rails-review.md) prompt sends a resolved scope, by default the uncommitted changes, to the [`rails-review`](./config/pi/pi-codex-subagents/agents/rails-review.md) subagent, or to a new Paseo agent inside Paseo, and reports what it found.
