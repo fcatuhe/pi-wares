@@ -26,14 +26,23 @@ test("leaves the row to Paseo when even the minimums do not fit", () => {
 
 // A 160px chip whose 126px label holds 376px of text, inside a handle with no slack, needs 160 - 126 + 376 + 1.
 test("measures the width the full label needs", () => {
-  assert.equal(naturalWidth({ chipWidth: 160, handleWidth: 140, handleContentWidth: 140, labelWidth: 126, labelFullWidth: 376, labelChars: 17 }), 411);
+  assert.equal(
+    naturalWidth({ chipWidth: 160, handleWidth: 140, handleContentWidth: 140, labelWidth: 126, labelFullWidth: 376, labelChars: 17 }),
+    411,
+  );
 });
 
 test("drops the empty space a renamed shorter label leaves in a wide chip", () => {
-  assert.equal(naturalWidth({ chipWidth: 370, handleWidth: 350, handleContentWidth: 31, labelWidth: 13, labelFullWidth: 13, labelChars: 2 }), 52);
+  assert.equal(
+    naturalWidth({ chipWidth: 370, handleWidth: 350, handleContentWidth: 31, labelWidth: 13, labelFullWidth: 13, labelChars: 2 }),
+    52,
+  );
 });
 
 // A 60-character label at 10px each is capped at 30 characters, so 160 - 126 + 300 + 1.
 test("caps the label at 30 characters", () => {
-  assert.equal(naturalWidth({ chipWidth: 160, handleWidth: 140, handleContentWidth: 140, labelWidth: 126, labelFullWidth: 600, labelChars: 60 }), 335);
+  assert.equal(
+    naturalWidth({ chipWidth: 160, handleWidth: 140, handleContentWidth: 140, labelWidth: 126, labelFullWidth: 600, labelChars: 60 }),
+    335,
+  );
 });
