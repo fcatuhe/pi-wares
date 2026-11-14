@@ -7,7 +7,11 @@ const HEAD = "2222222222222222222222222222222222222222";
 const MAIN = "3333333333333333333333333333333333333333";
 const TREE = "/home/fc/.paseo/worktrees/abc/feat-glass";
 
-const ok = (stdout: unknown = ""): Result => ({ status: 0, stdout: typeof stdout === "string" ? stdout : JSON.stringify(stdout), stderr: "" });
+const ok = (stdout: unknown = ""): Result => ({
+  status: 0,
+  stdout: typeof stdout === "string" ? stdout : JSON.stringify(stdout),
+  stderr: "",
+});
 const failed: Result = { status: 1, stdout: "", stderr: "" };
 
 const worktreeList = (branch = "feat-glass", head = HEAD) =>

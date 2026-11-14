@@ -110,9 +110,7 @@ function removeWorktree(worktree: Worktree, pr: PullRequest, log: (line: string)
     return false;
   }
 
-  const workspaces: { workspaceId: string; cwd: string }[] = JSON.parse(
-    must(deps, "paseo", ["workspace", "ls", "--background", "--json"]),
-  );
+  const workspaces: { workspaceId: string; cwd: string }[] = JSON.parse(must(deps, "paseo", ["workspace", "ls", "--background", "--json"]));
   const workspace = workspaces.find((candidate) => candidate.cwd === worktree.path);
   if (workspace) {
     must(deps, "paseo", ["workspace", "archive", workspace.workspaceId]);
