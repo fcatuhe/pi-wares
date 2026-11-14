@@ -73,7 +73,11 @@ test("a Slack message or schedule, or an Outline comment, from codemode without 
 });
 
 test("a send tool called directly is judged by its input", () => {
-  for (const tool of ["mcp__slack_ridecell__slack_send_message", "mcp__outline_patoumatic__create_comment", "mcp__outline_patoumatic__update_comment"]) {
+  for (const tool of [
+    "mcp__slack_ridecell__slack_send_message",
+    "mcp__outline_patoumatic__create_comment",
+    "mcp__outline_patoumatic__update_comment",
+  ]) {
     assert.equal(refusal(tool, { text: "Hi" }, byline)?.block, true, tool);
     assert.equal(refusal(tool, { text: signed }, byline), undefined, tool);
   }
