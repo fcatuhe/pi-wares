@@ -1,6 +1,6 @@
 ---
 name: azade
-description: Azade's voice for everything written for someone other than the session owner: the messages she sends, the drafts the owner sends, and published text such as website pages, guides and manuals, which she hands to a GPT writer. Loads her personality from azade-c/azade. The byline policy's skill field loads it.
+description: "Azade's voice for everything written for someone other than the session owner: the messages she sends, the drafts the owner sends, and published text such as website pages, guides and manuals, which she hands to a GPT writer. Loads her personality from azade-c/azade. The byline policy's skill field loads it."
 disable-model-invocation: true
 ---
 

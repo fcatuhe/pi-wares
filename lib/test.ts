@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { globSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -55,6 +55,20 @@ test("sideCallModel prefers haiku, then the cheapest anthropic model, never anot
   assert.equal(sideCallModel({ getAvailable: () => [opus, haiku, sonnet] }), haiku);
   assert.equal(sideCallModel({ getAvailable: () => [opus, sonnet] }), sonnet);
   assert.equal(sideCallModel({ getAvailable: () => [gpt] }), undefined);
+});
+
+test("no skill or prompt frontmatter holds a plain value with ': ' or ' #', which YAML refuses, so pi warns at startup and drops the file", () => {
+  const root = join(import.meta.dirname, "..");
+  const files = globSync(["skills/*/SKILL.md", "skills-available/*/SKILL.md", "prompts/*.md"], { cwd: root });
+  const plain = files.flatMap((file) => {
+    const frontmatter = readFileSync(join(root, file), "utf8").match(/^---\n([\s\S]*?)\n---/)?.[1] ?? "";
+    return frontmatter
+      .split("\n")
+      .filter((line) => /^[\w-]+: (?!["'])/.test(line) && /: | #/.test(line.slice(line.indexOf(": ") + 2)))
+      .map((line) => `${file}: ${line.slice(0, 60)}`);
+  });
+  assert.ok(files.length > 0);
+  assert.deepEqual(plain, []);
 });
 
 test("usingSubscription needs OAuth and a provider that declares itself a subscription", () => {
