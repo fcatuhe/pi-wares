@@ -116,8 +116,11 @@ Loaded on demand rather than injected, so they can be as long as they need. The 
 | [`agent-browser/`](./skills/agent-browser/SKILL.md) | Headed Chrome on a shared logged-in profile, one tab per agent, for the `agent-browser` CLI. |
 | [`azade/`](./skills/azade/SKILL.md) | Azade's voice, loaded from the private `azade-c/azade` repo, for every text written for someone other than you, with published text, such as website pages, guides and manuals, handed to a GPT writer. Hidden from the model: [`policy-byline`](./extensions/policies/policy-byline/)'s `skill` field loads it. |
 | [`rails-review/`](./skills/rails-review/SKILL.md) | Rails review that cites the repo's own patterns, the gem source for the version in `Gemfile.lock`, and Fizzy, Campfire and Writebook. |
+| [`land/`](./skills/land/SKILL.md) | Lands a PR the owner merged: watches the runs on its merge commit, checks the deployed app, removes the worktree and the branch, then archives the Paseo session when all is green. |
 
 The [`/rails-review [base ref or paths]`](./prompts/rails-review.md) prompt sends a resolved scope, by default the uncommitted changes, to the [`rails-review`](./config/pi/pi-codex-subagents/agents/rails-review.md) subagent, or to a new Paseo agent inside Paseo, and reports what it found.
+
+The [`/land [pull request numbers]`](./prompts/land.md) prompt lands the PRs this session merged, by default every one it opened or worked on. A tab still open after `/land` needs you, since the session archives itself only when everything is green.
 
 ## Skills available
 
