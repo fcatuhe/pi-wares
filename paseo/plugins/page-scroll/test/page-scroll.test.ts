@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { nearestTo, pageStep, separatorOffset, separatorOffsets, type TreeNode } from "../client/page-scroll.ts";
+import { covers, nearestTo, pageStep, separatorOffset, separatorOffsets, type TreeNode } from "../client/page-scroll.ts";
 
 function node(parentNode: TreeNode | null = null, name = ""): TreeNode & { name: string } {
   return { parentNode, name };
@@ -49,4 +49,15 @@ test("keeps the edge left behind when the page stops short at the end", () => {
 
 test("marks no page above the start of the chat", () => {
   assert.deepEqual(separatorOffsets({ viewportHeight: 800, scrollTop: 0, scrollHeight: 5000, scrolled: -100, up: true }), [120, 780]);
+});
+
+const chatBox = { top: 100, right: 800, bottom: 900, left: 0 };
+
+test("hides an overlay that sits over the chat", () => {
+  assert.equal(covers({ top: 850, right: 400, bottom: 880, left: 16 }, chatBox), true);
+});
+
+test("keeps what only touches the edge of the chat", () => {
+  assert.equal(covers({ top: 900, right: 800, bottom: 1000, left: 0 }, chatBox), false);
+  assert.equal(covers({ top: 0, right: 800, bottom: 100.5, left: 0 }, chatBox), false);
 });

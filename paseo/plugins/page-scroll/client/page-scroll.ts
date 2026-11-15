@@ -22,6 +22,19 @@ export function nearestTo<T extends TreeNode>(candidates: T[], focus: TreeNode |
   return nearest;
 }
 
+export interface Box {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+
+export function covers(overlay: Box, chat: Box): boolean {
+  const width = Math.min(overlay.right, chat.right) - Math.max(overlay.left, chat.left);
+  const height = Math.min(overlay.bottom, chat.bottom) - Math.max(overlay.top, chat.top);
+  return width > 1 && height > 1;
+}
+
 export function pageStep(viewportHeight: number): number {
   return Math.max(viewportHeight * 0.875, viewportHeight - 40);
 }
