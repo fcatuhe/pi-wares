@@ -67,7 +67,11 @@ for (const [kind, commands] of Object.entries(shellSends)) {
 test("a Slack message or schedule, or an Outline comment, from codemode without the byline is refused, naming every format", () => {
   for (const tool of ["slack_send_message", "slack_schedule_message", "create_comment", "update_comment"]) {
     const code = `await tools.mcp__x__${tool}({ channel_id: "C1", message: "Hi" })`;
-    assert.match(codemode(code)?.reason ?? "", /"_🦉 Kit writing for Ada\._" in Slack, .* "🦉 Kit writing for Ada\." in plain text\.$/, tool);
+    assert.match(
+      codemode(code)?.reason ?? "",
+      /"_🦉 Kit writing for Ada\._" in Slack, .* "🦉 Kit writing for Ada\." in plain text\.$/,
+      tool,
+    );
     assert.equal(codemode(code.replace('"Hi"', JSON.stringify(signed))), undefined, tool);
   }
 });
