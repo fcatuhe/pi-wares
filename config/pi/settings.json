@@ -13,7 +13,7 @@
     "anthropic/claude-fable-5-1",
     "anthropic/claude-sonnet-5-5",
     "anthropic/claude-haiku-5-5",
-    "openai/gpt-6.1-sol",
+    "openai/gpt-6.2-sol",
     "fireworks/accounts/fireworks/models/glm-5p3-flash"
   ]
 }

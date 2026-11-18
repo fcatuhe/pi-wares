@@ -3,6 +3,6 @@
   "fable": { "provider": "anthropic", "model": "claude-fable-5-1" },
   "sonnet": { "provider": "anthropic", "model": "claude-sonnet-5-5" },
   "haiku": { "provider": "anthropic", "model": "claude-haiku-5-5" },
-  "gpt": { "provider": "openai", "model": "gpt-6.1-sol" },
+  "gpt": { "provider": "openai", "model": "gpt-6.2-sol" },
   "glm": { "provider": "fireworks", "model": "accounts/fireworks/models/glm-5p3-flash" }
 }
