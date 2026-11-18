@@ -115,7 +115,7 @@ for (const [which, { git, frontend, rails, ...setup }] of Object.entries(CASES))
 }
 
 test("a subagent, started with --no-extensions, gets every policy that applies and the comment check through one path", async () => {
-  const byline = JSON.stringify({ byline: "Kit writing for Ada", shortcode: ":owl:", emoji: "🦉" });
+  const byline = JSON.stringify({ agent: "Kit", human: "Ada", emoji: "🦉" });
   const root = scratch({ files: { "config/application.rb": "", "index.html": "", "agent/policy-byline/config.json": byline }, repo: true });
   process.env.PI_CODING_AGENT_DIR = join(root, "agent");
   const handlers: Array<(event: PromptEvent) => unknown> = [];

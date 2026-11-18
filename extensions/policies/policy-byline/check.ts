@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 
 import { expandHome } from "../../../lib/paths.ts";
 
-export type Byline = { byline: string; shortcode: string; emoji: string; skill?: string };
+export type Byline = { agent: string; human: string; emoji?: string; url?: string; skill?: string };
 
 type Refusal = { block: true; reason: string };
 
@@ -20,17 +20,32 @@ const CLI_SEND = [
 ];
 const HELP = /\s(?:-h|--help)\s*$/;
 const BODY_FILE = /(?:--(?:body|body-html|text)-file|\s-F)[=\s]+(["']?)(?:body=@)?([^\s"']+)\1/g;
+const LINKS = [/<https?:\/\/[^|>\s]+\|([^>]*)>/g, /\[([^\]]*)\]\([^)\s]+\)/g, /<a\s[^>]*>([^<]*)<\/a>/g];
 
 export function parseByline(config: unknown, file: string): Byline {
-  const { byline, shortcode, emoji, skill } = (config ?? {}) as Partial<Byline>;
-  if (![byline, shortcode, emoji].every((value) => typeof value === "string" && value.trim())) {
-    throw new Error(`[policy-byline] ${file} needs non-empty strings byline, shortcode and emoji`);
+  const { agent, human, emoji, url, skill } = (config ?? {}) as Partial<Byline>;
+  if (![agent, human].every(filled) || ![emoji, url, skill].every((value) => value === undefined || filled(value))) {
+    throw new Error(`[policy-byline] ${file} needs non-empty strings agent and human, and optional non-empty strings emoji, url and skill`);
   }
-  if (skill === undefined) return { byline, shortcode, emoji } as Byline;
-  if (typeof skill !== "string" || !existsSync(expandHome(skill))) {
+  if (url !== undefined && !/^https:\/\/\S+$/.test(url)) throw new Error(`[policy-byline] ${file} needs an https url, not: ${url}`);
+  if (skill !== undefined && !existsSync(expandHome(skill))) {
     throw new Error(`[policy-byline] ${file} names a skill that does not exist: ${skill}`);
   }
-  return { byline, shortcode, emoji, skill } as Byline;
+  return { agent, human, ...(emoji && { emoji }), ...(url && { url }), ...(skill && { skill }) } as Byline;
+}
+
+function filled(value: unknown): boolean {
+  return typeof value === "string" && value.trim() !== "";
+}
+
+export function bylineFormats({ agent, human, emoji, url }: Byline) {
+  const line = (name: string) => `${emoji ? `${emoji} ` : ""}${name} writing for ${human}.`;
+  return {
+    Slack: `_${line(url ? `<${url}|${agent}>` : agent)}_`,
+    Markdown: `_${line(url ? `[${agent}](${url})` : agent)}_`,
+    "HTML mail": `<i>${line(url ? `<a href="${url}">${agent}</a>` : agent)}</i>`,
+    "plain text": line(agent),
+  };
 }
 
 export function refusal(toolName: string, input: unknown, byline: Byline): Refusal | undefined {
@@ -49,19 +64,21 @@ function cliRefusal(command: string, byline: Byline): Refusal | undefined {
   if (!bodyFiles(command).some((path) => signed(path, byline))) return bylineRefusal(command, byline);
 }
 
-function bylineRefusal(text: string, { byline, shortcode, emoji }: Byline): Refusal | undefined {
-  if (text.includes(byline)) return;
-  return {
-    block: true,
-    reason: `Byline policy refused the message: open it with "_${shortcode} ${byline}._" in Slack, or "_${emoji} ${byline}._" elsewhere.`,
-  };
+function bylineRefusal(text: string, byline: Byline): Refusal | undefined {
+  if (signs(text, byline)) return;
+  const formats = Object.entries(bylineFormats(byline)).map(([where, format]) => `"${format}" in ${where}`);
+  return { block: true, reason: `Byline policy refused the message: open it with ${formats.join(", ")}.` };
 }
 
 function bodyFiles(command: string): string[] {
   return [...command.matchAll(BODY_FILE)].map((m) => m[2]).filter((path) => path !== "-");
 }
 
-function signed(path: string, { byline }: Byline): boolean {
+function signed(path: string, byline: Byline): boolean {
   const full = resolve(expandHome(path));
-  return existsSync(full) && readFileSync(full, "utf8").includes(byline);
+  return existsSync(full) && signs(readFileSync(full, "utf8"), byline);
+}
+
+function signs(text: string, { agent, human }: Byline): boolean {
+  return LINKS.reduce((plain, link) => plain.replace(link, "$1"), text).includes(`${agent} writing for ${human}`);
 }

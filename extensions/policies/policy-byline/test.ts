@@ -5,8 +5,8 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { parseByline, refusal } from "./check.ts";
 
-const byline = { byline: "Kit writing for Ada", shortcode: ":owl:", emoji: "🦉" };
-const signed = "_:owl: Kit writing for Ada._\n\nHi";
+const byline = { agent: "Kit", human: "Ada", emoji: "🦉" };
+const signed = "_🦉 Kit writing for Ada._\n\nHi";
 const codemode = (code: string) => refusal("mcp__local__codemode", { code }, byline);
 const bash = (command: string) => refusal("bash", { command }, byline);
 
@@ -64,10 +64,10 @@ for (const [kind, commands] of Object.entries(shellSends)) {
   });
 }
 
-test("a Slack message or schedule, or an Outline comment, from codemode without the byline is refused, naming both icons", () => {
+test("a Slack message or schedule, or an Outline comment, from codemode without the byline is refused, naming every format", () => {
   for (const tool of ["slack_send_message", "slack_schedule_message", "create_comment", "update_comment"]) {
     const code = `await tools.mcp__x__${tool}({ channel_id: "C1", message: "Hi" })`;
-    assert.match(codemode(code)?.reason ?? "", /"_:owl: Kit writing for Ada\._" in Slack, or "_🦉 Kit writing for Ada\._" elsewhere/, tool);
+    assert.match(codemode(code)?.reason ?? "", /"_🦉 Kit writing for Ada\._" in Slack, .* "🦉 Kit writing for Ada\." in plain text\.$/, tool);
     assert.equal(codemode(code.replace('"Hi"', JSON.stringify(signed))), undefined, tool);
   }
 });
@@ -171,9 +171,46 @@ test("a send chained after a help call, or with a help flag inside its body, is 
 });
 
 test("a config missing a field fails loudly, naming the file", () => {
-  assert.throws(() => parseByline({ byline: "Kit writing for Ada", shortcode: ":owl:" }, "/x/config.json"), /\/x\/config\.json needs/);
+  assert.throws(() => parseByline({ agent: "Kit" }, "/x/config.json"), /\/x\/config\.json needs/);
   assert.throws(() => parseByline([], "/x/config.json"), /needs/);
+  assert.throws(() => parseByline({ ...byline, emoji: "" }, "/x/config.json"), /needs/);
   assert.throws(() => parseByline({ ...byline, skill: "/x/missing/SKILL.md" }, "/x/config.json"), /\/x\/config\.json names a skill/);
+  assert.throws(() => parseByline({ ...byline, url: "kit.dev" }, "/x/config.json"), /\/x\/config\.json needs an https url/);
+});
+
+test("a byline whose agent name is a link still passes the check", () => {
+  const linked = { ...byline, url: "https://kit.dev" };
+  for (const [toolName, input] of [
+    ["bash", { command: "gh pr create --title T --body '_🦉 [Kit](https://kit.dev) writing for Ada._'" }],
+    ["mcp__slack__slack_send_message", { text: "_🦉 <https://kit.dev|Kit> writing for Ada._ Hi" }],
+    ["bash", { command: `gog gmail send --body-html '<i>🦉 <a href="https://kit.dev">Kit</a> writing for Ada.</i>' --to a@x.com` }],
+    ["bash", { command: "gog gmail send --body '🦉 Kit writing for Ada.' --to a@x.com" }],
+  ] as const) {
+    assert.equal(refusal(toolName, input, linked), undefined, JSON.stringify(input));
+  }
+  assert.equal(refusal("bash", { command: "gh pr create --title T --body '[Kit](https://kit.dev) wrote this'" }, linked)?.block, true);
+});
+
+test("a url makes the policy link the agent name in every format but plain text", async () => {
+  const agent = mkdtempSync(join(tmpdir(), "policy-byline-url-"));
+  mkdirSync(join(agent, "policy-byline"));
+  writeFileSync(join(agent, "policy-byline", "config.json"), JSON.stringify({ ...byline, url: "https://kit.dev" }));
+  process.env.PI_CODING_AGENT_DIR = agent;
+  const load = (await import("./index.ts")).default;
+  const handlers: Record<string, (event: unknown) => Promise<unknown>> = {};
+  load({ on: (event: string, fn: never) => (handlers[event] = fn) } as never);
+  const options = { systemPromptOptions: { sections: {} as Record<string, string> } };
+  await handlers.before_agent_start(options);
+  const section = options.systemPromptOptions.sections["policy-byline"];
+  assert.match(section, /`_🦉 <https:\/\/kit\.dev\|Kit> writing for Ada\._` in Slack/);
+  assert.match(section, /`_🦉 \[Kit\]\(https:\/\/kit\.dev\) writing for Ada\._` in Markdown/);
+  assert.match(section, /`<i>🦉 <a href="https:\/\/kit\.dev">Kit<\/a> writing for Ada\.<\/i>` in HTML mail/);
+  assert.match(section, /and `🦉 Kit writing for Ada\.` in plain text\./);
+});
+
+test("without an emoji the byline opens on the agent name", () => {
+  const plain = { agent: "Kit", human: "Ada" };
+  assert.match(refusal("bash", { command: "gh pr comment 1 --body Hi" }, plain)?.reason ?? "", /"_Kit writing for Ada\._" in Slack/);
 });
 
 test("the extension loads only with a config, and then fills the policy and checks tool calls", async () => {
@@ -192,13 +229,13 @@ test("the extension loads only with a config, and then fills the policy and chec
   const options = { systemPromptOptions: { sections: {} as Record<string, string> } };
   await handlers.before_agent_start(options);
   const section = options.systemPromptOptions.sections["policy-byline"];
-  assert.match(section, /`_:owl: Kit writing for Ada\._`/);
-  assert.match(section, /`🦉` elsewhere/);
+  assert.match(section, /with the byline, pull request and issue bodies included\. Write it as `_🦉 Kit writing for Ada\._` in Slack, /);
   assert.match(section, /send to someone other than the session owner/);
   assert.match(section, /Leave it off a draft the session owner sends,/);
   assert.match(section, /Never use it in chat replies to the session owner or in messages to agents/);
   assert.doesNotMatch(section, /\{/);
   assert.doesNotMatch(section, /read `/, "without a skill field the policy names no skill");
+  assert.doesNotMatch(section, /https:/, "without a url the policy links nothing");
   const call = (toolName: string, input: object) => handlers.tool_call({ toolName, input });
   assert.equal(((await call("bash", { command: "gog gmail send --body Hi" })) as { block: boolean }).block, true);
   assert.equal(await call("write", { path: "x", content: "gog gmail send --body Hi" }), undefined);
