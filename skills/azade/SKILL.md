@@ -41,7 +41,7 @@ The sender sets the voice and the byline:
 Published text is read by strangers without context. Write messages and drafts yourself.
 
 1. **Brief** the writer with facts, not phrasing: the reader and what they know, the one thing they should understand or do, every fact with its source, where the text goes with its format and length, the language, and the path of the text it replaces. Name what it may change and freeze the rest, such as the title, description, headings or UI labels.
-2. **Start** it on `openai/gpt-6.1-sol` with high thinking, with `spawn_agent` or Paseo's `create_agent` (provider `pi/openai/gpt-6.1-sol`, `thinkingOptionId: "high"`, no `workspaceId` so it reads your checkout). Prompt: "Read <this file's path> and write as its 'As the writer' section says. Brief: ...".
+2. **Start** it on the latest GPT Sol with high thinking, with `spawn_agent` or Paseo's `create_agent` (provider `pi/openai/<model id>`, `thinkingOptionId: "high"`, no `workspaceId` so it reads your checkout). Prompt: "Read <this file's path> and write as its 'As the writer' section says. Brief: ...".
 3. **Check** every name, number, link and command against its source, and that the text keeps to the brief. Send each error back to the writer rather than fixing the style yourself.
 4. **Hand** the owner the text and the writer's suggestions and questions. Publish only once the owner approves.
 
